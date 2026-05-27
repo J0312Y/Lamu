@@ -9,7 +9,10 @@ const nodemailer = require('nodemailer');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const db = require('./db');
+
+const WEBAPP_JWT_SECRET = process.env.WEBAPP_JWT_SECRET || 'lamu-webapp-change-me-in-prod';
 const app = express();
 
 // ─── Mailer — config chargée dynamiquement depuis la DB ──────────────────────
@@ -225,6 +228,18 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
+}
+
+// Webapp user-level auth — JWT issued at /api/webapp/login
+function requireWebAuth(req, res, next) {
+  const token = req.headers['x-webapp-token'] || '';
+  if (!token) return res.status(401).json({ error: 'Login required' });
+  try {
+    req.webUser = jwt.verify(token, WEBAPP_JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Session expired, please log in again' });
+  }
 }
 
 // ─── GET /api/response ────────────────────────────────────────────────────────
@@ -683,6 +698,22 @@ app.post('/api/kb/summarize', requireAuth, async (req, res) => {
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 
 app.post('/api/chat', requireAuth, async (req, res) => {
+  // ── Webapp trial message limit check ──
+  const webToken = req.headers['x-webapp-token'] || '';
+  if (webToken) {
+    try {
+      const decoded = jwt.verify(webToken, WEBAPP_JWT_SECRET);
+      if (decoded.trial) {
+        const trial = await db.queryOne('SELECT messages_used, max_messages FROM webapp_trials WHERE email = ?', [decoded.email]);
+        if (trial && trial.messages_used >= (trial.max_messages || WEBAPP_FREE_MESSAGES)) {
+          return res.status(403).json({ error: `Vous avez utilisé vos ${trial.max_messages} messages gratuits. Passez à un plan payant pour continuer.`, trial_exhausted: true });
+        }
+        // Increment counter
+        await db.query('UPDATE webapp_trials SET messages_used = messages_used + 1, last_active_at = NOW() WHERE email = ?', [decoded.email]);
+      }
+    } catch { /* token invalid — let requireAuth handle it */ }
+  }
+
   const ai = await getAiConfig();
   if (!ai.primaryUrl || !ai.primaryKey) {
     return res.status(503).json({ error: 'AI provider not configured on the server.' });
@@ -1117,6 +1148,432 @@ app.post('/api/license/login', async (req, res) => {
   } catch (err) {
     console.error('[license/login]', err.message);
     res.status(500).json({ success: false, error: 'Erreur serveur.' });
+  }
+});
+
+// ─── Webapp Auth + Conversations ─────────────────────────────────────────────
+
+// Ensure webapp tables/columns (idempotent)
+const WEBAPP_FREE_MESSAGES = 20;
+const WEBAPP_TRIAL_MAX_KB_DOCS = 1;
+const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_RATE_LIMIT_MS = 60 * 1000;   // 1 OTP per minute per email
+
+(async () => {
+  try { await db.query('ALTER TABLE conversations ADD COLUMN user_email VARCHAR(255) NULL'); } catch { /* exists */ }
+  try { await db.query('CREATE INDEX idx_conv_email ON conversations(user_email)'); } catch { /* exists */ }
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS webapp_trials (
+        email VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(150),
+        messages_used INT DEFAULT 0,
+        max_messages INT DEFAULT ${WEBAPP_FREE_MESSAGES},
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_active_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (e) { console.error('[webapp] trial table error:', e.message); }
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS webapp_otp (
+        email VARCHAR(255) PRIMARY KEY,
+        code VARCHAR(6) NOT NULL,
+        name VARCHAR(150),
+        attempts INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  } catch (e) { console.error('[webapp] otp table error:', e.message); }
+})();
+
+// POST /api/webapp/send-otp — send a 6-digit code to the email
+app.post('/api/webapp/send-otp', requireAuth, async (req, res) => {
+  const { email, name } = req.body || {};
+  if (!email) return res.status(400).json({ success: false, error: 'Email requis' });
+  const emailLower = email.trim().toLowerCase();
+
+  try {
+    // Rate limit: max 1 OTP per minute per email
+    const existing = await db.queryOne('SELECT created_at FROM webapp_otp WHERE email = ?', [emailLower]);
+    if (existing) {
+      const elapsed = Date.now() - new Date(existing.created_at).getTime();
+      if (elapsed < OTP_RATE_LIMIT_MS) {
+        const wait = Math.ceil((OTP_RATE_LIMIT_MS - elapsed) / 1000);
+        return res.json({ success: false, error: `Attendez ${wait}s avant de renvoyer un code.` });
+      }
+    }
+
+    // Generate 6-digit code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+
+    // Upsert OTP
+    await db.query(
+      `INSERT INTO webapp_otp (email, code, name, attempts, created_at)
+       VALUES (?, ?, ?, 0, NOW())
+       ON DUPLICATE KEY UPDATE code = ?, name = ?, attempts = 0, created_at = NOW()`,
+      [emailLower, code, name || null, code, name || null]
+    );
+
+    // Send email
+    const mailer = await createMailer();
+    if (!mailer) {
+      console.error('[webapp/otp] SMTP not configured');
+      return res.status(503).json({ success: false, error: 'Service email non disponible.' });
+    }
+    const smtp = await getSmtpSettings();
+    await mailer.sendMail({
+      from: smtp.from,
+      to: emailLower,
+      subject: `${code} — Votre code Lamu AI`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px">
+          <div style="text-align:center;margin-bottom:24px">
+            <div style="display:inline-block;background:linear-gradient(135deg,#6366f1,#818cf8);border-radius:12px;padding:12px 16px">
+              <span style="color:#fff;font-size:20px;font-weight:800">Lamu AI</span>
+            </div>
+          </div>
+          <h2 style="text-align:center;color:#1a1a2e;margin:0 0 8px">Votre code de vérification</h2>
+          <p style="text-align:center;color:#666;font-size:14px;margin:0 0 24px">
+            Entrez ce code dans l'application pour vous connecter${name ? `, ${name}` : ''}.
+          </p>
+          <div style="text-align:center;background:#f4f4f8;border-radius:12px;padding:20px;margin:0 0 24px">
+            <span style="font-size:36px;font-weight:800;letter-spacing:8px;color:#6366f1">${code}</span>
+          </div>
+          <p style="text-align:center;color:#999;font-size:12px">
+            Ce code expire dans 10 minutes. Si vous n'avez pas demandé ce code, ignorez cet email.
+          </p>
+        </div>`,
+    });
+
+    console.log(`[webapp/otp] ✓ Code sent to ${emailLower}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[webapp/otp]', err.message);
+    res.status(500).json({ success: false, error: 'Impossible d\'envoyer le code.' });
+  }
+});
+
+// POST /api/webapp/verify-otp — verify code and return JWT (creates trial if no license)
+app.post('/api/webapp/verify-otp', requireAuth, async (req, res) => {
+  const { email, code } = req.body || {};
+  if (!email || !code) return res.status(400).json({ success: false, error: 'Email et code requis' });
+  const emailLower = email.trim().toLowerCase();
+
+  try {
+    const otp = await db.queryOne('SELECT * FROM webapp_otp WHERE email = ?', [emailLower]);
+    if (!otp) return res.json({ success: false, error: 'Aucun code envoyé. Demandez un nouveau code.' });
+
+    // Check expiry
+    const elapsed = Date.now() - new Date(otp.created_at).getTime();
+    if (elapsed > OTP_EXPIRY_MS) {
+      await db.query('DELETE FROM webapp_otp WHERE email = ?', [emailLower]);
+      return res.json({ success: false, error: 'Code expiré. Demandez un nouveau code.' });
+    }
+
+    // Check attempts (max 5)
+    if (otp.attempts >= 5) {
+      await db.query('DELETE FROM webapp_otp WHERE email = ?', [emailLower]);
+      return res.json({ success: false, error: 'Trop de tentatives. Demandez un nouveau code.' });
+    }
+
+    // Verify code
+    if (otp.code !== code.trim()) {
+      await db.query('UPDATE webapp_otp SET attempts = attempts + 1 WHERE email = ?', [emailLower]);
+      return res.json({ success: false, error: `Code incorrect. ${4 - otp.attempts} tentative(s) restante(s).` });
+    }
+
+    // Code valid — delete OTP
+    await db.query('DELETE FROM webapp_otp WHERE email = ?', [emailLower]);
+    const nameFromOtp = otp.name;
+
+    // ── 1. Check for active license ──
+    const license = await db.queryOne(
+      `SELECT l.*, p.name as plan_name, p.features as plan_features
+       FROM licenses l LEFT JOIN plans p ON p.id = l.plan
+       WHERE l.customer_email = ? AND l.is_active = 1
+       ORDER BY l.created_at DESC LIMIT 1`,
+      [emailLower]
+    );
+
+    if (license) {
+      if (license.expires_at && new Date(license.expires_at) < new Date()) {
+        await db.query('UPDATE licenses SET is_active = 0 WHERE license_key = ?', [license.license_key]);
+        // Fall through to trial
+      } else {
+        const token = jwt.sign(
+          { email: emailLower, license_key: license.license_key, plan: license.plan, trial: false },
+          WEBAPP_JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+        console.log(`[webapp/login] ✓ ${emailLower} (licensed, plan: ${license.plan})`);
+        return res.json({
+          success: true, token,
+          user: {
+            email: emailLower,
+            name: license.customer_name || nameFromOtp || null,
+            plan: license.plan,
+            plan_name: license.plan_name || license.plan,
+            features: parseFeaturesSafe(license.plan_features),
+            max_requests: license.max_requests,
+            expires_at: license.expires_at || null,
+            trial: false,
+          },
+        });
+      }
+    }
+
+    // ── 2. No active license → free trial ──
+    await db.query(
+      `INSERT INTO webapp_trials (email, name, messages_used, max_messages)
+       VALUES (?, ?, 0, ${WEBAPP_FREE_MESSAGES})
+       ON DUPLICATE KEY UPDATE
+         last_active_at = NOW(),
+         name = IF(? IS NOT NULL AND ? != '', ?, name)`,
+      [emailLower, nameFromOtp || null, nameFromOtp, nameFromOtp, nameFromOtp || null]
+    );
+
+    const trial = await db.queryOne('SELECT * FROM webapp_trials WHERE email = ?', [emailLower]);
+    const remaining = Math.max(0, (trial.max_messages || WEBAPP_FREE_MESSAGES) - (trial.messages_used || 0));
+
+    const token = jwt.sign(
+      { email: emailLower, plan: 'free_trial', trial: true },
+      WEBAPP_JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    console.log(`[webapp/login] ✓ ${emailLower} (free trial, ${remaining}/${trial.max_messages} messages left)`);
+    res.json({
+      success: true, token,
+      user: {
+        email: emailLower,
+        name: trial.name || nameFromOtp || null,
+        plan: 'free_trial',
+        plan_name: 'Free Trial',
+        features: [],
+        max_requests: trial.max_messages || WEBAPP_FREE_MESSAGES,
+        expires_at: null,
+        trial: true,
+        messages_used: trial.messages_used || 0,
+        messages_remaining: remaining,
+      },
+    });
+  } catch (err) {
+    console.error('[webapp/verify-otp]', err.message);
+    res.status(500).json({ success: false, error: 'Erreur serveur.' });
+  }
+});
+
+// POST /api/webapp/login — kept for backward compat, now redirects to OTP flow
+app.post('/api/webapp/login', requireAuth, async (req, res) => {
+  const { email, name } = req.body || {};
+  if (!email) return res.status(400).json({ success: false, error: 'Email requis' });
+  const emailLower = email.trim().toLowerCase();
+
+  try {
+    // ── 1. Check for active license ──
+    const license = await db.queryOne(
+      `SELECT l.*, p.name as plan_name, p.features as plan_features
+       FROM licenses l
+       LEFT JOIN plans p ON p.id = l.plan
+       WHERE l.customer_email = ? AND l.is_active = 1
+       ORDER BY l.created_at DESC LIMIT 1`,
+      [emailLower]
+    );
+
+    if (license) {
+      if (license.expires_at && new Date(license.expires_at) < new Date()) {
+        await db.query('UPDATE licenses SET is_active = 0 WHERE license_key = ?', [license.license_key]);
+        // Fall through to trial
+      } else {
+        const token = jwt.sign(
+          { email: emailLower, license_key: license.license_key, plan: license.plan, trial: false },
+          WEBAPP_JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+        console.log(`[webapp/login] ✓ ${emailLower} (licensed, plan: ${license.plan})`);
+        return res.json({
+          success: true,
+          token,
+          user: {
+            email: emailLower,
+            name: license.customer_name || name || null,
+            plan: license.plan,
+            plan_name: license.plan_name || license.plan,
+            features: parseFeaturesSafe(license.plan_features),
+            max_requests: license.max_requests,
+            expires_at: license.expires_at || null,
+            trial: false,
+          },
+        });
+      }
+    }
+
+    // ── 2. No active license → free trial ──
+    await db.query(
+      `INSERT INTO webapp_trials (email, name, messages_used, max_messages)
+       VALUES (?, ?, 0, ${WEBAPP_FREE_MESSAGES})
+       ON DUPLICATE KEY UPDATE
+         last_active_at = NOW(),
+         name = IF(? IS NOT NULL AND ? != '', ?, name)`,
+      [emailLower, name || null, name, name, name || null]
+    );
+
+    const trial = await db.queryOne('SELECT * FROM webapp_trials WHERE email = ?', [emailLower]);
+    const remaining = Math.max(0, (trial.max_messages || WEBAPP_FREE_MESSAGES) - (trial.messages_used || 0));
+
+    const token = jwt.sign(
+      { email: emailLower, plan: 'free_trial', trial: true },
+      WEBAPP_JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    console.log(`[webapp/login] ✓ ${emailLower} (free trial, ${remaining}/${trial.max_messages} messages left)`);
+    res.json({
+      success: true,
+      token,
+      user: {
+        email: emailLower,
+        name: trial.name || name || null,
+        plan: 'free_trial',
+        plan_name: 'Free Trial',
+        features: [],
+        max_requests: trial.max_messages || WEBAPP_FREE_MESSAGES,
+        expires_at: null,
+        trial: true,
+        messages_used: trial.messages_used || 0,
+        messages_remaining: remaining,
+      },
+    });
+  } catch (err) {
+    console.error('[webapp/login]', err.message);
+    res.status(500).json({ success: false, error: 'Erreur serveur.' });
+  }
+});
+
+// POST /api/webapp/verify — validate JWT, return user info (licensed or trial)
+app.post('/api/webapp/verify', requireAuth, async (req, res) => {
+  const token = req.headers['x-webapp-token'] || '';
+  if (!token) return res.json({ valid: false });
+  try {
+    const decoded = jwt.verify(token, WEBAPP_JWT_SECRET);
+
+    // ── Trial user ──
+    if (decoded.trial) {
+      const trial = await db.queryOne('SELECT * FROM webapp_trials WHERE email = ?', [decoded.email]);
+      if (!trial) return res.json({ valid: false, error: 'Trial not found' });
+      const remaining = Math.max(0, (trial.max_messages || WEBAPP_FREE_MESSAGES) - (trial.messages_used || 0));
+      return res.json({
+        valid: true,
+        user: {
+          email: decoded.email,
+          name: trial.name || null,
+          plan: 'free_trial',
+          plan_name: 'Free Trial',
+          features: [],
+          max_requests: trial.max_messages || WEBAPP_FREE_MESSAGES,
+          expires_at: null,
+          trial: true,
+          messages_used: trial.messages_used || 0,
+          messages_remaining: remaining,
+        },
+      });
+    }
+
+    // ── Licensed user ──
+    const license = await db.queryOne(
+      `SELECT l.customer_name, l.plan, l.max_requests, l.expires_at, p.name as plan_name, p.features as plan_features
+       FROM licenses l LEFT JOIN plans p ON p.id = l.plan
+       WHERE l.license_key = ? AND l.is_active = 1 LIMIT 1`,
+      [decoded.license_key]
+    );
+    if (!license) return res.json({ valid: false, error: 'License inactive' });
+    res.json({
+      valid: true,
+      user: {
+        email: decoded.email,
+        name: license.customer_name || null,
+        plan: license.plan,
+        plan_name: license.plan_name || license.plan,
+        features: parseFeaturesSafe(license.plan_features),
+        max_requests: license.max_requests,
+        expires_at: license.expires_at || null,
+        trial: false,
+      },
+    });
+  } catch {
+    res.json({ valid: false, error: 'Token expired' });
+  }
+});
+
+// GET /api/webapp/conversations — list user's conversations
+app.get('/api/webapp/conversations', requireAuth, requireWebAuth, async (req, res) => {
+  try {
+    const convs = await db.query(
+      `SELECT c.id, c.title, c.created_at as createdAt, c.updated_at as updatedAt
+       FROM conversations c
+       WHERE c.user_email = ? AND c.source = 'webapp'
+       ORDER BY c.updated_at DESC LIMIT 50`,
+      [req.webUser.email]
+    );
+    // Load messages for each conversation
+    const result = [];
+    for (const c of convs) {
+      const msgs = await db.query(
+        'SELECT id, role, content FROM messages WHERE conversation_id = ? ORDER BY timestamp ASC',
+        [c.id]
+      );
+      result.push({ ...c, messages: msgs });
+    }
+    res.json({ conversations: result });
+  } catch (err) {
+    console.error('[webapp/conversations]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/webapp/conversations/save — upsert a conversation + its messages
+app.post('/api/webapp/conversations/save', requireAuth, requireWebAuth, async (req, res) => {
+  const { id, title, messages, createdAt } = req.body || {};
+  if (!id || !Array.isArray(messages)) return res.status(400).json({ error: 'id and messages[] required' });
+  try {
+    const now = Date.now();
+    await db.query(
+      `INSERT INTO conversations (id, title, created_at, updated_at, source, user_email)
+       VALUES (?, ?, ?, ?, 'webapp', ?)
+       ON DUPLICATE KEY UPDATE title = VALUES(title), updated_at = VALUES(updated_at)`,
+      [id, title || 'New conversation', createdAt || now, now, req.webUser.email]
+    );
+    for (const m of messages) {
+      if (!m.id || !m.role || !m.content) continue;
+      await db.query(
+        `INSERT INTO messages (id, conversation_id, role, content, timestamp, source)
+         VALUES (?, ?, ?, ?, ?, 'webapp')
+         ON DUPLICATE KEY UPDATE content = VALUES(content)`,
+        [m.id, id, m.role, m.content, Date.now()]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[webapp/conversations/save]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/webapp/conversations/:id — delete a user's conversation
+app.delete('/api/webapp/conversations/:id', requireAuth, requireWebAuth, async (req, res) => {
+  try {
+    // Only delete if owned by this user
+    const conv = await db.queryOne(
+      'SELECT id FROM conversations WHERE id = ? AND user_email = ?',
+      [req.params.id, req.webUser.email]
+    );
+    if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+    await db.query('DELETE FROM messages WHERE conversation_id = ?', [req.params.id]);
+    await db.query('DELETE FROM conversations WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

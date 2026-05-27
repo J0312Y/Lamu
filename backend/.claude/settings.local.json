@@ -26,7 +26,15 @@
       "Bash(findstr /I \"lamu tauri\")",
       "Bash(taskkill //PID 20176 //F)",
       "Bash(taskkill //PID 36580 //F)",
-      "Bash(cargo clean:*)"
+      "Bash(cargo clean:*)",
+      "Bash(node admin/server.js)",
+      "Bash(node -e \"require\\('jsonwebtoken'\\)\")",
+      "Bash(pushd \"D:/AI assistant/Lamu/website\")",
+      "Bash(popd)",
+      "Bash(pushd \"D:/AI assistant/Lamu/backend\")",
+      "Bash(node -e \"require\\('./server.js'\\)\")",
+      "Bash(pushd \"D:\\\\AI assistant\\\\Lamu\\\\website\")",
+      "Bash(npx --prefix \"D:/AI assistant/Lamu/website\" tsc --noEmit --project \"D:/AI assistant/Lamu/website/tsconfig.json\")"
     ]
   }
 }

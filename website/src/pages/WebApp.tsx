@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Bot, User, Plus, MessageSquare, Trash2,
-  Settings, X, BookOpen, Home,
+  Settings, X, BookOpen, Home, LogOut, Mail,
   Globe, Upload, GitBranch, ChevronRight, CheckCircle,
   Menu, Database, FileText, Zap, Mic, Link,
   ChevronDown, Sparkles, Brain, Search, BarChart2,
@@ -19,12 +19,16 @@ interface Message      { id: string; role: 'user' | 'assistant'; content: string
 interface Conversation { id: string; title: string; messages: Message[]; createdAt: number }
 interface Prompt       { title: string; prompt: string }
 interface Model        { model: string; name: string; isAvailable: boolean }
+interface WebUser      { email: string; name: string | null; plan: string; plan_name: string; features: string[]; max_requests: number; expires_at: string | null; trial?: boolean; messages_used?: number; messages_remaining?: number }
 
 function uid() { return Math.random().toString(36).slice(2) }
 const STORE = 'lamu_web_conversations'
+const TOKEN_KEY = 'lamu_web_token'
 const loadConvs = (): Conversation[] => { try { return JSON.parse(localStorage.getItem(STORE) || '[]') } catch { return [] } }
 const saveConvs = (c: Conversation[]) => localStorage.setItem(STORE, JSON.stringify(c))
 const titleFrom = (msgs: Message[]) => { const f = msgs.find(m => m.role === 'user'); return f ? f.content.slice(0, 48) + (f.content.length > 48 ? '…' : '') : 'New conversation' }
+const getToken = () => localStorage.getItem(TOKEN_KEY) || ''
+const webHdrs = () => ({ 'Content-Type': 'application/json', 'X-Webapp-Token': getToken() })
 
 // ── Atoms ──────────────────────────────────────────────────────────────────────
 
@@ -205,7 +209,7 @@ type SourceKey = 'url' | 'pdf' | 'text' | 'github' | 'notion' | 'gdrive' | 'conf
 
 const NATIVE_SOURCES: SourceKey[] = ['url', 'pdf', 'text']
 
-function SourceModal({ srcKey, onClose, onAdded }: { srcKey: SourceKey; onClose: () => void; onAdded: (doc: KbDoc) => void }) {
+function SourceModal({ srcKey, onClose, onAdded, trialLimitReached }: { srcKey: SourceKey; onClose: () => void; onAdded: (doc: KbDoc) => void; trialLimitReached?: boolean }) {
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const [url,     setUrl]     = useState('')
@@ -337,25 +341,47 @@ function SourceModal({ srcKey, onClose, onAdded }: { srcKey: SourceKey; onClose:
 
               {error && <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: 13 }}>{error}</div>}
 
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-                <button onClick={submit} disabled={loading} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: loading ? 'rgba(99,102,241,0.4)' : '#6366f1', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
-                  {loading ? <><Spinner /> Adding…</> : 'Add to knowledge base'}
-                </button>
-              </div>
+              {trialLimitReached ? (
+                <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                  <p style={{ fontSize: 13, color: '#fbbf24', marginBottom: 14 }}>Limite atteinte — le Free Trial est limité à 1 document.</p>
+                  <a href="/pricing" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                    Passer à un plan payant
+                  </a>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+                  <button onClick={submit} disabled={loading} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: loading ? 'rgba(99,102,241,0.4)' : '#6366f1', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
+                    {loading ? <><Spinner /> Adding…</> : 'Add to knowledge base'}
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
               <div style={{ width: 52, height: 52, borderRadius: 14, background: meta.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <Icon size={24} style={{ color: meta.color }} />
               </div>
-              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 20 }}>
-                <strong style={{ color: '#fff' }}>{meta.label}</strong> integration is available in the <strong style={{ color: '#fff' }}>Lamu desktop app</strong>.<br />
-                Download the app to connect {meta.label} and sync your knowledge automatically.
-              </p>
-              <a href="/downloads" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 8, background: '#fff', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                Download Lamu
-              </a>
+              {trialLimitReached ? (
+                <>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 20 }}>
+                    Les intégrations comme <strong style={{ color: '#fff' }}>{meta.label}</strong> nécessitent un plan payant.
+                  </p>
+                  <a href="/pricing" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                    Passer à un plan payant
+                  </a>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 20 }}>
+                    <strong style={{ color: '#fff' }}>{meta.label}</strong> integration is available in the <strong style={{ color: '#fff' }}>Lamu desktop app</strong>.<br />
+                    Download the app to connect {meta.label} and sync your knowledge automatically.
+                  </p>
+                  <a href="/downloads" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 8, background: '#fff', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                    Download Lamu
+                  </a>
+                </>
+              )}
             </div>
           )}
         </motion.div>
@@ -366,7 +392,7 @@ function SourceModal({ srcKey, onClose, onAdded }: { srcKey: SourceKey; onClose:
 
 // ── KB management view ─────────────────────────────────────────────────────────
 
-function KbView({ onClose }: { onClose: () => void }) {
+function KbView({ onClose, isTrial }: { onClose: () => void; isTrial?: boolean }) {
   const [docs,          setDocs]          = useState<KbDoc[]>([])
   const [loading,       setLoading]       = useState(true)
   const [srcKey,        setSrcKey]        = useState<SourceKey | null>(null)
@@ -533,7 +559,7 @@ function KbView({ onClose }: { onClose: () => void }) {
 
       {/* Source sub-modal */}
       {srcKey && (
-        <SourceModal srcKey={srcKey} onClose={() => setSrcKey(null)} onAdded={doc => { setDocs(prev => [...prev, doc]); setSrcKey(null) }} />
+        <SourceModal srcKey={srcKey} onClose={() => setSrcKey(null)} onAdded={doc => { setDocs(prev => [...prev, doc]); setSrcKey(null) }} trialLimitReached={isTrial && docs.length >= 1} />
       )}
     </motion.div>
   )
@@ -607,12 +633,21 @@ const SRC_KEY_MAP: Record<string, SourceKey> = {
   'Jira': 'jira', 'Shopify': 'shopify', 'Salesforce': 'salesforce', 'SharePoint': 'sharepoint',
 }
 
-function HomeView({ hasChatted, onNewChat, setView }: { hasChatted: boolean; onNewChat: () => void; setView: (v: View) => void }) {
+function HomeView({ hasChatted, onNewChat, setView, isTrial }: { hasChatted: boolean; onNewChat: () => void; setView: (v: View) => void; isTrial?: boolean }) {
   const [s1, setS1] = useState(true)
   const [s3, setS3] = useState(false)
   const [srcKey, setSrcKey] = useState<SourceKey | null>(null)
   const [showKb, setShowKb] = useState(false)
+  const [docCount, setDocCount] = useState(0)
   const done = [false, hasChatted, false]
+
+  useEffect(() => {
+    if (!isTrial) return
+    fetch(`${API_BASE}/api/kb`, { headers: hdrs() })
+      .then(r => r.ok ? r.json() : { docs: [] })
+      .then(d => setDocCount((d.docs || []).length))
+      .catch(() => {})
+  }, [isTrial])
   const count = done.filter(Boolean).length
 
   return (
@@ -728,8 +763,8 @@ function HomeView({ hasChatted, onNewChat, setView }: { hasChatted: boolean; onN
 
       {/* Modals */}
       <AnimatePresence>
-        {srcKey && <SourceModal srcKey={srcKey} onClose={() => setSrcKey(null)} onAdded={() => setSrcKey(null)} />}
-        {showKb && <KbView onClose={() => setShowKb(false)} />}
+        {srcKey && <SourceModal srcKey={srcKey} onClose={() => setSrcKey(null)} onAdded={() => { setDocCount(c => c + 1); setSrcKey(null) }} trialLimitReached={isTrial && docCount >= 1} />}
+        {showKb && <KbView onClose={() => setShowKb(false)} isTrial={isTrial} />}
       </AnimatePresence>
     </div>
   )
@@ -777,8 +812,12 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
         const prev = convs.find(c => c.id === convId)?.messages ?? []
       const body: any = { messages: [...prev, uMsg].map(m => ({ role: m.role, content: m.content })), model: model || undefined, system: system || undefined }
       if (kbContext?.id) body.kbIds = [kbContext.id]
-      const resp = await fetch(`${API_BASE}/api/chat`, { method: 'POST', headers: hdrs(), body: JSON.stringify(body), signal: abortRef.current.signal })
-      if (!resp.ok || !resp.body) { const e = await resp.json().catch(() => ({ error: 'Request failed' })); throw new Error(e.error || `Server error ${resp.status}`) }
+      const resp = await fetch(`${API_BASE}/api/chat`, { method: 'POST', headers: webHdrs(), body: JSON.stringify(body), signal: abortRef.current.signal })
+      if (!resp.ok || !resp.body) {
+        const e = await resp.json().catch(() => ({ error: 'Request failed' }))
+        if (e.trial_exhausted) throw new Error(e.error + '\n\n[TRIAL_EXHAUSTED]')
+        throw new Error(e.error || `Server error ${resp.status}`)
+      }
       const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = ''
       while (true) {
         const { done, value } = await reader.read(); if (done) break
@@ -1256,11 +1295,157 @@ function DashboardView() {
   )
 }
 
+// ── Login ─────────────────────────────────────────────────────────────────────
+
+function LoginView({ onLogin }: { onLogin: (token: string, user: WebUser) => void }) {
+  const [step,    setStep]    = useState<'email' | 'otp'>('email')
+  const [email,   setEmail]   = useState('')
+  const [name,    setName]    = useState('')
+  const [code,    setCode]    = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
+  const [resendCd, setResendCd] = useState(0)
+  const codeRef = useRef<HTMLInputElement>(null)
+
+  // Countdown for resend button
+  useEffect(() => {
+    if (resendCd <= 0) return
+    const t = setTimeout(() => setResendCd(v => v - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendCd])
+
+  const sendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    const trimmed = email.trim()
+    if (!trimmed) { setError('Entrez votre email'); return }
+    setError(''); setLoading(true)
+    try {
+      const r = await fetch(`${API_BASE}/api/webapp/send-otp`, { method: 'POST', headers: hdrs(), body: JSON.stringify({ email: trimmed, name: name.trim() || undefined }) })
+      const d = await r.json()
+      if (!d.success) { setError(d.error || 'Erreur'); setLoading(false); return }
+      setStep('otp')
+      setResendCd(60)
+      setTimeout(() => codeRef.current?.focus(), 100)
+    } catch {
+      setError('Impossible de contacter le serveur.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const verifyOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    const trimmed = code.trim()
+    if (trimmed.length !== 6) { setError('Entrez le code à 6 chiffres'); return }
+    setError(''); setLoading(true)
+    try {
+      const r = await fetch(`${API_BASE}/api/webapp/verify-otp`, { method: 'POST', headers: hdrs(), body: JSON.stringify({ email: email.trim(), code: trimmed }) })
+      const d = await r.json()
+      if (!d.success) { setError(d.error || 'Code invalide'); setLoading(false); return }
+      localStorage.setItem(TOKEN_KEY, d.token)
+      onLogin(d.token, d.user)
+    } catch {
+      setError('Impossible de contacter le serveur.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = { width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '13px 14px 13px 40px', color: '#fff', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }
+  const btnStyle: React.CSSProperties = { padding: '13px 20px', borderRadius: 12, border: 'none', background: loading ? 'rgba(99,102,241,0.4)' : 'linear-gradient(135deg,#6366f1,#5254cc)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%' }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#080808', padding: 20 }}>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} key={step}
+        style={{ width: '100%', maxWidth: 400, padding: 32, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg,#6366f1,#818cf8)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', boxShadow: '0 0 40px rgba(99,102,241,0.3)' }}>
+            <Bot size={26} color="#fff" />
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: '0 0 6px', letterSpacing: '-0.5px' }}>Lamu AI</h1>
+          {step === 'email' ? (
+            <>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 12px' }}>Votre assistant IA avec base de connaissances</p>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                <Zap size={12} style={{ color: '#4ade80' }} />
+                <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 600 }}>20 messages gratuits — aucune carte requise</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: 0 }}>
+                Code envoyé à <strong style={{ color: '#fff' }}>{email}</strong>
+              </p>
+            </>
+          )}
+        </div>
+
+        {step === 'email' ? (
+          <form onSubmit={sendOtp} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ position: 'relative' }}>
+              <Mail size={15} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="votre@email.com" autoFocus
+                style={inputStyle}
+                onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.5)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.12)')} />
+            </div>
+            <div style={{ position: 'relative' }}>
+              <User size={15} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Votre nom (optionnel)"
+                style={inputStyle}
+                onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.5)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.12)')} />
+            </div>
+            {error && <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: 13 }}>{error}</div>}
+            <button type="submit" disabled={loading} style={btnStyle}>
+              {loading ? <><Spinner /> Envoi du code…</> : 'Recevoir un code par email'}
+            </button>
+            <p style={{ textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.2)', marginTop: 4 }}>
+              Vous avez une licence ? Entrez le même email — votre plan sera automatiquement activé.
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={verifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ position: 'relative' }}>
+              <Shield size={15} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.3)', pointerEvents: 'none' }} />
+              <input ref={codeRef} type="text" inputMode="numeric" maxLength={6} value={code}
+                onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 6); setCode(v); if (v.length === 6) { setCode(v); setTimeout(() => verifyOtp(), 50) } }}
+                placeholder="000000"
+                style={{ ...inputStyle, textAlign: 'center', fontSize: 24, fontWeight: 800, letterSpacing: 8, paddingLeft: 14 }}
+                onFocus={e => (e.target.style.borderColor = 'rgba(99,102,241,0.5)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.12)')} />
+            </div>
+            {error && <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#fca5a5', fontSize: 13 }}>{error}</div>}
+            <button type="submit" disabled={loading || code.length !== 6} style={btnStyle}>
+              {loading ? <><Spinner /> Vérification…</> : 'Vérifier le code'}
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 4 }}>
+              <button type="button" onClick={() => { setStep('email'); setCode(''); setError('') }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 12, textDecoration: 'underline' }}>
+                Changer d'email
+              </button>
+              <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+              <button type="button" onClick={() => { setCode(''); setError(''); sendOtp() }} disabled={resendCd > 0 || loading}
+                style={{ background: 'none', border: 'none', cursor: resendCd > 0 ? 'default' : 'pointer', color: resendCd > 0 ? 'rgba(255,255,255,0.2)' : '#818cf8', fontSize: 12, textDecoration: resendCd > 0 ? 'none' : 'underline' }}>
+                {resendCd > 0 ? `Renvoyer (${resendCd}s)` : 'Renvoyer le code'}
+              </button>
+            </div>
+          </form>
+        )}
+      </motion.div>
+    </div>
+  )
+}
+
 // ── Root ───────────────────────────────────────────────────────────────────────
 
 export default function WebApp() {
-  const [view,       setView]       = useState<View>('knowledge')
-  const [convs,      setConvs]      = useState<Conversation[]>(loadConvs)
+  const [user,       setUser]       = useState<WebUser | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [view,       setView]       = useState<View>('home')
+  const [convs,      setConvs]      = useState<Conversation[]>([])
   const [activeId,   setActiveId]   = useState<string | null>(null)
   const [streaming,  setStreaming]  = useState(false)
   const [prompts,    setPrompts]    = useState<Prompt[]>([])
@@ -1270,21 +1455,97 @@ export default function WebApp() {
   const [mobileSide, setMobileSide] = useState(false)
   const [showKbRoot, setShowKbRoot] = useState(false)
   const [kbContext, setKbContext] = useState<{ id: string; name: string; excerpt: string } | null>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const hasChatted = convs.some(c => c.messages.some(m => m.role === 'user'))
 
-  useEffect(() => { saveConvs(convs) }, [convs])
-
+  // ── Auth: verify token on mount ──
   useEffect(() => {
+    const token = getToken()
+    if (!token) { setAuthLoading(false); return }
+    fetch(`${API_BASE}/api/webapp/verify`, { method: 'POST', headers: webHdrs() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.valid) setUser(d.user)
+        else { localStorage.removeItem(TOKEN_KEY); setUser(null) }
+      })
+      .catch(() => { setUser(null) })
+      .finally(() => setAuthLoading(false))
+  }, [])
+
+  // ── Load conversations from server after login ──
+  useEffect(() => {
+    if (!user) return
+    fetch(`${API_BASE}/api/webapp/conversations`, { headers: webHdrs() })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.conversations?.length) {
+          setConvs(d.conversations)
+        } else {
+          // Fallback: load from localStorage for migration
+          const local = loadConvs()
+          if (local.length) setConvs(local)
+        }
+      })
+      .catch(() => { setConvs(loadConvs()) })
+  }, [user])
+
+  // ── Save conversations: localStorage + debounced server sync ──
+  useEffect(() => {
+    saveConvs(convs)
+    if (!user || convs.length === 0) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      // Save each conversation with messages to server
+      for (const c of convs) {
+        if (c.messages.length === 0) continue
+        fetch(`${API_BASE}/api/webapp/conversations/save`, {
+          method: 'POST', headers: webHdrs(),
+          body: JSON.stringify({ id: c.id, title: c.title, messages: c.messages, createdAt: c.createdAt }),
+        }).catch(() => {})
+      }
+    }, 2000)
+  }, [convs, user])
+
+  // ── Load prompts + models ──
+  useEffect(() => {
+    if (!user) return
     fetch(`${API_BASE}/api/prompts`, { method: 'POST', headers: hdrs() })
       .then(r => r.ok ? r.json() : null).then(d => d && setPrompts(d.prompts || [])).catch(() => {})
     fetch(`${API_BASE}/api/models`, { method: 'POST', headers: hdrs() })
       .then(r => r.ok ? r.json() : null).then(d => { if (!d) return; const av = (d.models || []).filter((m: Model) => m.isAvailable); setModels(av); if (av.length) setModel(av[0].model) }).catch(() => {})
+  }, [user])
+
+  const handleLogin = useCallback((_token: string, u: WebUser) => { setUser(u) }, [])
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY)
+    setUser(null); setConvs([]); setActiveId(null); setView('home')
   }, [])
 
-  const delConv  = useCallback((id: string) => { setConvs(p => p.filter(c => c.id !== id)); setActiveId(p => p === id ? null : p) }, [])
+  const delConv = useCallback((id: string) => {
+    setConvs(p => p.filter(c => c.id !== id))
+    setActiveId(p => p === id ? null : p)
+    // Delete from server
+    fetch(`${API_BASE}/api/webapp/conversations/${id}`, { method: 'DELETE', headers: webHdrs() }).catch(() => {})
+  }, [])
+
   const newChat  = useCallback(() => { const c: Conversation = { id: uid(), title: 'New conversation', messages: [], createdAt: Date.now() }; setConvs(p => [...p, c]); setActiveId(c.id); setView('chat'); setMobileSide(false) }, [])
   const selConv  = useCallback((id: string) => { setActiveId(id); setView('chat'); setMobileSide(false) }, [])
+
+  // ── Auth loading screen ──
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#080808' }}>
+        <Spinner />
+      </div>
+    )
+  }
+
+  // ── Login screen ──
+  if (!user) {
+    return <LoginView onLogin={handleLogin} />
+  }
 
   const sidebar = (mobile = false, onClose?: () => void) => (
     <Sidebar view={view} setView={setView} convs={convs} activeId={activeId} onNew={newChat} onSelect={selConv} onDelete={delConv} onClose={onClose} mobile={mobile} onKb={() => setShowKbRoot(true)} />
@@ -1309,13 +1570,36 @@ export default function WebApp() {
       </AnimatePresence>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        {/* Mobile topbar */}
-        <div className="mobile-topbar" style={{ display: 'none', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', alignItems: 'center', gap: 10, background: 'rgba(8,8,8,0.9)', flexShrink: 0 }}>
-          <button onClick={() => setMobileSide(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', padding: 4 }}><Menu size={18} /></button>
-          <span style={{ fontWeight: 600, fontSize: 14, color: '#fff' }}>{view === 'home' ? 'Home' : view === 'chat' ? 'Conversations' : view === 'knowledge' ? 'Knowledge' : view === 'dashboard' ? 'Dashboard' : 'Settings'}</span>
+        {/* Top user bar */}
+        <div style={{ padding: '6px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(8,8,8,0.9)', flexShrink: 0 }}>
+          <button className="mobile-menu-btn" onClick={() => setMobileSide(true)} style={{ display: 'none', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', padding: 4 }}><Menu size={16} /></button>
+          <div style={{ flex: 1 }} />
+          {user.trial && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 4 }}>
+              <div style={{ fontSize: 11, color: (user.messages_remaining ?? 0) <= 5 ? '#fbbf24' : 'rgba(255,255,255,0.4)' }}>
+                {user.messages_remaining ?? 0}/{user.max_requests} messages
+              </div>
+              <div style={{ width: 60, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 2, background: (user.messages_remaining ?? 0) <= 5 ? '#f59e0b' : '#6366f1', width: `${((user.messages_remaining ?? 0) / user.max_requests) * 100}%`, transition: 'width 0.3s' }} />
+              </div>
+            </div>
+          )}
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{user.email}</span>
+          <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, background: user.trial ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.15)', color: user.trial ? '#4ade80' : '#818cf8', fontWeight: 600 }}>{user.plan_name}</span>
+          {user.trial && (
+            <a href="/pricing" style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              Upgrade
+            </a>
+          )}
+          <button onClick={handleLogout} title="Se déconnecter"
+            style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(248,113,113,0.3)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.4)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)' }}>
+            <LogOut size={12} />
+          </button>
         </div>
 
-        {view === 'home'     && <HomeView hasChatted={hasChatted} onNewChat={newChat} setView={setView} />}
+        {view === 'home'     && <HomeView hasChatted={hasChatted} onNewChat={newChat} setView={setView} isTrial={user?.trial} />}
         {view === 'chat'     && <ChatView convs={convs} activeId={activeId} setActiveId={setActiveId} setConvs={setConvs} model={model} models={models} setModel={setModel} system={system} setSystem={setSystem} prompts={prompts} streaming={streaming} setStreaming={setStreaming} kbContext={kbContext} clearKbContext={() => setKbContext(null)} />}
         {view === 'knowledge' && <KnowledgeSearchView onAskDoc={doc => { setSystem(`Use the following source to answer the next question:\n\n${doc.name}\n\n${doc.excerpt || 'No preview available.'}`); setKbContext({ id: doc.id, name: doc.name, excerpt: doc.excerpt || '' }); setView('chat') }} />}
         {view === 'dashboard' && <DashboardView />}
@@ -1323,12 +1607,16 @@ export default function WebApp() {
       </div>
 
       <AnimatePresence>
-        {showKbRoot && <KbView onClose={() => setShowKbRoot(false)} />}
+        {showKbRoot && <KbView onClose={() => setShowKbRoot(false)} isTrial={user.trial} />}
       </AnimatePresence>
 
       <style>{`
         .desktop-sidebar { display: flex !important; }
-        .mobile-topbar { display: none !important; }
+        .mobile-menu-btn { display: none !important; }
+        @media (max-width: 768px) {
+          .desktop-sidebar { display: none !important; }
+          .mobile-menu-btn { display: flex !important; }
+        }
       `}</style>
     </div>
   )
