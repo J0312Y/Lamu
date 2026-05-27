@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "chats": "Conversations",
+    "systemPrompts": "Invites système",
+    "settings": "Paramètres",
+    "responses": "Réponses",
+    "screenshot": "Capture d'écran",
+    "audio": "Audio",
+    "shortcuts": "Curseur & Raccourcis",
+    "knowledge": "Base de connaissance",
+    "devSpace": "Espace développeur"
+  },
+  "kb": {
+    "title": "Base de connaissance",
+    "description": "Gérez les documents, sources et la recherche sémantique pour le contexte IA.",
+    "documents": "documents",
+    "chunks": "segments",
+    "embedded": "vectorisés",
+    "tabs": {
+      "search": "Recherche",
+      "documents": "Documents",
+      "sources": "Sources",
+      "settings": "Paramètres"
+    },
+    "search": {
+      "placeholder": "Posez une question ou recherchez dans votre base…",
+      "button": "Rechercher",
+      "results": "résultats pour",
+      "noResults": "Aucun résultat. Essayez une autre requête ou ajoutez des documents.",
+      "empty": "Votre base de connaissance est vide.",
+      "emptyHint": "Ajoutez des documents dans l'onglet Documents pour commencer.",
+      "match": "correspondance"
+    },
+    "documents": {
+      "urlPlaceholder": "https://… collez une URL à indexer",
+      "addUrl": "Ajouter l'URL",
+      "dropZone": "Déposez des fichiers ici ou cliquez pour téléverser",
+      "dropZoneHint": "PDF, DOCX, TXT, Markdown, CSV pris en charge",
+      "exportCsv": "Exporter CSV",
+      "noDocuments": "Aucun document. Téléversez un fichier ou ajoutez une URL.",
+      "accessLevel": "Niveau d'accès",
+      "delete": "Supprimer"
+    },
+    "sources": {
+      "watchedFolders": "Dossiers surveillés",
+      "watchedFoldersDesc": "Les fichiers ajoutés ou modifiés sont automatiquement indexés.",
+      "addFolder": "Ajouter un dossier",
+      "noFolders": "Aucun dossier surveillé.",
+      "integrations": "Intégrations",
+      "integrationsDesc": "Connectez Notion, Google Drive, SharePoint, Confluence ou Jira.",
+      "sync": "Synchroniser",
+      "autoSync": "Synchronisation auto toutes les",
+      "manualOnly": "Manuel seulement",
+      "connect": "Connecter",
+      "authorize": "Autoriser dans le navigateur",
+      "cancel": "Annuler",
+      "disconnect": "Déconnecter",
+      "notSynced": "Pas encore synchronisé",
+      "lastSynced": "Dernière synchro"
+    },
+    "settings": {
+      "embeddingProvider": "Fournisseur de vectorisation",
+      "embeddingDesc": "Contrôle comment les segments sont convertis en vecteurs pour la recherche sémantique.",
+      "ollama": "Ollama (local)",
+      "openai": "OpenAI",
+      "none": "Aucun",
+      "ollamaUrl": "URL Ollama",
+      "model": "Modèle",
+      "apiKey": "Clé API OpenAI",
+      "noEmbedding": "Documents stockés sans vectorisation — recherche indisponible.",
+      "reembed": "Re-vectoriser les documents",
+      "reembedDesc": "Utile après avoir changé de fournisseur de vectorisation.",
+      "embedMissing": "Vectoriser les manquants",
+      "reembedAll": "Re-vectoriser tout",
+      "webhooks": "Webhooks sortants",
+      "webhooksDesc": "Envoyez les réponses IA ou résultats vers Slack ou Teams.",
+      "addWebhook": "Ajouter un webhook",
+      "save": "Enregistrer",
+      "webhookPlaceholder": "https://hooks.slack.com/services/…",
+      "namePlaceholder": "Nom (optionnel)"
+    },
+    "access": {
+      "public": "public",
+      "internal": "interne",
+      "confidential": "confidentiel",
+      "secret": "secret"
+    },
+    "ingest": {
+      "crawling": "Exploration de",
+      "parsing": "Analyse de",
+      "embedding": "Vectorisation",
+      "chunks": "segments"
+    }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "language": "Langue",
+    "languageDesc": "Choisissez la langue de l'interface."
+  },
+  "common": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "add": "Ajouter",
+    "loading": "Chargement…",
+    "error": "Erreur"
+  }
+}

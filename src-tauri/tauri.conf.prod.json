@@ -1,0 +1,7 @@
+{
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://api.lamuka.com/api/update"]
+    }
+  }
+}

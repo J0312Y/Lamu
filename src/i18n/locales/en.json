@@ -1,0 +1,109 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "chats": "Chats",
+    "systemPrompts": "System Prompts",
+    "settings": "App Settings",
+    "responses": "Responses",
+    "screenshot": "Screenshot",
+    "audio": "Audio",
+    "shortcuts": "Cursor & Shortcuts",
+    "knowledge": "Knowledge Base",
+    "devSpace": "Dev Space"
+  },
+  "kb": {
+    "title": "Knowledge Base",
+    "description": "Manage documents, sources, and semantic search for AI context.",
+    "documents": "documents",
+    "chunks": "chunks",
+    "embedded": "embedded",
+    "tabs": {
+      "search": "Search",
+      "documents": "Documents",
+      "sources": "Sources",
+      "settings": "Settings"
+    },
+    "search": {
+      "placeholder": "Ask a question or search your knowledge base…",
+      "button": "Search",
+      "results": "results for",
+      "noResults": "No results found. Try a different query or add more documents.",
+      "empty": "Your knowledge base is empty.",
+      "emptyHint": "Add documents in the Documents tab to get started.",
+      "match": "match"
+    },
+    "documents": {
+      "urlPlaceholder": "https://… paste a URL to crawl and ingest",
+      "addUrl": "Add URL",
+      "dropZone": "Drop files here or click to upload",
+      "dropZoneHint": "PDF, DOCX, TXT, Markdown, CSV",
+      "exportCsv": "Export CSV",
+      "noDocuments": "No documents yet. Upload a file or add a URL above.",
+      "accessLevel": "Access level",
+      "delete": "Delete"
+    },
+    "sources": {
+      "watchedFolders": "Watched Folders",
+      "watchedFoldersDesc": "Files added or modified are automatically ingested.",
+      "addFolder": "Add Folder",
+      "noFolders": "No folders watched yet.",
+      "integrations": "Integrations",
+      "integrationsDesc": "Connect Notion, Google Drive, SharePoint, Confluence, or Jira.",
+      "sync": "Sync",
+      "autoSync": "Auto-sync every",
+      "manualOnly": "Manual only",
+      "connect": "Connect",
+      "authorize": "Authorize in Browser",
+      "cancel": "Cancel",
+      "disconnect": "Disconnect",
+      "notSynced": "Not yet synced",
+      "lastSynced": "Last synced"
+    },
+    "settings": {
+      "embeddingProvider": "Embedding Provider",
+      "embeddingDesc": "Controls how chunks are converted to vectors for semantic search.",
+      "ollama": "Ollama (local)",
+      "openai": "OpenAI",
+      "none": "None",
+      "ollamaUrl": "Ollama URL",
+      "model": "Model",
+      "apiKey": "OpenAI API Key",
+      "noEmbedding": "Documents stored without embeddings — search unavailable.",
+      "reembed": "Re-embed Documents",
+      "reembedDesc": "Useful after switching embedding providers.",
+      "embedMissing": "Embed missing",
+      "reembedAll": "Re-embed all",
+      "webhooks": "Outgoing Webhooks",
+      "webhooksDesc": "Post AI responses or KB results to Slack or Teams channels.",
+      "addWebhook": "Add Webhook",
+      "save": "Save",
+      "webhookPlaceholder": "https://hooks.slack.com/services/…",
+      "namePlaceholder": "Name (optional)"
+    },
+    "access": {
+      "public": "public",
+      "internal": "internal",
+      "confidential": "confidential",
+      "secret": "secret"
+    },
+    "ingest": {
+      "crawling": "Crawling",
+      "parsing": "Parsing",
+      "embedding": "Embedding",
+      "chunks": "chunks"
+    }
+  },
+  "settings": {
+    "title": "App Settings",
+    "language": "Language",
+    "languageDesc": "Choose the interface language."
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "add": "Add",
+    "loading": "Loading…",
+    "error": "Error"
+  }
+}
