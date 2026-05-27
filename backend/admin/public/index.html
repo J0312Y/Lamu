@@ -570,6 +570,11 @@ body.theme-dark .cn-slider{background:#374151}
 .notif-title{font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
 .notif-body{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
 .notif-time{font-size:10px;color:var(--muted2);margin-top:4px;white-space:nowrap}
+.notif-dismiss{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:5px;border:none;background:none;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:all .15s;font-size:14px;line-height:1}
+.notif-item:hover .notif-dismiss{opacity:1}
+.notif-dismiss:hover{background:rgba(220,38,38,.1);color:#DC2626}
+.notif-clear-all{font-size:11px;font-weight:600;color:#DC2626;cursor:pointer;background:none;border:none;font-family:inherit;padding:3px 6px;border-radius:5px;transition:background .15s}
+.notif-clear-all:hover{background:rgba(220,38,38,.08)}
 .notif-empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:13px}
 .notif-empty svg{opacity:.3;margin-bottom:10px}
 .notif-footer{padding:10px 18px;border-top:1px solid var(--border);flex-shrink:0;display:flex;justify-content:center}
@@ -656,6 +661,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           </div>
           <div class="notif-header-actions">
             <button class="notif-mark-all" onclick="markAllRead()" type="button">Tout marquer lu</button>
+            <button class="notif-clear-all" onclick="clearAllNotifications()" type="button">Tout supprimer</button>
             <button class="notif-close" onclick="closeNotifPanel()" type="button">
               <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
@@ -761,6 +767,10 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     <button class="nav-item" onclick="showPage('monitoring')" data-page="monitoring" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Monitoring
+    </button>
+    <button class="nav-item" onclick="showPage('notifications')" data-page="notifications" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      Notifications
     </button>
     <button class="nav-item" onclick="showPage('settings')" data-page="settings" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.77 1.77 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.77 1.77 0 0 0-1.82-.33 1.77 1.77 0 0 0-1 1.53V21a2 2 0 0 1-4 0v-.09a1.77 1.77 0 0 0-1-1.53 1.77 1.77 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.77 1.77 0 0 0 4.6 15a1.77 1.77 0 0 0-1.53-1H3a2 2 0 0 1 0-4h.09a1.77 1.77 0 0 0 1.53-1 1.77 1.77 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.77 1.77 0 0 0 8.6 4.6a1.77 1.77 0 0 0 1-1.53V3a2 2 0 0 1 4 0v.09a1.77 1.77 0 0 0 1 1.53 1.77 1.77 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.77 1.77 0 0 0 19.4 8.6a1.77 1.77 0 0 0 1.53 1H21a2 2 0 0 1 0 4h-.09a1.77 1.77 0 0 0-1.53 1z"/></svg>
@@ -1777,6 +1787,55 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     </div>
   </div>
 
+  <!-- ── Notifications page ──────────────────────────────────────────────── -->
+  <div class="page-full" id="page-notifications">
+    <div class="page-full-header">
+      <div>
+        <div class="page-full-title">Notifications</div>
+        <div class="page-full-sub" id="notif-page-sub">Chargement…</div>
+      </div>
+      <div class="page-actions">
+        <input class="table-search" type="search" id="notif-page-search" placeholder="Rechercher…" oninput="notifPageSearch=this.value; renderNotifPageTable()" />
+        <button class="btn btn-ghost btn-sm" onclick="loadNotifPage()">↻ Refresh</button>
+        <button class="btn btn-danger btn-sm" onclick="clearAllNotifPage()">Tout supprimer</button>
+      </div>
+    </div>
+
+    <!-- KPI row -->
+    <div class="dash-kpi-row" style="margin-bottom:18px">
+      <div class="kpi-card"><div class="kpi-label">Total</div><div class="big-number" id="np-total">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Erreurs</div><div class="big-number" id="np-errors" style="color:#DC2626">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Warnings</div><div class="big-number" id="np-warnings" style="color:#D97706">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Info</div><div class="big-number" id="np-info" style="color:#4F46E5">—</div></div>
+      <div class="kpi-card"><div class="kpi-label">Succès</div><div class="big-number" id="np-success" style="color:#16A34A">—</div></div>
+    </div>
+
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:6px;margin-bottom:14px" id="notif-page-filter-tabs">
+      <button class="btn btn-sm btn-primary" onclick="setNotifPageFilter('all',this)">Tous</button>
+      <button class="btn btn-sm btn-ghost" onclick="setNotifPageFilter('error',this)">Erreurs</button>
+      <button class="btn btn-sm btn-ghost" onclick="setNotifPageFilter('warning',this)">Warnings</button>
+      <button class="btn btn-sm btn-ghost" onclick="setNotifPageFilter('success',this)">Succès</button>
+      <button class="btn btn-sm btn-ghost" onclick="setNotifPageFilter('info',this)">Info</button>
+    </div>
+
+    <div class="card">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Sévérité</th>
+            <th>Titre</th>
+            <th>Détails</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="notif-page-body"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <!-- ── Import License Modal ────────────────────────────────────────────── -->
@@ -2049,7 +2108,7 @@ function showPage(name) {
 }
 
 function loadPage(name) {
-  const m = { dashboard: loadDashboard, models: loadModels, prompts: loadPrompts, kb: loadKb, plans: loadPlans, licenses: loadLicenses, payments: loadPayments, users: loadUsers, trials: loadTrials, conversations: loadConversations, audit: loadAudit, monitoring: loadMonitoring, agent: loadAgentRuns, settings: loadSettings };
+  const m = { dashboard: loadDashboard, models: loadModels, prompts: loadPrompts, kb: loadKb, plans: loadPlans, licenses: loadLicenses, payments: loadPayments, users: loadUsers, trials: loadTrials, conversations: loadConversations, audit: loadAudit, monitoring: loadMonitoring, agent: loadAgentRuns, notifications: loadNotifPage, settings: loadSettings };
   if (m[name]) m[name]();
 }
 
@@ -2176,7 +2235,7 @@ function renderNotifList() {
   const olderItems = _notifData.filter(n => new Date(n.created_at) < today);
 
   let html = '';
-  const renderItem = (n) => {
+  const renderItem = (n, idx) => {
     const isUnread = !_notifSeenAt || new Date(n.created_at) > new Date(_notifSeenAt);
     const sev = n.severity || 'info';
     const page = NOTIF_PAGE[n.type] || 'dashboard';
@@ -2187,6 +2246,7 @@ function renderNotifList() {
         <div class="notif-body">${esc(n.body || '')}</div>
         <div class="notif-time">${timeAgo(n.created_at)}</div>
       </div>
+      <button class="notif-dismiss" onclick="event.stopPropagation();dismissNotification('${esc(n.type)}','${esc(String(n.id))}',${idx})" title="Supprimer">×</button>
     </div>`;
   };
 
@@ -2237,10 +2297,136 @@ function markAllRead() {
   renderNotifList();
 }
 
+async function dismissNotification(type, id, idx) {
+  // Dismiss any notification via the universal dismiss endpoint
+  if (type && id) {
+    await api('/notifications/dismiss', { method: 'POST', body: JSON.stringify({ type, id: String(id) }) }).catch(() => {});
+  }
+  _notifData.splice(idx, 1);
+  updateNotifBadge();
+  renderNotifList();
+}
+
+async function clearAllNotifications() {
+  if (!confirm('Supprimer toutes les notifications ?')) return;
+  await api('/notifications/clear', { method: 'DELETE' }).catch(() => {});
+  _notifData = [];
+  updateNotifBadge();
+  renderNotifList();
+}
+
 // Poll toutes les 60 secondes
 function startNotifPolling() {
   fetchNotifications();
   setInterval(fetchNotifications, 60000);
+}
+
+/* ══ Notifications Full Page ══════════════════════════════════════════ */
+let notifPageData = [];
+let notifPageSearch = '';
+let notifPageFilter = 'all';
+
+const SEV_BADGE = {
+  error:   { label: 'Erreur',  style: 'background:rgba(220,38,38,.1);color:#DC2626;border:1px solid rgba(220,38,38,.25)' },
+  warning: { label: 'Warning', style: 'background:rgba(245,158,11,.1);color:#D97706;border:1px solid rgba(245,158,11,.25)' },
+  success: { label: 'Succès',  style: 'background:rgba(34,197,94,.1);color:#16A34A;border:1px solid rgba(34,197,94,.25)' },
+  info:    { label: 'Info',    style: 'background:rgba(99,102,241,.1);color:#4F46E5;border:1px solid rgba(99,102,241,.25)' },
+};
+
+const TYPE_LABEL = {
+  incident: 'Incident',
+  payment: 'Paiement',
+  payment_pending: 'Paiement en attente',
+  license_new: 'Nouvelle licence',
+  trial_new: 'Nouveau trial',
+  trial_at_risk: 'Trial à risque',
+  license_expiring: 'Licence expire bientôt',
+  license_expired: 'Licence expirée',
+  license_renewed: 'Licence renouvelée',
+};
+
+async function loadNotifPage() {
+  const data = await api('/notifications?limit=200');
+  notifPageData = data?.notifications || [];
+
+  const errors   = notifPageData.filter(n => n.severity === 'error').length;
+  const warnings = notifPageData.filter(n => n.severity === 'warning').length;
+  const info     = notifPageData.filter(n => n.severity === 'info').length;
+  const success  = notifPageData.filter(n => n.severity === 'success').length;
+
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('np-total', notifPageData.length);
+  set('np-errors', errors);
+  set('np-warnings', warnings);
+  set('np-info', info);
+  set('np-success', success);
+  document.getElementById('notif-page-sub').textContent =
+    `${notifPageData.length} notification${notifPageData.length !== 1 ? 's' : ''} — ${errors} erreur${errors !== 1 ? 's' : ''}, ${warnings} warning${warnings !== 1 ? 's' : ''}`;
+
+  renderNotifPageTable();
+}
+
+function setNotifPageFilter(f, btn) {
+  notifPageFilter = f;
+  document.querySelectorAll('#notif-page-filter-tabs .btn').forEach(b => {
+    b.className = b === btn ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-ghost';
+  });
+  renderNotifPageTable();
+}
+
+function renderNotifPageTable() {
+  const q = notifPageSearch.toLowerCase();
+  const rows = notifPageData.filter(n => {
+    if (notifPageFilter !== 'all' && n.severity !== notifPageFilter) return false;
+    if (!q) return true;
+    return (n.title || '').toLowerCase().includes(q)
+        || (n.body || '').toLowerCase().includes(q)
+        || (n.type || '').toLowerCase().includes(q);
+  });
+
+  const tbody = document.getElementById('notif-page-body');
+  if (!tbody) return;
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Aucune notification${notifPageFilter !== 'all' ? ' pour ce filtre' : ''}</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(n => {
+    const sev = SEV_BADGE[n.severity] || SEV_BADGE.info;
+    const typeLbl = TYPE_LABEL[n.type] || n.type;
+    return `<tr>
+      <td class="text-muted text-sm">${fmtDate(n.created_at)}</td>
+      <td><span class="mc-badge pb-other">${esc(typeLbl)}</span></td>
+      <td><span style="padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;${sev.style}">${sev.label}</span></td>
+      <td class="fw-7" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(n.title)}">${esc(n.title || '—')}</td>
+      <td class="text-muted text-sm" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(n.body)}">${esc(n.body || '—')}</td>
+      <td class="tbl-actions">
+        <button class="btn btn-danger btn-xs" onclick="deleteNotifPageItem('${esc(n.type)}','${esc(String(n.id))}')">Supprimer</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function deleteNotifPageItem(type, id) {
+  await api('/notifications/dismiss', { method: 'POST', body: JSON.stringify({ type, id: String(id) }) }).catch(() => {});
+  notifPageData = notifPageData.filter(n => !(n.type === type && String(n.id) === String(id)));
+  renderNotifPageTable();
+  // Also refresh the dropdown badge
+  _notifData = _notifData.filter(n => !(n.type === type && String(n.id) === String(id)));
+  updateNotifBadge();
+  renderNotifList();
+}
+
+async function clearAllNotifPage() {
+  if (!confirm('Supprimer toutes les notifications ?')) return;
+  await api('/notifications/clear', { method: 'DELETE' });
+  notifPageData = [];
+  renderNotifPageTable();
+  // Refresh dropdown too
+  _notifData = [];
+  updateNotifBadge();
+  renderNotifList();
 }
 
 function toggleTheme() {
@@ -2444,8 +2630,10 @@ function renderActivityChart(daily) {
     type: 'bar',
     data: {
       labels: slice.map(d => {
-        const p = String(d.date).slice(5).split('-');
-        return `${p[1]}/${p[0]}`;
+        // d.date may be "2026-05-25" or "2026-05-25T00:00:00.000Z" — normalize
+        const iso = String(d.date).slice(0, 10); // "YYYY-MM-DD"
+        const [, mm, dd] = iso.split('-');
+        return `${dd}/${mm}`;
       }),
       datasets: [{
         label: 'Requêtes',
@@ -2814,7 +3002,7 @@ async function loadKb() {
       <td class="fw-7">${esc(d.name)}</td>
       <td><span class="mc-badge pb-other">${esc(d.type)}</span></td>
       <td class="text-muted">${fmt(d.chars)} chars</td>
-      <td class="text-muted text-sm">${new Date(d.created_at || d.createdAt).toLocaleDateString()}</td>
+      <td class="text-muted text-sm">${fmtDate(d.created_at || d.createdAt)}</td>
       <td><button class="btn btn-danger btn-xs" onclick="deleteKb('${d.id}')">Delete</button></td>
     </tr>`).join('') : '<tr><td colspan="5" class="empty-state">No documents indexed</td></tr>';
 }
@@ -2844,7 +3032,7 @@ function renderLicensesTable() {
       <td><span class="mc-badge ${PLAN_CLS[l.plan] || 'pb-other'}">${esc(l.plan)}</span></td>
       <td class="text-muted">${fmt(l.max_requests)}</td>
       <td><span class="${l.is_active ? 'status-on' : 'status-off'}">${l.is_active ? 'Active' : 'Disabled'}</span></td>
-      <td class="text-muted text-sm">${l.expires_at ? new Date(l.expires_at).toLocaleDateString() : 'Never'}</td>
+      <td class="text-muted text-sm">${l.expires_at ? fmtDate(l.expires_at) : 'Never'}</td>
       <td class="tbl-actions">
         <button class="btn btn-ghost btn-xs" onclick="toggleLic(${l.id})">${l.is_active ? 'Disable' : 'Enable'}</button>
         ${l.customer_email ? `<button class="btn btn-ghost btn-xs" title="Renvoyer la clé par email" onclick="resendLicenseEmail('${esc(l.license_key)}')">📧</button>` : ''}
@@ -2952,7 +3140,7 @@ function renderPaymentsTable() {
       <td><span class="mc-badge ${PLAN_CLS[p.plan_id] || 'pb-other'}" style="background:${p.plan_color || '#6C3AE8'}20;color:${p.plan_color || '#6C3AE8'}">${esc(p.plan_name || p.plan_id || '—')}</span></td>
       <td class="fw-7">${Number(p.amount || 0).toLocaleString()} ${esc(p.currency || 'XAF')}</td>
       <td>${statusHtml}</td>
-      <td class="text-muted text-sm">${p.created_at ? new Date(p.created_at).toLocaleDateString('fr-FR') : '—'}</td>
+      <td class="text-muted text-sm">${p.created_at ? fmtDate(p.created_at) : '—'}</td>
       <td class="tbl-actions">
         ${p.customer_email && p.license_key ? `<button class="btn btn-ghost btn-xs" onclick="resendLicenseEmail('${esc(p.license_key)}')" title="Renvoyer email">📧</button>` : ''}
         ${p.license_key ? `<button class="btn btn-ghost btn-xs" title="Clé: ${esc(p.license_key)}" onclick="navigator.clipboard.writeText('${esc(p.license_key)}').then(()=>alert('Copié !'))">🔑</button>` : ''}
@@ -2987,7 +3175,7 @@ function renderUsersTable() {
       </td>
       <td class="text-muted">${esc(u.email)}</td>
       <td><span class="mc-badge ${u.role === 'superadmin' ? 'pb-anthropic' : 'pb-groq'}">${esc(u.role)}</span></td>
-      <td class="text-muted text-sm">${u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}</td>
+      <td class="text-muted text-sm">${u.last_login ? fmtDate(u.last_login) : 'Never'}</td>
       <td><span class="${u.is_active ? 'status-on' : 'status-off'}">${u.is_active ? 'Active' : 'Disabled'}</span></td>
       <td class="tbl-actions">
         <button class="btn btn-ghost btn-xs" onclick="toggleUser(${u.id})">${u.is_active ? 'Disable' : 'Enable'}</button>
@@ -3042,6 +3230,8 @@ async function loadTrials() {
   const data = await api('/trials');
   trialsData = data?.trials || [];
   const stats = data?.stats || {};
+  // Cache configured trial duration for rendering
+  if (data?.trial_duration_hours) window._trialDurationHours = data.trial_duration_hours;
 
   // KPIs
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
@@ -3060,7 +3250,8 @@ async function loadTrials() {
 }
 
 function renderTrialsTable() {
-  const TRIAL_MS = 2 * 24 * 60 * 60 * 1000;
+  // Use configured trial duration from settings (populated by loadTrials), fallback to 48h
+  const TRIAL_MS = (window._trialDurationHours || 48) * 60 * 60 * 1000;
   const now = Date.now();
   const q = trialsSearch.toLowerCase();
   let rows = trialsData.filter(t => {
@@ -3147,7 +3338,7 @@ async function loadConversations() {
       <td class="fw-7">${esc(c.title)}</td>
       <td><span style="font-size:13px;font-weight:700;color:var(--navy)">${c.message_count}</span> <span class="text-muted">messages</span></td>
       <td>${sourceBadge(c.source)}</td>
-      <td class="text-muted text-sm">${ts.toLocaleString()}</td>
+      <td class="text-muted text-sm">${ts.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</td>
       <td class="tbl-actions">
         <button class="btn btn-ghost btn-xs" onclick="openThread('${esc(c.id)}','${esc(c.title)}',${c.message_count})">View</button>
         <button class="btn btn-danger btn-xs" onclick="deleteConv('${esc(c.id)}')">Delete</button>

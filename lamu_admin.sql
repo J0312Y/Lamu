@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: May 27, 2026 at 12:40 PM
+-- Generation Time: May 27, 2026 at 10:04 PM
 -- Server version: 5.7.24
 -- PHP Version: 8.3.1
 
@@ -20,6 +20,8 @@ SET time_zone = "+00:00";
 --
 -- Database: `lamu_admin`
 --
+CREATE DATABASE IF NOT EXISTS `lamu_admin` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `lamu_admin`;
 
 -- --------------------------------------------------------
 
@@ -27,14 +29,17 @@ SET time_zone = "+00:00";
 -- Table structure for table `activity`
 --
 
-CREATE TABLE `activity` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `activity`;
+CREATE TABLE IF NOT EXISTS `activity` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `date` date NOT NULL,
   `requests` int(11) DEFAULT '0',
   `tokens` bigint(20) DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `date` (`date`)
+) ENGINE=InnoDB AUTO_INCREMENT=78 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `activity`
@@ -54,8 +59,9 @@ INSERT INTO `activity` (`id`, `date`, `requests`, `tokens`, `created_at`, `updat
 -- Table structure for table `activity_log`
 --
 
-CREATE TABLE `activity_log` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `activity_log`;
+CREATE TABLE IF NOT EXISTS `activity_log` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `ai_model` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `app_version` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `machine_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -63,8 +69,9 @@ CREATE TABLE `activity_log` (
   `prompt_tokens` int(11) DEFAULT '0',
   `completion_tokens` int(11) DEFAULT '0',
   `total_tokens` int(11) DEFAULT '0',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=50 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `activity_log`
@@ -126,8 +133,9 @@ INSERT INTO `activity_log` (`id`, `ai_model`, `app_version`, `machine_id`, `acti
 -- Table structure for table `admin_users`
 --
 
-CREATE TABLE `admin_users` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `admin_users`;
+CREATE TABLE IF NOT EXISTS `admin_users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
   `password_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -135,15 +143,18 @@ CREATE TABLE `admin_users` (
   `is_active` tinyint(1) DEFAULT '1',
   `last_login` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `username` (`username`),
+  UNIQUE KEY `email` (`email`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `admin_users`
 --
 
 INSERT INTO `admin_users` (`id`, `username`, `email`, `password_hash`, `role`, `is_active`, `last_login`, `created_at`, `updated_at`) VALUES
-(1, 'admin', 'admin@lamuka-tech.com', '$2b$12$gko6ewS9TiSIf6ST9wGmge8iGP1kbj/RdUWxmCd9OUZL9rcQvlusq', 'superadmin', 1, '2026-05-27 07:52:39', '2026-04-26 13:37:50', '2026-05-27 07:52:39');
+(1, 'admin', 'admin@lamuka-tech.com', '$2b$12$gko6ewS9TiSIf6ST9wGmge8iGP1kbj/RdUWxmCd9OUZL9rcQvlusq', 'superadmin', 1, '2026-05-27 19:43:30', '2026-04-26 13:37:50', '2026-05-27 19:43:30');
 
 -- --------------------------------------------------------
 
@@ -151,7 +162,8 @@ INSERT INTO `admin_users` (`id`, `username`, `email`, `password_hash`, `role`, `
 -- Table structure for table `agent_runs`
 --
 
-CREATE TABLE `agent_runs` (
+DROP TABLE IF EXISTS `agent_runs`;
+CREATE TABLE IF NOT EXISTS `agent_runs` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `goal` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` enum('running','waiting_approval','completed','failed','cancelled') COLLATE utf8mb4_unicode_ci DEFAULT 'running',
@@ -161,7 +173,8 @@ CREATE TABLE `agent_runs` (
   `messages` longtext COLLATE utf8mb4_unicode_ci,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `integrations` longtext COLLATE utf8mb4_unicode_ci
+  `integrations` longtext COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -178,16 +191,19 @@ INSERT INTO `agent_runs` (`id`, `goal`, `status`, `result_summary`, `result_deli
 -- Table structure for table `agent_steps`
 --
 
-CREATE TABLE `agent_steps` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `agent_steps`;
+CREATE TABLE IF NOT EXISTS `agent_steps` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `run_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `step_index` int(11) NOT NULL,
   `tool_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tool_args` json DEFAULT NULL,
   `tool_result` json DEFAULT NULL,
   `status` enum('running','success','failed','approved','rejected') COLLATE utf8mb4_unicode_ci DEFAULT 'success',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_run` (`run_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `agent_steps`
@@ -207,14 +223,17 @@ INSERT INTO `agent_steps` (`id`, `run_id`, `step_index`, `tool_name`, `tool_args
 -- Table structure for table `conversations`
 --
 
-CREATE TABLE `conversations` (
+DROP TABLE IF EXISTS `conversations`;
+CREATE TABLE IF NOT EXISTS `conversations` (
   `id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `title` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` bigint(20) NOT NULL,
   `updated_at` bigint(20) NOT NULL,
   `source` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'tauri',
   `imported_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `user_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL
+  `user_email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_conv_email` (`user_email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -260,16 +279,61 @@ INSERT INTO `conversations` (`id`, `title`, `created_at`, `updated_at`, `source`
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `dismissed_notifications`
+--
+
+DROP TABLE IF EXISTS `dismissed_notifications`;
+CREATE TABLE IF NOT EXISTS `dismissed_notifications` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `notif_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `notif_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `dismissed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `type_id` (`notif_type`,`notif_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `dismissed_notifications`
+--
+
+INSERT INTO `dismissed_notifications` (`id`, `notif_type`, `notif_id`, `dismissed_at`) VALUES
+(1, 'incident', '22', '2026-05-27 22:02:44'),
+(2, 'incident', '20', '2026-05-27 22:02:44'),
+(3, 'incident', '18', '2026-05-27 22:02:44'),
+(4, 'incident', '16', '2026-05-27 22:02:45'),
+(5, 'license_expiring', '3', '2026-05-27 22:02:45'),
+(6, 'license_expired', '4', '2026-05-27 22:02:45'),
+(7, 'incident', '14', '2026-05-27 22:02:45'),
+(8, 'incident', '12', '2026-05-27 22:02:45'),
+(9, 'incident', '10', '2026-05-27 22:02:46'),
+(10, 'incident', '8', '2026-05-27 22:02:46'),
+(11, 'incident', '6', '2026-05-27 22:02:46'),
+(12, 'license_new', '5', '2026-05-27 22:02:46'),
+(13, 'license_expiring', '1', '2026-05-27 22:02:46'),
+(14, 'license_expired', '2', '2026-05-27 22:02:47'),
+(15, 'license_new', '3', '2026-05-27 22:02:48'),
+(16, 'license_new', '4', '2026-05-27 22:02:48'),
+(17, 'incident', '2', '2026-05-27 22:02:49'),
+(18, 'incident', '4', '2026-05-27 22:02:50');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `kb_chunks`
 --
 
-CREATE TABLE `kb_chunks` (
+DROP TABLE IF EXISTS `kb_chunks`;
+CREATE TABLE IF NOT EXISTS `kb_chunks` (
   `id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `document_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `content` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
   `chunk_index` int(11) NOT NULL DEFAULT '0',
   `source` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'tauri',
-  `imported_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `imported_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_doc_id` (`document_id`),
+  KEY `idx_chunk_order` (`document_id`,`chunk_index`),
+  KEY `idx_chunk_doc` (`document_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -717,7 +781,8 @@ INSERT INTO `kb_chunks` (`id`, `document_id`, `content`, `chunk_index`, `source`
 -- Table structure for table `kb_documents`
 --
 
-CREATE TABLE `kb_documents` (
+DROP TABLE IF EXISTS `kb_documents`;
+CREATE TABLE IF NOT EXISTS `kb_documents` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
   `type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'file',
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -730,7 +795,8 @@ CREATE TABLE `kb_documents` (
   `content_hash` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `access_level` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'internal',
   `source` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'backend',
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -889,8 +955,9 @@ INSERT INTO `kb_documents` (`id`, `type`, `name`, `url`, `content`, `chars`, `cr
 -- Table structure for table `licenses`
 --
 
-CREATE TABLE `licenses` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `licenses`;
+CREATE TABLE IF NOT EXISTS `licenses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `license_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `customer_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `customer_email` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -904,8 +971,10 @@ CREATE TABLE `licenses` (
   `bound_instance_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `activated_at` timestamp NULL DEFAULT NULL,
   `plan_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `plan_features` text COLLATE utf8mb4_unicode_ci
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `plan_features` text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `license_key` (`license_key`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `licenses`
@@ -924,16 +993,21 @@ INSERT INTO `licenses` (`id`, `license_key`, `customer_name`, `customer_email`, 
 -- Table structure for table `license_events`
 --
 
-CREATE TABLE `license_events` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `license_events`;
+CREATE TABLE IF NOT EXISTS `license_events` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `license_id` int(11) NOT NULL,
   `event_type` enum('expiring_soon','expired','renewed','activated','deactivated') COLLATE utf8mb4_unicode_ci NOT NULL,
   `customer_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `customer_email` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `plan` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `expires_at` date DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_le_created` (`created_at`),
+  KEY `idx_le_license` (`license_id`),
+  KEY `idx_le_type` (`event_type`)
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `license_events`
@@ -951,7 +1025,8 @@ INSERT INTO `license_events` (`id`, `license_id`, `event_type`, `customer_name`,
 -- Table structure for table `messages`
 --
 
-CREATE TABLE `messages` (
+DROP TABLE IF EXISTS `messages`;
+CREATE TABLE IF NOT EXISTS `messages` (
   `id` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
   `conversation_id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `role` enum('user','assistant','system') COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -959,7 +1034,12 @@ CREATE TABLE `messages` (
   `timestamp` bigint(20) NOT NULL,
   `attached_files` text COLLATE utf8mb4_unicode_ci,
   `source` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'tauri',
-  `imported_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `imported_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_conv_id` (`conversation_id`),
+  KEY `idx_timestamp` (`timestamp`),
+  KEY `idx_msg_conv` (`conversation_id`),
+  KEY `idx_msg_ts` (`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1144,7 +1224,8 @@ INSERT INTO `messages` (`id`, `conversation_id`, `role`, `content`, `timestamp`,
 -- Table structure for table `models`
 --
 
-CREATE TABLE `models` (
+DROP TABLE IF EXISTS `models`;
+CREATE TABLE IF NOT EXISTS `models` (
   `id` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `provider` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1155,7 +1236,8 @@ CREATE TABLE `models` (
   `sort_order` int(11) DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `allowed_plan_ids` text COLLATE utf8mb4_unicode_ci
+  `allowed_plan_ids` text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1187,8 +1269,9 @@ INSERT INTO `models` (`id`, `provider`, `name`, `model`, `description`, `modalit
 -- Table structure for table `pending_payments`
 --
 
-CREATE TABLE `pending_payments` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `pending_payments`;
+CREATE TABLE IF NOT EXISTS `pending_payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `tx_id` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
   `msisdn` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `plan_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'pro',
@@ -1199,7 +1282,11 @@ CREATE TABLE `pending_payments` (
   `status` enum('pending','confirmed','failed','expired') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
   `license_key` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `confirmed_at` timestamp NULL DEFAULT NULL
+  `confirmed_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `tx_id` (`tx_id`),
+  KEY `idx_tx` (`tx_id`),
+  KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -1208,7 +1295,8 @@ CREATE TABLE `pending_payments` (
 -- Table structure for table `plans`
 --
 
-CREATE TABLE `plans` (
+DROP TABLE IF EXISTS `plans`;
+CREATE TABLE IF NOT EXISTS `plans` (
   `id` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
@@ -1220,7 +1308,8 @@ CREATE TABLE `plans` (
   `color` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT '#6C3AE8',
   `is_active` tinyint(1) DEFAULT '1',
   `sort_order` int(11) DEFAULT '0',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1240,8 +1329,9 @@ INSERT INTO `plans` (`id`, `name`, `description`, `price`, `currency`, `billing_
 -- Table structure for table `prompts`
 --
 
-CREATE TABLE `prompts` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `prompts`;
+CREATE TABLE IF NOT EXISTS `prompts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `title` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
   `prompt` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `model_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -1249,8 +1339,9 @@ CREATE TABLE `prompts` (
   `is_active` tinyint(1) DEFAULT '1',
   `sort_order` int(11) DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `prompts`
@@ -1272,8 +1363,9 @@ INSERT INTO `prompts` (`id`, `title`, `prompt`, `model_id`, `model_name`, `is_ac
 -- Table structure for table `provider_incidents`
 --
 
-CREATE TABLE `provider_incidents` (
-  `id` int(11) NOT NULL,
+DROP TABLE IF EXISTS `provider_incidents`;
+CREATE TABLE IF NOT EXISTS `provider_incidents` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `provider` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `provider_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1281,8 +1373,9 @@ CREATE TABLE `provider_incidents` (
   `error_msg` text COLLATE utf8mb4_unicode_ci,
   `detected_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `resolved_at` timestamp NULL DEFAULT NULL,
-  `is_notified` tinyint(4) DEFAULT '0'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `is_notified` tinyint(4) DEFAULT '0',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `provider_incidents`
@@ -1290,20 +1383,17 @@ CREATE TABLE `provider_incidents` (
 
 INSERT INTO `provider_incidents` (`id`, `provider`, `provider_url`, `status`, `latency_ms`, `error_msg`, `detected_at`, `resolved_at`, `is_notified`) VALUES
 (1, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 869, NULL, '2026-05-25 20:11:29', NULL, 0),
-(2, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'down', NULL, 'fetch failed', '2026-05-26 05:44:35', NULL, 0),
 (3, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 511, NULL, '2026-05-26 05:49:34', NULL, 0),
-(4, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'down', NULL, 'fetch failed', '2026-05-26 09:55:00', NULL, 0),
 (5, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 950, NULL, '2026-05-26 10:35:50', NULL, 0),
-(6, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'down', NULL, 'fetch failed', '2026-05-26 18:45:44', NULL, 0),
 (7, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 750, NULL, '2026-05-26 18:50:42', NULL, 0),
-(8, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'down', NULL, 'fetch failed', '2026-05-26 22:07:56', NULL, 0),
 (9, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 527, NULL, '2026-05-26 22:12:54', NULL, 0),
-(10, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'down', NULL, 'fetch failed', '2026-05-27 05:42:35', NULL, 0),
 (11, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 899, NULL, '2026-05-27 05:47:31', NULL, 0),
-(12, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'down', NULL, 'fetch failed', '2026-05-27 07:34:10', NULL, 0),
 (13, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 529, NULL, '2026-05-27 07:39:09', NULL, 0),
-(14, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'down', NULL, 'fetch failed', '2026-05-27 10:45:19', NULL, 0),
-(15, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 554, NULL, '2026-05-27 10:50:18', NULL, 0);
+(15, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 554, NULL, '2026-05-27 10:50:18', NULL, 0),
+(17, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 4087, NULL, '2026-05-27 14:46:22', NULL, 0),
+(19, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 890, NULL, '2026-05-27 16:01:20', NULL, 0),
+(21, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 883, NULL, '2026-05-27 18:05:59', NULL, 0),
+(23, 'primary', 'https://api.groq.com/openai/v1/chat/completions', 'operational', 1314, NULL, '2026-05-27 21:22:19', NULL, 0);
 
 -- --------------------------------------------------------
 
@@ -1311,12 +1401,14 @@ INSERT INTO `provider_incidents` (`id`, `provider`, `provider_url`, `status`, `l
 -- Table structure for table `provider_status`
 --
 
-CREATE TABLE `provider_status` (
+DROP TABLE IF EXISTS `provider_status`;
+CREATE TABLE IF NOT EXISTS `provider_status` (
   `provider` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
   `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'unknown',
   `latency_ms` int(11) DEFAULT NULL,
   `last_check_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `uptime_24h` decimal(5,2) DEFAULT '100.00'
+  `uptime_24h` decimal(5,2) DEFAULT '100.00',
+  PRIMARY KEY (`provider`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1324,7 +1416,7 @@ CREATE TABLE `provider_status` (
 --
 
 INSERT INTO `provider_status` (`provider`, `status`, `latency_ms`, `last_check_at`, `uptime_24h`) VALUES
-('primary', 'operational', 497, '2026-05-27 12:36:18', '100.00');
+('primary', 'operational', 1428, '2026-05-27 22:01:46', '100.00');
 
 -- --------------------------------------------------------
 
@@ -1332,10 +1424,12 @@ INSERT INTO `provider_status` (`provider`, `status`, `latency_ms`, `last_check_a
 -- Table structure for table `settings`
 --
 
-CREATE TABLE `settings` (
+DROP TABLE IF EXISTS `settings`;
+CREATE TABLE IF NOT EXISTS `settings` (
   `key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `value` text COLLATE utf8mb4_unicode_ci,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1346,8 +1440,7 @@ INSERT INTO `settings` (`key`, `value`, `updated_at`) VALUES
 ('enabled_integrations', '[\"github\",\"gitlab\",\"jira\",\"slack\",\"google\",\"stripe\",\"notion\",\"database\"]', '2026-05-26 13:22:03'),
 ('smtp_from', 'Lamuka <noreply@lamuka.com>', '2026-05-24 13:47:13'),
 ('smtp_host', 'smtp.gmail.com', '2026-05-24 13:47:13'),
-('smtp_port', '587', '2026-05-24 13:47:13'),
-('trial_duration_hours', '48', '2026-05-27 00:00:00');
+('smtp_port', '587', '2026-05-24 13:47:13');
 
 -- --------------------------------------------------------
 
@@ -1355,7 +1448,8 @@ INSERT INTO `settings` (`key`, `value`, `updated_at`) VALUES
 -- Table structure for table `trials`
 --
 
-CREATE TABLE `trials` (
+DROP TABLE IF EXISTS `trials`;
+CREATE TABLE IF NOT EXISTS `trials` (
   `instance_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `first_seen_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1366,7 +1460,8 @@ CREATE TABLE `trials` (
   `app_version` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `last_model` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `trial_expires_at` datetime DEFAULT NULL,
-  `converted_at` datetime DEFAULT NULL
+  `converted_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`instance_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -1374,7 +1469,7 @@ CREATE TABLE `trials` (
 --
 
 INSERT INTO `trials` (`instance_id`, `user_name`, `first_seen_at`, `last_seen_at`, `created_at`, `email`, `request_count`, `app_version`, `last_model`, `trial_expires_at`, `converted_at`) VALUES
-('985fd89f4616c7665b7b87361e1ac4140904d8ed0459f7e9845d0669f85b8e3c', 'joeldy', '2026-05-25 12:21:35', '2026-05-27 12:02:58', '2026-05-25 12:21:35', NULL, 0, NULL, NULL, NULL, '2026-05-26 16:38:54'),
+('985fd89f4616c7665b7b87361e1ac4140904d8ed0459f7e9845d0669f85b8e3c', 'joeldy', '2026-05-25 12:21:35', '2026-05-27 17:27:31', '2026-05-25 12:21:35', NULL, 0, NULL, NULL, NULL, '2026-05-26 16:38:54'),
 ('test123', 'Joel', '2026-05-25 12:19:21', '2026-05-25 12:19:21', '2026-05-25 12:19:21', NULL, 0, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
@@ -1383,13 +1478,22 @@ INSERT INTO `trials` (`instance_id`, `user_name`, `first_seen_at`, `last_seen_at
 -- Table structure for table `webapp_otp`
 --
 
-CREATE TABLE `webapp_otp` (
+DROP TABLE IF EXISTS `webapp_otp`;
+CREATE TABLE IF NOT EXISTS `webapp_otp` (
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `code` varchar(6) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `attempts` int(11) DEFAULT '0',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `webapp_otp`
+--
+
+INSERT INTO `webapp_otp` (`email`, `code`, `name`, `attempts`, `created_at`) VALUES
+('joeldytsina94@gmail.com', '774399', 'simon', 0, '2026-05-27 12:46:30');
 
 -- --------------------------------------------------------
 
@@ -1397,221 +1501,16 @@ CREATE TABLE `webapp_otp` (
 -- Table structure for table `webapp_trials`
 --
 
-CREATE TABLE `webapp_trials` (
+DROP TABLE IF EXISTS `webapp_trials`;
+CREATE TABLE IF NOT EXISTS `webapp_trials` (
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `messages_used` int(11) DEFAULT '0',
   `max_messages` int(11) DEFAULT '20',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `last_active_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `last_active_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Indexes for dumped tables
---
-
---
--- Indexes for table `activity`
---
-ALTER TABLE `activity`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `date` (`date`);
-
---
--- Indexes for table `activity_log`
---
-ALTER TABLE `activity_log`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `admin_users`
---
-ALTER TABLE `admin_users`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `username` (`username`),
-  ADD UNIQUE KEY `email` (`email`);
-
---
--- Indexes for table `agent_runs`
---
-ALTER TABLE `agent_runs`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `agent_steps`
---
-ALTER TABLE `agent_steps`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_run` (`run_id`);
-
---
--- Indexes for table `conversations`
---
-ALTER TABLE `conversations`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_conv_email` (`user_email`);
-
---
--- Indexes for table `kb_chunks`
---
-ALTER TABLE `kb_chunks`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_doc_id` (`document_id`),
-  ADD KEY `idx_chunk_order` (`document_id`,`chunk_index`),
-  ADD KEY `idx_chunk_doc` (`document_id`);
-
---
--- Indexes for table `kb_documents`
---
-ALTER TABLE `kb_documents`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `licenses`
---
-ALTER TABLE `licenses`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `license_key` (`license_key`);
-
---
--- Indexes for table `license_events`
---
-ALTER TABLE `license_events`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_le_created` (`created_at`),
-  ADD KEY `idx_le_license` (`license_id`),
-  ADD KEY `idx_le_type` (`event_type`);
-
---
--- Indexes for table `messages`
---
-ALTER TABLE `messages`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_conv_id` (`conversation_id`),
-  ADD KEY `idx_timestamp` (`timestamp`),
-  ADD KEY `idx_msg_conv` (`conversation_id`),
-  ADD KEY `idx_msg_ts` (`timestamp`);
-
---
--- Indexes for table `models`
---
-ALTER TABLE `models`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `pending_payments`
---
-ALTER TABLE `pending_payments`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `tx_id` (`tx_id`),
-  ADD KEY `idx_tx` (`tx_id`),
-  ADD KEY `idx_status` (`status`);
-
---
--- Indexes for table `plans`
---
-ALTER TABLE `plans`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `prompts`
---
-ALTER TABLE `prompts`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `provider_incidents`
---
-ALTER TABLE `provider_incidents`
-  ADD PRIMARY KEY (`id`);
-
---
--- Indexes for table `provider_status`
---
-ALTER TABLE `provider_status`
-  ADD PRIMARY KEY (`provider`);
-
---
--- Indexes for table `settings`
---
-ALTER TABLE `settings`
-  ADD PRIMARY KEY (`key`);
-
---
--- Indexes for table `trials`
---
-ALTER TABLE `trials`
-  ADD PRIMARY KEY (`instance_id`);
-
---
--- Indexes for table `webapp_otp`
---
-ALTER TABLE `webapp_otp`
-  ADD PRIMARY KEY (`email`);
-
---
--- Indexes for table `webapp_trials`
---
-ALTER TABLE `webapp_trials`
-  ADD PRIMARY KEY (`email`);
-
---
--- AUTO_INCREMENT for dumped tables
---
-
---
--- AUTO_INCREMENT for table `activity`
---
-ALTER TABLE `activity`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=67;
-
---
--- AUTO_INCREMENT for table `activity_log`
---
-ALTER TABLE `activity_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
-
---
--- AUTO_INCREMENT for table `admin_users`
---
-ALTER TABLE `admin_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
--- AUTO_INCREMENT for table `agent_steps`
---
-ALTER TABLE `agent_steps`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
-
---
--- AUTO_INCREMENT for table `licenses`
---
-ALTER TABLE `licenses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
-
---
--- AUTO_INCREMENT for table `license_events`
---
-ALTER TABLE `license_events`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
-
---
--- AUTO_INCREMENT for table `pending_payments`
---
-ALTER TABLE `pending_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `prompts`
---
-ALTER TABLE `prompts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
-
---
--- AUTO_INCREMENT for table `provider_incidents`
---
-ALTER TABLE `provider_incidents`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

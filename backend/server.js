@@ -2123,6 +2123,11 @@ async function runProviderHealthCheck() {
     results.fallback = fallback;
   }
 
+  // Clean up old incidents (keep only last 7 days)
+  try {
+    await db.query("DELETE FROM provider_incidents WHERE detected_at < DATE_SUB(NOW(), INTERVAL 7 DAY)");
+  } catch { /* ignore */ }
+
   // Upsert status and log incidents in DB
   try {
     for (const [providerName, result] of Object.entries(results)) {
@@ -2139,8 +2144,8 @@ async function runProviderHealthCheck() {
         [providerName, result.status, result.latency || null]
       );
 
-      // Log incident if status changed or is down/degraded
-      if (!prev || prev.status !== result.status) {
+      // Log incident only when status actually changes (not on first insert)
+      if (prev && prev.status !== result.status) {
         await db.query(
           'INSERT INTO provider_incidents (provider, provider_url, status, latency_ms, error_msg) VALUES (?, ?, ?, ?, ?)',
           [providerName, providerUrl, result.status, result.latency || null, result.error || null]

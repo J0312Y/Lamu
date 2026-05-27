@@ -578,7 +578,14 @@ app.get('/admin/api/trials', requireAdminAuth, async (req, res) => {
     const churned    = enriched.filter(t => t.status === 'churned').length;
     const new_today  = enriched.filter(t => new Date(t.first_seen_at) > new Date(Date.now() - 86400000)).length;
 
-    res.json({ trials: enriched, stats: { total, active, at_risk, converted, churned, new_today } });
+    // Read configured trial duration
+    let trial_duration_hours = 48;
+    try {
+      const row = await db.queryOne("SELECT value FROM settings WHERE `key` = 'trial_duration_hours'", []);
+      if (row?.value) trial_duration_hours = parseInt(row.value, 10) || 48;
+    } catch { /* use default */ }
+
+    res.json({ trials: enriched, stats: { total, active, at_risk, converted, churned, new_today }, trial_duration_hours });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -725,7 +732,7 @@ app.get('/admin/api/notifications', requireAdminAuth, async (req, res) => {
 
     const [incidents, paymentsConfirmed, paymentsPending, newLicenses, trialsNew, trialsAtRisk, licenseEvents] = await Promise.all([
 
-      // Provider incidents (down / degraded)
+      // Provider incidents (down / degraded) — last 48h only
       db.query(
         `SELECT 'incident' as type, id, provider as subject,
           CASE status WHEN 'down' THEN 'error' WHEN 'degraded' THEN 'warning' ELSE 'info' END as severity,
@@ -733,7 +740,9 @@ app.get('/admin/api/notifications', requireAdminAuth, async (req, res) => {
           CONCAT('URL: ', COALESCE(provider_url,'—'), IF(error_msg IS NOT NULL, CONCAT(' — ', error_msg), '')) as body,
           detected_at as created_at
          FROM provider_incidents
-         WHERE status IN ('down','degraded') ${since ? 'AND detected_at > ?' : ''}
+         WHERE status IN ('down','degraded')
+           AND detected_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+           ${since ? 'AND detected_at > ?' : ''}
          ORDER BY detected_at DESC LIMIT ?`,
         since ? [since, limit] : [limit]
       ),
@@ -845,9 +854,14 @@ app.get('/admin/api/notifications', requireAdminAuth, async (req, res) => {
 
     ]);
 
-    // Merge + dedupe + sort
+    // Load dismissed notifications
+    const dismissed = await db.query('SELECT notif_type, notif_id FROM dismissed_notifications').catch(() => []);
+    const dismissedSet = new Set(dismissed.map(d => `${d.notif_type}::${d.notif_id}`));
+
+    // Merge + dedupe + filter dismissed + sort
     const all = [...incidents, ...paymentsConfirmed, ...paymentsPending, ...newLicenses, ...trialsNew, ...trialsAtRisk, ...licenseEvents]
       .filter((n, i, arr) => arr.findIndex(x => String(x.id) === String(n.id) && x.type === n.type) === i)
+      .filter(n => !dismissedSet.has(`${n.type}::${String(n.id)}`))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, limit);
 
@@ -860,6 +874,58 @@ app.get('/admin/api/notifications', requireAdminAuth, async (req, res) => {
     console.error('[notifications]', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// DELETE /admin/api/notifications/incidents/:id — delete a single provider incident
+app.delete('/admin/api/notifications/incidents/:id', requireAdminAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM provider_incidents WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /admin/api/notifications/dismiss — dismiss any notification by type+id
+app.post('/admin/api/notifications/dismiss', requireAdminAuth, async (req, res) => {
+  try {
+    const { type, id } = req.body || {};
+    if (!type || !id) return res.status(400).json({ error: 'type and id required' });
+    await db.query(
+      `INSERT IGNORE INTO dismissed_notifications (notif_type, notif_id) VALUES (?, ?)`,
+      [String(type), String(id)]
+    );
+    // Also hard-delete if it's a provider incident
+    if (type === 'incident') {
+      await db.query('DELETE FROM provider_incidents WHERE id = ?', [id]);
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /admin/api/notifications/clear — clear all: hard-delete incidents + dismiss the rest
+app.delete('/admin/api/notifications/clear', requireAdminAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM provider_incidents WHERE detected_at < NOW()');
+    // Dismiss all current non-incident notifications
+    const notifs = res.locals._lastNotifs; // not available here, so we mass-insert from a subquery approach
+    // Simpler: just truncate dismissed table and re-populate — or mark everything as dismissed
+    await db.query(`DELETE FROM dismissed_notifications WHERE 1=1`);
+    // Insert dismiss entries for all current notifications from each source
+    await Promise.all([
+      db.query(`INSERT IGNORE INTO dismissed_notifications (notif_type, notif_id)
+        SELECT 'payment', tx_id FROM pending_payments WHERE status = 'confirmed' AND confirmed_at IS NOT NULL`),
+      db.query(`INSERT IGNORE INTO dismissed_notifications (notif_type, notif_id)
+        SELECT 'payment_pending', tx_id FROM pending_payments WHERE status = 'pending' AND created_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)`),
+      db.query(`INSERT IGNORE INTO dismissed_notifications (notif_type, notif_id)
+        SELECT 'license_new', CAST(id AS CHAR) FROM licenses WHERE created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)`),
+      db.query(`INSERT IGNORE INTO dismissed_notifications (notif_type, notif_id)
+        SELECT 'trial_new', instance_id FROM trials WHERE first_seen_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR) AND converted_at IS NULL`).catch(() => {}),
+      db.query(`INSERT IGNORE INTO dismissed_notifications (notif_type, notif_id)
+        SELECT 'trial_at_risk', instance_id FROM trials WHERE last_seen_at BETWEEN DATE_SUB(NOW(), INTERVAL 7 DAY) AND DATE_SUB(NOW(), INTERVAL 3 DAY) AND converted_at IS NULL`).catch(() => {}),
+      db.query(`INSERT IGNORE INTO dismissed_notifications (notif_type, notif_id)
+        SELECT CASE event_type WHEN 'expiring_soon' THEN 'license_expiring' WHEN 'expired' THEN 'license_expired' WHEN 'renewed' THEN 'license_renewed' ELSE event_type END, CAST(id AS CHAR) FROM license_events`).catch(() => {}),
+    ]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /admin/api/license-check — force manual expiry check (superadmin)
