@@ -8,7 +8,9 @@ import {
   DEFAULT_QUICK_ACTIONS,
   DEFAULT_SYSTEM_PROMPT,
   EMAIL_ACTION_INSTRUCTIONS,
+  EMAIL_DISABLED_HINT,
   ACTION_INSTRUCTIONS,
+  FILESEARCH_INSTRUCTIONS,
   STORAGE_KEYS,
   ASSISTANT_MODES,
   type AssistantMode,
@@ -246,6 +248,7 @@ export function useSystemAudio() {
     systemPrompt,
     selectedAudioDevices,
     supportsImages,
+    isBlocked,
   } = useApp();
   const abortControllerRef = useRef<AbortController | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -510,6 +513,11 @@ export function useSystemAudio() {
               bytes[i] = binaryString.charCodeAt(i);
             }
             const audioBlob = new Blob([bytes], { type: "audio/wav" });
+
+            if (isBlocked) {
+              setError("Your free trial has expired. Get a license to continue.");
+              return;
+            }
 
             const useLamuAPI = await shouldUseLamuAPI();
             if (!selectedSttProvider.provider && !useLamuAPI) {
@@ -908,6 +916,12 @@ export function useSystemAudio() {
 
         let fullResponse = "";
 
+        if (isBlocked) {
+          setError("Your free trial has expired. Get a license to continue.");
+          setIsAIProcessing(false);
+          return;
+        }
+
         const useLamuAPI = await shouldUseLamuAPI();
         if (!selectedAIProvider.provider && !useLamuAPI) {
           setError("No AI provider selected.");
@@ -927,9 +941,18 @@ export function useSystemAudio() {
 
         // Inject email action instructions if email feature is enabled
         invoke("debug_log", { message: `emailEnabled=${emailEnabled} transcription="${transcription}"` }).catch(() => {});
+        const looksLikeEmailRequest = /\b(email|e-mail|mail|envoie|envoyer|send|message\s+à|write\s+to)\b/i.test(transcription);
         let effectivePrompt = emailEnabled
           ? `${prompt}\n\n${EMAIL_ACTION_INSTRUCTIONS}`
-          : prompt;
+          : looksLikeEmailRequest
+            ? `${prompt}\n\n${EMAIL_DISABLED_HINT}`
+            : prompt;
+
+        // Inject file search instructions when the query looks like a file search
+        const looksLikeFileSearch = /\b(trouve|trouver|cherche|chercher|localise|localiser|où est|ou est|où se trouve|ou se trouve|find|locate|search|where is|look for|fichier|file|document|dossier|folder|répertoire|repertoire|contrat|rapport|facture|devis|lettre|CV|bureau|desktop|serveur)\b/i.test(transcription);
+        if (looksLikeFileSearch) {
+          effectivePrompt += `\n\n${FILESEARCH_INSTRUCTIONS}`;
+        }
 
         // Inject action instructions if any integration is connected
         try {
@@ -1212,6 +1235,44 @@ export function useSystemAudio() {
                 }
               }
             } catch { /* best-effort — no integrations available */ }
+          }
+
+          // ── Detect LAMU_FILESEARCH and auto-execute ─────────────────
+          const fileSearchJsonStr = extractJsonAfterMarker(fullResponse, "LAMU_FILESEARCH:");
+          if (fileSearchJsonStr) {
+            try {
+              const fsReq = JSON.parse(fileSearchJsonStr) as { query?: string; path?: string };
+              if (fsReq.query) {
+                const fsResults = await invoke<Array<{
+                  path: string; filename: string; extension: string;
+                  size_bytes: number; modified_at: number; content_preview: string;
+                }>>("fs_search_files", {
+                  query: fsReq.query,
+                  searchPath: fsReq.path || null,
+                  limit: 15,
+                });
+
+                if (fsResults.length > 0) {
+                  const resultText = fsResults.map((f, i) => {
+                    const size = f.size_bytes < 1024 * 1024
+                      ? `${(f.size_bytes / 1024).toFixed(0)} KB`
+                      : `${(f.size_bytes / (1024 * 1024)).toFixed(1)} MB`;
+                    const date = new Date(f.modified_at).toLocaleDateString("fr-FR", {
+                      day: "2-digit", month: "short", year: "numeric",
+                    });
+                    return `${i + 1}. **${f.filename}** (${size}, modifié le ${date})\n   📁 \`${f.path}\`${f.content_preview ? `\n   Aperçu: ${f.content_preview.slice(0, 100)}...` : ""}`;
+                  }).join("\n\n");
+                  // Append results to the AI response so the user sees them
+                  const searchAppend = `\n\n---\n**${fsResults.length} fichier(s) trouvé(s) sur l'ordinateur :**\n\n${resultText}`;
+                  fullResponse += searchAppend;
+                  setLastAIResponse((prev) => prev + searchAppend);
+                } else {
+                  const noResult = `\n\n---\n**Aucun fichier trouvé** pour "${fsReq.query}"${fsReq.path ? ` dans ${fsReq.path}` : ""}.`;
+                  fullResponse += noResult;
+                  setLastAIResponse((prev) => prev + noResult);
+                }
+              }
+            } catch { /* malformed JSON or search error — ignore */ }
           }
 
           // ── State Runtime: start response_save step ──────────────────
@@ -1614,6 +1675,11 @@ ${transcriptText}`;
     try {
       setError("");
 
+      if (isBlocked) {
+        setError("Your free trial has expired. Get a license to continue using the overlay.");
+        return;
+      }
+
       const hasAccess = await invoke<boolean>("check_system_audio_access");
       if (!hasAccess) {
         setSetupRequired(true);
@@ -1664,7 +1730,7 @@ ${transcriptText}`;
       setError(errorMessage);
       setIsPopoverOpen(true);
     }
-  }, [vadConfig, selectedAudioDevices.output.id]);
+  }, [vadConfig, selectedAudioDevices.output.id, isBlocked]);
 
   const stopCapture = useCallback(async () => {
     try {

@@ -194,7 +194,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Fetch app config from backend on mount
   useEffect(() => {
-    invoke<{ price_label?: string }>("get_app_config")
+    invoke<{ price_label?: string; trial_duration_hours?: number }>("get_app_config")
       .then((cfg) => {
         if (cfg?.price_label) setPriceLabel(cfg.price_label);
       })

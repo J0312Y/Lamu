@@ -34,6 +34,8 @@ pub struct AppConfig {
     // Analytics
     pub posthog_api_key:      String,
     pub app_update_url:       String,
+    // Trial
+    pub trial_duration_hours: u32,
 }
 
 impl AppConfig {
@@ -53,6 +55,7 @@ impl AppConfig {
             max_ai_tokens:        500,
             posthog_api_key:      String::new(),
             app_update_url:       "http://localhost:3000/api/update".to_string(),
+            trial_duration_hours: 48,
         }
     }
 }
@@ -103,6 +106,7 @@ pub async fn fetch_app_config() -> AppConfig {
         max_ai_tokens:        get_u32("max_ai_tokens",        defaults.max_ai_tokens),
         posthog_api_key:      get_str("posthog_api_key",      &defaults.posthog_api_key),
         app_update_url:       get_str("app_update_url",       &defaults.app_update_url),
+        trial_duration_hours: get_u32("trial_duration_hours", defaults.trial_duration_hours),
     }
 }
 

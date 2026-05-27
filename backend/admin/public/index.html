@@ -1049,6 +1049,11 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
             <input id="s-max-ai-tokens" type="number" placeholder="500" />
             <div class="field-hint">Limite tokens pour les résumés IA</div>
           </div>
+          <div class="form-group" style="margin:0">
+            <label>Durée trial (heures)</label>
+            <input id="s-trial-duration-hours" type="number" placeholder="48" min="1" />
+            <div class="field-hint">Durée du trial gratuit en heures (défaut: 48h). Appliqué aux nouveaux utilisateurs.</div>
+          </div>
         </div>
       </div>
 
@@ -3300,6 +3305,8 @@ async function loadSettings() {
   document.getElementById('s-max-file-attachments').value = s.max_file_attachments || '';
   document.getElementById('s-max-kb-chunk-size').value    = s.max_kb_chunk_size || '';
   document.getElementById('s-max-ai-tokens').value        = s.max_ai_tokens || '';
+  // Trial
+  document.getElementById('s-trial-duration-hours').value = s.trial_duration_hours || '48';
   // SMTP
   document.getElementById('s-smtp-host').value            = s.smtp_host || '';
   document.getElementById('s-smtp-port').value            = s.smtp_port || '587';
@@ -3360,6 +3367,8 @@ async function saveSettings() {
     max_file_attachments:    document.getElementById('s-max-file-attachments').value.trim(),
     max_kb_chunk_size:       document.getElementById('s-max-kb-chunk-size').value.trim(),
     max_ai_tokens:           document.getElementById('s-max-ai-tokens').value.trim(),
+    // Trial
+    trial_duration_hours:    document.getElementById('s-trial-duration-hours').value.trim() || '48',
     // SMTP
     smtp_host:               document.getElementById('s-smtp-host').value.trim(),
     smtp_port:               document.getElementById('s-smtp-port').value.trim(),

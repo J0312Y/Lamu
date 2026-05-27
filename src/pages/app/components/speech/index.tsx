@@ -27,6 +27,7 @@ import {
   FileTextIcon,
   BotIcon,
   PlugIcon,
+  LockIcon,
 } from "lucide-react";
 import { exportTranscriptAsTxt, exportTranscriptAsSrt } from "@/lib/exportUtils";
 import { ASSISTANT_MODES, type AssistantMode } from "@/config";
@@ -52,6 +53,7 @@ import { AgentPanel } from "./AgentPanel";
 import { IntegrationsPanel } from "./IntegrationsPanel";
 import { useSystemAudioType, useKnowledgeBase } from "@/hooks";
 import { useApp } from "@/contexts";
+import { GetLicense } from "@/components";
 import { cn } from "@/lib/utils";
 
 export const SystemAudio = (props: useSystemAudioType) => {
@@ -147,7 +149,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
     confirmSqlWrite,
   } = props;
 
-  const { hasPlanFeature, supportsImages } = useApp();
+  const { hasPlanFeature, supportsImages, isBlocked } = useApp();
   const kb = useKnowledgeBase();
 
   // View mode toggle
@@ -292,7 +294,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
         </Button>
       </PopoverTrigger>
 
-      {(capturing || setupRequired || error) && (
+      {(capturing || setupRequired || error || isBlocked) && (
         <PopoverContent
           align="end"
           side="bottom"
@@ -300,6 +302,22 @@ export const SystemAudio = (props: useSystemAudioType) => {
           sideOffset={8}
         >
           <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+            {/* Trial expired block */}
+            {isBlocked && (
+              <div className="flex-1 flex items-center justify-center p-6">
+                <div className="flex flex-col items-center gap-3 text-center max-w-xs">
+                  <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <LockIcon className="size-4 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-sm">Trial expired</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Your free trial has ended. Get a license to keep using the real-time overlay.
+                  </p>
+                  <GetLicense buttonText="Get License" buttonClassName="w-full" />
+                </div>
+              </div>
+            )}
+            {!isBlocked && (<>
             {/* Header - Mode Switcher + Actions */}
             <div className="flex-shrink-0 p-3 border-b border-border/50 space-y-2">
               {/* Row 1: VAD/Continuous switcher + actions */}
@@ -840,6 +858,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                 />
               </div>
             )}
+            </>)}
           </div>
         </PopoverContent>
       )}

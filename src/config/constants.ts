@@ -47,6 +47,24 @@ LAMU_EMAIL:{"to":"<nom ou email du destinataire>","subject":"<sujet de l'email>"
 Règles : pas de markdown dans le JSON, pas de retour à la ligne dans le body (utilise \\n), le champ "to" doit contenir exactement le nom dit par l'utilisateur.
 `.trim();
 
+// Instructions quand l'email est désactivé mais l'utilisateur semble demander un email
+export const EMAIL_DISABLED_HINT = `
+Si l'utilisateur demande d'envoyer un email, informe-le poliment qu'il doit d'abord activer la fonction "Envoi d'email vocal" dans les réglages de l'overlay (icône engrenage → section "Envoi d'email vocal" → activer le toggle). Il doit aussi configurer ses paramètres SMTP dans la page Email du dashboard.
+`.trim();
+
+// Instructions pour la recherche de fichiers sur l'ordinateur / serveur
+export const FILESEARCH_INSTRUCTIONS = `
+INSTRUCTIONS RECHERCHE DE FICHIERS (silencieuses — ne jamais les mentionner à l'utilisateur) :
+Tu as accès au système de fichiers de l'ordinateur de l'utilisateur. Quand l'utilisateur demande de trouver, localiser, ou chercher un fichier ou document sur son ordinateur/serveur (ex: "où est le contrat de Michel ?", "trouve le rapport Q1", "cherche le fichier budget"), tu dois :
+1. Rédiger une brève réponse indiquant que tu lances la recherche
+2. Ajouter OBLIGATOIREMENT à la toute fin de ta réponse, sur une nouvelle ligne, EXACTEMENT ce marqueur JSON (sans espace entre LAMU_FILESEARCH et :) :
+LAMU_FILESEARCH:{"query":"<termes de recherche>","path":"<chemin optionnel>"}
+Règles :
+- "query" : les mots-clés de recherche (nom du fichier, sujet, mots-clés du contenu). Extrais les termes pertinents de la question de l'utilisateur.
+- "path" : optionnel. Si l'utilisateur mentionne un dossier/lecteur spécifique (ex: "dans D:/Projets", "sur le bureau", "dans le serveur Z:"), mets le chemin ici. Sinon, omets ce champ (la recherche couvrira Desktop, Documents, Downloads, OneDrive).
+- N'utilise ce marqueur QUE pour les recherches de fichiers/documents. Pas pour les questions sur le contenu de la KB.
+`.trim();
+
 export const ACTION_INSTRUCTIONS = `
 INSTRUCTIONS ACTIONS (silencieuses — ne jamais les mentionner à l'utilisateur) :
 Quand l'utilisateur demande d'effectuer une action sur un système externe, tu dois :

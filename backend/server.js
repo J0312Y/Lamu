@@ -1612,19 +1612,29 @@ app.post('/api/trial/init', async (req, res) => {
   const { instance_id, user_name, email, app_version } = req.body || {};
   if (!instance_id) return res.status(400).json({ error: 'instance_id requis' });
 
-  const TRIAL_DURATION_MS = 2 * 24 * 60 * 60 * 1000; // 48h
-
   try {
+    // Read configurable trial duration from settings (default 48h)
+    let trialHours = 48;
+    try {
+      const row = await db.queryOne(
+        "SELECT value FROM settings WHERE `key` = 'trial_duration_hours'",
+        []
+      );
+      if (row?.value) trialHours = Math.max(1, parseInt(row.value, 10) || 48);
+    } catch { /* missing row → use default */ }
+
+    const TRIAL_DURATION_MS = trialHours * 60 * 60 * 1000;
+
     // Upsert: insert on first call, update name + last_seen + email on subsequent calls
     await db.query(
       `INSERT INTO trials (instance_id, user_name, email, app_version, first_seen_at, last_seen_at, trial_expires_at)
-       VALUES (?, ?, ?, ?, NOW(), NOW(), DATE_ADD(NOW(), INTERVAL 48 HOUR))
+       VALUES (?, ?, ?, ?, NOW(), NOW(), DATE_ADD(NOW(), INTERVAL ? HOUR))
        ON DUPLICATE KEY UPDATE
          last_seen_at = NOW(),
          user_name    = IF(? IS NOT NULL AND ? != '', ?, user_name),
          email        = IF(? IS NOT NULL AND ? != '', ?, email),
          app_version  = COALESCE(?, app_version)`,
-      [instance_id, user_name || null, email || null, app_version || null,
+      [instance_id, user_name || null, email || null, app_version || null, trialHours,
        user_name, user_name, user_name || null,
        email, email, email || null,
        app_version || null]
@@ -1648,7 +1658,7 @@ app.post('/api/trial/init', async (req, res) => {
     const trialExpiresAt = firstSeenMs + TRIAL_DURATION_MS;
     const isTrialActive = Date.now() < trialExpiresAt;
 
-    res.json({ trial_expires_at: trialExpiresAt, is_trial_active: isTrialActive });
+    res.json({ trial_expires_at: trialExpiresAt, is_trial_active: isTrialActive, trial_duration_hours: trialHours });
   } catch (err) {
     console.error('[trial/init]', err.message);
     res.status(500).json({ error: err.message });
@@ -1710,6 +1720,8 @@ app.get('/api/app-config', async (req, res) => {
       'max_file_attachments', 'max_kb_chunk_size', 'max_ai_tokens',
       // Feature flags (comma-separated list)
       'feature_flags',
+      // Trial
+      'trial_duration_hours',
     ];
     const placeholders = ALL_KEYS.map(() => '?').join(',');
     const rows = await db.query(

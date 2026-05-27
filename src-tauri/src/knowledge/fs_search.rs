@@ -65,7 +65,7 @@ pub fn search_files(root: &Path, query: &str, limit: usize) -> Vec<FsFileResult>
     let mut results: Vec<FsFileResult> = Vec::new();
     let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
     let mut visited = 0usize;
-    const MAX_SCAN: usize = 20_000;
+    const MAX_SCAN: usize = 100_000;
 
     while let Some(dir) = stack.pop() {
         if visited >= MAX_SCAN {
@@ -79,9 +79,19 @@ pub fn search_files(root: &Path, query: &str, limit: usize) -> Vec<FsFileResult>
 
             if path.is_dir() {
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                // Skip hidden dirs and noisy dirs
+                let name_lower = name.to_lowercase();
+                // Skip hidden dirs, system dirs, and noisy dirs
                 if name.starts_with('.')
+                    || name.starts_with('$')
                     || matches!(name, "node_modules" | "target" | "__pycache__" | ".git" | "dist" | "build")
+                    || matches!(name_lower.as_str(),
+                        "windows" | "program files" | "program files (x86)" | "programdata"
+                        | "appdata" | "recovery" | "system volume information"
+                        | "msocache" | "intel" | "perflogs" | "config.msi"
+                        | ".cache" | ".local" | ".npm" | ".cargo" | ".rustup"
+                        | "__pycache__" | "site-packages" | "venv" | ".venv"
+                        | "obj" | "bin" | "debug" | "release" | "packages"
+                    )
                 {
                     continue;
                 }
@@ -152,15 +162,36 @@ pub fn search_files(root: &Path, query: &str, limit: usize) -> Vec<FsFileResult>
 
 // ── Tauri commands ────────────────────────────────────────────────────────────
 
-/// Default search roots when no path is specified — common user folders only.
+/// Default search roots when no path is specified — all available drives.
+/// On Windows: enumerates C:\, D:\, E:\, etc.
+/// On other platforms: starts from the home directory.
 fn default_search_roots(home: &Path) -> Vec<PathBuf> {
-    let candidates = ["Desktop", "Documents", "Downloads", "OneDrive", "Bureau", "Mes documents"];
-    let mut roots: Vec<PathBuf> = candidates
-        .iter()
-        .map(|name| home.join(name))
-        .filter(|p| p.exists())
-        .collect();
-    // Fallback: search home directly if none of the above exist
+    let mut roots: Vec<PathBuf> = Vec::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        // Enumerate all drive letters A-Z
+        for letter in b'A'..=b'Z' {
+            let drive = format!("{}:\\", letter as char);
+            let path = PathBuf::from(&drive);
+            if path.exists() {
+                roots.push(path);
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // On macOS/Linux: home + common mount points
+        roots.push(home.to_path_buf());
+        for mount in &["/mnt", "/media", "/Volumes"] {
+            let p = PathBuf::from(mount);
+            if p.exists() {
+                roots.push(p);
+            }
+        }
+    }
+
     if roots.is_empty() {
         roots.push(home.to_path_buf());
     }

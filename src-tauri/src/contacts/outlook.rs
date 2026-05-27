@@ -15,6 +15,10 @@ pub struct OutlookContact {
 ///
 /// Returns an empty Vec (not an error) when Outlook is not installed or no
 /// profile is configured — the caller falls back gracefully.
+///
+/// NOTE: The "new Outlook" (Windows 11) registers the COM class but hangs
+/// when accessing MAPI data because it opens a web-login prompt instead.
+/// We use a 10-second timeout to detect this and fail fast.
 pub fn fetch_outlook_contacts() -> Result<Vec<OutlookContact>, String> {
     // PowerShell script: opens the default Outlook MAPI session and
     // enumerates the Contacts folder (folder ID 10).
@@ -45,15 +49,21 @@ try {
 }
 "#;
 
-    let output = std::process::Command::new("powershell")
+    let child = std::process::Command::new("powershell")
         .args([
             "-NoProfile",
             "-NonInteractive",
             "-ExecutionPolicy", "Bypass",
             "-Command", script,
         ])
-        .output()
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .map_err(|e| format!("PowerShell launch failed: {}", e))?;
+
+    // Wait with a timeout — the "new Outlook" COM hangs indefinitely
+    let output = wait_with_timeout(child, std::time::Duration::from_secs(10))
+        .map_err(|e| format!("Outlook COM timeout (10s) — vous utilisez probablement le nouvel Outlook qui ne supporte pas la synchronisation COM. Exportez vos contacts en CSV depuis outlook.live.com puis importez-les dans Lamu. ({})", e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let trimmed = stdout.trim();
@@ -71,6 +81,37 @@ try {
 
     serde_json::from_str::<Vec<OutlookContact>>(&json)
         .map_err(|e| format!("Failed to parse Outlook contacts JSON: {}  raw: {}", e, &json[..json.len().min(300)]))
+}
+
+/// Wait for a child process with a timeout. Kills the process if it exceeds the deadline.
+fn wait_with_timeout(mut child: std::process::Child, timeout: std::time::Duration) -> Result<std::process::Output, String> {
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stdout = child.stdout.take().map(|mut s| {
+                    let mut buf = Vec::new();
+                    std::io::Read::read_to_end(&mut s, &mut buf).ok();
+                    buf
+                }).unwrap_or_default();
+                let stderr = child.stderr.take().map(|mut s| {
+                    let mut buf = Vec::new();
+                    std::io::Read::read_to_end(&mut s, &mut buf).ok();
+                    buf
+                }).unwrap_or_default();
+                return Ok(std::process::Output { status, stdout, stderr });
+            }
+            Ok(None) => {
+                if start.elapsed() > timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err("timeout".to_string());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Err(e) => return Err(format!("wait error: {}", e)),
+        }
+    }
 }
 
 /// Windows-only: try to read contacts from the Windows Contacts folder

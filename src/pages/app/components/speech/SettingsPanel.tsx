@@ -19,7 +19,9 @@ import {
   WandIcon,
   RotateCcwIcon,
   ChevronUpIcon,
+  AlertTriangleIcon,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { VadConfig } from "@/hooks/useSystemAudio";
 import {
   PROMPT_TEMPLATES,
@@ -118,6 +120,22 @@ export const SettingsPanel = ({
   const [isOpen, setIsOpen] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+  const [smtpWarning, setSmtpWarning] = useState<string | null>(null);
+
+  const handleEmailToggle = async (enabled: boolean) => {
+    setEmailEnabled(enabled);
+    setSmtpWarning(null);
+    if (enabled) {
+      try {
+        const config = await invoke<{ smtp_host: string; smtp_port: number; smtp_user: string }>("email_config_get");
+        if (!config.smtp_host || !config.smtp_user) {
+          setSmtpWarning("SMTP non configuré — allez dans la page Email du dashboard pour configurer l'envoi.");
+        }
+      } catch {
+        setSmtpWarning("SMTP non configuré — allez dans la page Email du dashboard pour configurer l'envoi.");
+      }
+    }
+  };
 
   // Determine current sensitivity preset based on values
   const getCurrentPreset = (): SensitivityPreset | "custom" => {
@@ -401,9 +419,16 @@ export const SettingsPanel = ({
               </div>
               <Switch
                 checked={emailEnabled}
-                onCheckedChange={setEmailEnabled}
+                onCheckedChange={handleEmailToggle}
               />
             </div>
+
+            {smtpWarning && (
+              <div className="flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30">
+                <AlertTriangleIcon className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-[10px] text-amber-400">{smtpWarning}</p>
+              </div>
+            )}
 
             {emailEnabled && (
               <div className="flex items-center justify-between gap-4 pl-3 border-l-2 border-blue-500/30">

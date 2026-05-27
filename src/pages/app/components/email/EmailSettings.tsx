@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   MailIcon, RefreshCwIcon, PlusIcon, Trash2Icon,
   CheckCircleIcon, AlertCircleIcon, Loader2Icon,
-  UsersIcon, WifiIcon,
+  UsersIcon, WifiIcon, UploadIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,8 @@ export const EmailSettings = () => {
   // New contact form
   const [newContact, setNewContact] = useState({ full_name: "", email: "", alias: "" });
   const [isAddingContact, setIsAddingContact] = useState(false);
+  const [csvMsg, setCsvMsg] = useState<string | null>(null);
+  const csvRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (emailConfig) setCfg(emailConfig);
@@ -66,10 +68,69 @@ export const EmailSettings = () => {
     setSyncMsg(null);
     try {
       const r = await syncOutlook();
-      setSyncMsg(`Synchronisé : ${r.imported} importés, ${r.skipped} ignorés (source: ${r.source})`);
+      if (r.imported === 0 && r.skipped === 0) {
+        setSyncMsg("Aucun contact trouvé. Outlook desktop doit être installé et configuré sur ce PC. Pour Outlook web/365, exportez vos contacts en CSV puis importez-les ci-dessous.");
+      } else {
+        setSyncMsg(`Synchronisé : ${r.imported} importés, ${r.skipped} ignorés (source: ${r.source})`);
+      }
     } catch (e: any) {
-      setSyncMsg(`Erreur : ${e}`);
+      const msg = String(e);
+      if (msg.includes("PowerShell") || msg.includes("COM") || msg.includes("Outlook.Application")) {
+        setSyncMsg("Outlook desktop n'est pas installé. Pour Outlook web/365, exportez vos contacts en CSV depuis outlook.live.com → Contacts → Gérer → Exporter, puis importez le fichier CSV ci-dessous.");
+      } else {
+        setSyncMsg(`Erreur : ${msg}`);
+      }
     }
+  };
+
+  const handleCsvImport = async (file: File) => {
+    setCsvMsg(null);
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { setCsvMsg("Fichier CSV vide ou invalide."); return; }
+
+      // Parse header — support Outlook CSV export format + generic
+      const header = lines[0].toLowerCase().split(",").map(h => h.replace(/"/g, "").trim());
+      const nameIdx = header.findIndex(h => ["name", "nom", "display name", "first name", "full name", "nom complet"].includes(h));
+      const lastIdx = header.findIndex(h => ["last name", "nom de famille", "surname"].includes(h));
+      const emailIdx = header.findIndex(h => ["e-mail address", "email address", "email", "e-mail", "e-mail 1 - value", "adresse de messagerie"].includes(h));
+      const companyIdx = header.findIndex(h => ["company", "société", "organization", "organization 1 - name"].includes(h));
+      const phoneIdx = header.findIndex(h => ["phone", "téléphone", "phone 1 - value", "business phone"].includes(h));
+
+      if (emailIdx === -1) {
+        setCsvMsg("Colonne email non trouvée. Le CSV doit contenir une colonne 'Email', 'E-mail Address', ou 'Adresse de messagerie'.");
+        return;
+      }
+
+      let imported = 0;
+      for (let i = 1; i < lines.length; i++) {
+        // Simple CSV parse (handles quoted fields)
+        const cols = lines[i].match(/("([^"]*)"|[^,]*)/g)?.map(c => c.replace(/^"|"$/g, "").trim()) ?? [];
+        const email = cols[emailIdx] || "";
+        if (!email || !email.includes("@")) continue;
+
+        let name = nameIdx >= 0 ? (cols[nameIdx] || "") : "";
+        if (lastIdx >= 0 && cols[lastIdx]) {
+          name = name ? `${name} ${cols[lastIdx]}` : cols[lastIdx];
+        }
+        if (!name) name = email.split("@")[0];
+
+        try {
+          await addContact({
+            full_name: name,
+            email,
+            company: companyIdx >= 0 ? cols[companyIdx] : undefined,
+            phone: phoneIdx >= 0 ? cols[phoneIdx] : undefined,
+          });
+          imported++;
+        } catch { /* duplicate email — skip */ }
+      }
+      setCsvMsg(`${imported} contact(s) importé(s) depuis le CSV.`);
+    } catch (e: any) {
+      setCsvMsg(`Erreur lors de l'import : ${e}`);
+    }
+    if (csvRef.current) csvRef.current.value = "";
   };
 
   const handleAddContact = async () => {
@@ -209,22 +270,46 @@ export const EmailSettings = () => {
             <UsersIcon className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Contacts ({contacts.length})</h3>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleSyncOutlook}
-            disabled={isSyncing}
-            className="h-7 text-xs gap-1"
-          >
-            {isSyncing
-              ? <Loader2Icon className="w-3 h-3 animate-spin" />
-              : <RefreshCwIcon className="w-3 h-3" />}
-            Sync Outlook
-          </Button>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSyncOutlook}
+              disabled={isSyncing}
+              className="h-7 text-xs gap-1"
+            >
+              {isSyncing
+                ? <Loader2Icon className="w-3 h-3 animate-spin" />
+                : <RefreshCwIcon className="w-3 h-3" />}
+              Sync Outlook
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => csvRef.current?.click()}
+              className="h-7 text-xs gap-1"
+            >
+              <UploadIcon className="w-3 h-3" />
+              Importer CSV
+            </Button>
+            <input
+              ref={csvRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleCsvImport(file);
+              }}
+            />
+          </div>
         </div>
 
         {syncMsg && (
           <p className="text-[10px] text-muted-foreground bg-muted/40 rounded px-2 py-1">{syncMsg}</p>
+        )}
+        {csvMsg && (
+          <p className="text-[10px] text-muted-foreground bg-muted/40 rounded px-2 py-1">{csvMsg}</p>
         )}
 
         {/* Add contact form */}

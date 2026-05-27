@@ -1346,7 +1346,8 @@ INSERT INTO `settings` (`key`, `value`, `updated_at`) VALUES
 ('enabled_integrations', '[\"github\",\"gitlab\",\"jira\",\"slack\",\"google\",\"stripe\",\"notion\",\"database\"]', '2026-05-26 13:22:03'),
 ('smtp_from', 'Lamuka <noreply@lamuka.com>', '2026-05-24 13:47:13'),
 ('smtp_host', 'smtp.gmail.com', '2026-05-24 13:47:13'),
-('smtp_port', '587', '2026-05-24 13:47:13');
+('smtp_port', '587', '2026-05-24 13:47:13'),
+('trial_duration_hours', '48', '2026-05-27 00:00:00');
 
 -- --------------------------------------------------------
 
