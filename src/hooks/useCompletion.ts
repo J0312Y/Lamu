@@ -437,24 +437,21 @@ export const useCompletion = () => {
               enrichedSystemPrompt = `${enrichedSystemPrompt ?? ""}\n\n--- Relevant knowledge base excerpts ---\n${kbContext}\n---`.trimStart();
             }
 
-            // Live query for DB / integration keywords
-            const integrationKeywords = /issue|ticket|bug|task|pr|merge request|mr|commit|repo|project|sprint|jira|gitlab|github|notion|confluence|salesforce|shopify|feature|story|postgres|postgresql|mysql|database|sql|base de données|requête|table|query/i;
-            if (integrationKeywords.test(input)) {
-              const allIntegrations = await invoke<Array<{ id: string; provider: string; name: string }>>("kb_list_integrations");
+            // Fetch all integrations once
+            const allIntegrations = await invoke<Array<{ id: string; provider: string; name: string }>>("kb_list_integrations");
 
-              // DB schemas: inject ALL connected databases (no limit)
-              const dbIntegrations = allIntegrations.filter((i) =>
-                ["postgres", "mysql"].includes(i.provider)
-              );
+            const dbIntegrations = allIntegrations.filter((i) =>
+              ["postgres", "mysql"].includes(i.provider)
+            );
+            const otherActionable = allIntegrations.filter((i) =>
+              ["gitlab", "github", "jira", "confluence", "notion", "salesforce", "shopify"].includes(i.provider)
+            );
 
-              // Other integrations: keep limit of 3
-              const otherActionable = allIntegrations.filter((i) =>
-                ["gitlab", "github", "jira", "confluence", "notion", "salesforce", "shopify"].includes(i.provider)
-              );
+            const liveContextParts: string[] = [];
 
-              const liveContextParts: string[] = [];
-
-              // Fetch schemas for ALL databases
+            // FIX 1: Always inject DB schema + sample data when databases are connected
+            // The AI needs to know the DB exists to answer any question about the data
+            if (dbIntegrations.length > 0) {
               await Promise.all(
                 dbIntegrations.map(async (integ) => {
                   try {
@@ -463,11 +460,20 @@ export const useCompletion = () => {
                       queryHint: input,
                     });
                     if (liveData?.trim()) liveContextParts.push(liveData);
-                  } catch { /* best-effort */ }
+                  } catch (err) {
+                    // FIX 3: Log DB connection errors instead of swallowing them
+                    console.warn(`[Lamu KB] DB live query failed for "${integ.name}":`, err);
+                    try {
+                      await invoke("debug_log", { message: `KB DB live query error (${integ.name}): ${err}` });
+                    } catch { /* debug_log itself failed, ignore */ }
+                  }
                 })
               );
+            }
 
-              // Other integrations capped at 3
+            // FIX 2: Broader keywords for non-DB integrations (FR + EN)
+            const integrationKeywords = /issue|ticket|bug|task|pr|merge request|mr|commit|repo|project|sprint|jira|gitlab|github|notion|confluence|salesforce|shopify|feature|story/i;
+            if (otherActionable.length > 0 && integrationKeywords.test(input)) {
               await Promise.all(
                 otherActionable.slice(0, 3).map(async (integ) => {
                   try {
@@ -476,28 +482,35 @@ export const useCompletion = () => {
                       queryHint: input,
                     });
                     if (liveData?.trim()) liveContextParts.push(liveData);
-                  } catch { /* best-effort */ }
+                  } catch (err) {
+                    console.warn(`[Lamu KB] Integration live query failed for "${integ.name}":`, err);
+                  }
                 })
               );
+            }
 
-              if (liveContextParts.length > 0) {
-                enrichedSystemPrompt = `${enrichedSystemPrompt ?? ""}\n\n--- Données en temps réel ---\n${liveContextParts.join("\n\n")}\n---`.trimStart();
-              }
+            if (liveContextParts.length > 0) {
+              enrichedSystemPrompt = `${enrichedSystemPrompt ?? ""}\n\n--- Données en temps réel ---\n${liveContextParts.join("\n\n")}\n---`.trimStart();
+            }
 
-              // SQL agent instructions for all connected databases
-              if (dbIntegrations.length > 0) {
-                const dbLines = dbIntegrations
-                  .map((i) => `- alias="${extractAlias(i.name)}" type=${i.provider}`)
-                  .join("\n");
-                const multiDbNote =
-                  dbIntegrations.length > 1
-                    ? `\nBases disponibles (utilise le commentaire -- DB: <alias> pour cibler):\n${dbLines}`
-                    : `\nBase: ${extractAlias(dbIntegrations[0].name)} (${dbIntegrations[0].provider})`;
-                enrichedSystemPrompt = `${enrichedSystemPrompt ?? ""}\n\n--- SQL Agent ---\nÉcris chaque requête dans un bloc \`\`\`sql. SELECT = auto-exécuté. INSERT/UPDATE/DELETE = confirmation requise. Rapports: plusieurs SELECT + interprétation.${multiDbNote}\n---`.trimStart();
-              }
+            // SQL agent instructions for all connected databases
+            if (dbIntegrations.length > 0) {
+              const dbLines = dbIntegrations
+                .map((i) => `- alias="${extractAlias(i.name)}" type=${i.provider}`)
+                .join("\n");
+              const multiDbNote =
+                dbIntegrations.length > 1
+                  ? `\nBases disponibles (utilise le commentaire -- DB: <alias> pour cibler):\n${dbLines}`
+                  : `\nBase: ${extractAlias(dbIntegrations[0].name)} (${dbIntegrations[0].provider})`;
+              enrichedSystemPrompt = `${enrichedSystemPrompt ?? ""}\n\n--- SQL Agent ---\nÉcris chaque requête dans un bloc \`\`\`sql. SELECT = auto-exécuté. INSERT/UPDATE/DELETE = confirmation requise. Rapports: plusieurs SELECT + interprétation.${multiDbNote}\n---`.trimStart();
             }
           }
-        } catch { /* KB injection is best-effort */ }
+        } catch (kbErr) {
+          console.warn("[Lamu KB] Context injection failed:", kbErr);
+          try {
+            await invoke("debug_log", { message: `KB injection error: ${kbErr}` });
+          } catch { /* debug_log itself failed, ignore */ }
+        }
 
         try {
           // Use the fetchAIResponse function with signal
