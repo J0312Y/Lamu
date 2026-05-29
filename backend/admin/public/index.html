@@ -3487,8 +3487,8 @@ async function loadSettings() {
   document.getElementById('s-app-update-url').value       = s.app_update_url || '';
   document.getElementById('s-posthog-api-key').value      = s.posthog_api_key || '';
   // Payment
-  document.getElementById('s-payment-pay-url').value      = s.payment_pay_url || '';
-  document.getElementById('s-payment-validate-url').value = s.payment_validate_url || '';
+  if (document.getElementById('s-payment-pay-url')) document.getElementById('s-payment-pay-url').value = s.payment_pay_url || '';
+  if (document.getElementById('s-payment-validate-url')) document.getElementById('s-payment-validate-url').value = s.payment_validate_url || '';
   document.getElementById('s-payment-amount').value       = s.payment_amount || '';
   document.getElementById('s-payment-currency').value     = s.payment_currency || '';
   document.getElementById('s-price-label').value          = s.price_label || '';
@@ -3549,8 +3549,8 @@ async function saveSettings() {
     app_update_url:          document.getElementById('s-app-update-url').value.trim(),
     posthog_api_key:         document.getElementById('s-posthog-api-key').value.trim(),
     // Payment
-    payment_pay_url:         document.getElementById('s-payment-pay-url').value.trim(),
-    payment_validate_url:    document.getElementById('s-payment-validate-url').value.trim(),
+    payment_pay_url:         (document.getElementById('s-payment-pay-url') || {}).value?.trim() || '',
+    payment_validate_url:    (document.getElementById('s-payment-validate-url') || {}).value?.trim() || '',
     payment_amount:          document.getElementById('s-payment-amount').value.trim(),
     payment_currency:        document.getElementById('s-payment-currency').value.trim(),
     price_label:             document.getElementById('s-price-label').value.trim(),
@@ -3600,8 +3600,13 @@ async function saveSettings() {
       })
     ),
   };
-  const r = await api('/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
-  if (r?.ok) alert('✓ Paramètres sauvegardés !'); else alert(r?.error || 'Erreur lors de la sauvegarde');
+  try {
+    const r = await api('/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
+    if (r?.ok) alert('✓ Paramètres sauvegardés !'); else alert(r?.error || 'Erreur lors de la sauvegarde');
+  } catch (err) {
+    console.error('saveSettings error:', err);
+    alert('Erreur JS : ' + err.message);
+  }
 }
 
 async function testSmtp() {

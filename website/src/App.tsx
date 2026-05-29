@@ -14,6 +14,7 @@ import WebApp from './pages/WebApp'
 import Recover from './pages/Recover'
 import Contact from './pages/Contact'
 import Legal from './pages/Legal'
+import SharedConversation from './pages/SharedConversation'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -58,6 +59,11 @@ function AppLayout() {
 function Router() {
   const { pathname } = useLocation()
   if (pathname.startsWith('/app')) return <AppLayout />
+  if (pathname.startsWith('/shared/')) return (
+    <Routes>
+      <Route path="/shared/:shareId" element={<SharedConversation />} />
+    </Routes>
+  )
   return <MarketingLayout />
 }
 
