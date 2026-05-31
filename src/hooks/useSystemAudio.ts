@@ -1124,6 +1124,7 @@ export function useSystemAudio() {
             history: cappedMessages,
             userMessage: transcription,
             imagesBase64: canSendImage ? [imageBase64!] : [],
+            useCase: 'realtime',
           })) {
             fullResponse += chunk;
             setLastAIResponse((prev) => prev + chunk);
@@ -1415,6 +1416,7 @@ ${transcriptText}`;
         history: [],
         userMessage: prompt,
         imagesBase64: [],
+        useCase: 'reasoning',
       })) {
         summary += chunk;
         setMeetingSummaryText(summary);
@@ -1466,6 +1468,7 @@ ${summaryText}`;
         history: [],
         userMessage: prompt,
         imagesBase64: [],
+        useCase: 'helpdesk',
       })) {
         raw += chunk;
       }
@@ -1521,6 +1524,7 @@ ${transcriptText}`;
         history: [],
         userMessage: prompt,
         imagesBase64: [],
+        useCase: 'realtime',
       })) {
         tip += chunk;
         setCoachingTip(tip);

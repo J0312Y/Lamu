@@ -157,6 +157,21 @@ pub struct LamuPromptsResponse {
     last_updated: Option<String>,
 }
 
+// Per use-case model routing (from backend multi-provider config)
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct UseCaseModels {
+    #[serde(default)]
+    pub realtime: Option<String>,   // meetings, live coaching (fastest)
+    #[serde(default)]
+    pub helpdesk: Option<String>,   // ticket suggestions (balanced)
+    #[serde(default)]
+    pub chat: Option<String>,       // general conversation (cost-effective)
+    #[serde(default)]
+    pub reasoning: Option<String>,  // complex analysis (highest quality)
+    #[serde(default)]
+    pub embeddings: Option<String>, // RAG pipeline
+}
+
 // API Response Configuration Structs
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponseConfig {
@@ -170,6 +185,8 @@ pub struct ApiResponseConfig {
     #[serde(rename = "fallback_model")]
     fallback_model: Option<String>,
     body: String,
+    #[serde(default)]
+    models: Option<UseCaseModels>,
     customer_id: Option<i64>,
     customer_email: Option<String>,
     customer_name: Option<String>,
@@ -178,6 +195,26 @@ pub struct ApiResponseConfig {
     #[serde(rename = "user_audio")]
     user_audio: Option<UserAudioConfig>,
     errors: Option<Vec<ApiConfigError>>,
+}
+
+impl ApiResponseConfig {
+    /// Get the best model for a given use case, falling back to the default model
+    pub fn model_for(&self, use_case: &str) -> &str {
+        if let Some(ref models) = self.models {
+            let m = match use_case {
+                "realtime" => models.realtime.as_deref(),
+                "helpdesk" => models.helpdesk.as_deref(),
+                "chat" => models.chat.as_deref(),
+                "reasoning" => models.reasoning.as_deref(),
+                "embeddings" => models.embeddings.as_deref(),
+                _ => None,
+            };
+            if let Some(model) = m {
+                return model;
+            }
+        }
+        &self.model
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -512,6 +549,7 @@ pub async fn chat_stream_response(
     system_prompt: Option<String>,
     image_base64: Option<serde_json::Value>,
     history: Option<String>,
+    use_case: Option<String>,
 ) -> Result<String, String> {
     // Get stored credentials to get selected model
     let (_, _, selected_model) = get_stored_credentials(&app).await?;
@@ -597,9 +635,13 @@ pub async fn chat_stream_response(
         "content": user_content_value
     }));
 
-    // Build request body
+    // Build request body — use per-use-case model routing when available
+    let effective_model = match use_case.as_deref() {
+        Some(uc) => api_config.model_for(uc).to_string(),
+        None => api_config.model.clone(),
+    };
     let mut request_body = serde_json::json!({
-        "model": api_config.model,
+        "model": effective_model,
         "messages": messages,
         "stream": true
     });

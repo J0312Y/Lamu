@@ -53,6 +53,44 @@ export interface DatabaseCredentials {
   dbname: string;
 }
 
+export interface ShopifyCredentials {
+  accessToken?: string;
+  shop?: string;
+  connected_at?: string;
+}
+
+export interface ConfluenceCredentials {
+  email: string;
+  token: string;
+  baseUrl: string;
+}
+
+export interface ZendeskCredentials {
+  email: string;
+  token: string;
+  subdomain: string;
+}
+
+export interface HubSpotCredentials {
+  accessToken: string;
+  portalId?: string;
+}
+
+export interface FreshdeskCredentials {
+  apiKey: string;
+  domain: string;
+}
+
+export interface IntercomCredentials {
+  accessToken: string;
+}
+
+export interface WooCommerceCredentials {
+  consumerKey: string;
+  consumerSecret: string;
+  storeUrl: string;
+}
+
 export interface IntegrationCredentials {
   github?: GitHubCredentials;
   gitlab?: GitLabCredentials;
@@ -62,6 +100,13 @@ export interface IntegrationCredentials {
   stripe?: StripeCredentials;
   notion?: NotionCredentials;
   database?: DatabaseCredentials;
+  shopify?: ShopifyCredentials;
+  confluence?: ConfluenceCredentials;
+  zendesk?: ZendeskCredentials;
+  hubspot?: HubSpotCredentials;
+  freshdesk?: FreshdeskCredentials;
+  intercom?: IntercomCredentials;
+  woocommerce?: WooCommerceCredentials;
 }
 
 export type IntegrationService = keyof IntegrationCredentials;
@@ -122,6 +167,13 @@ export function useIntegrations() {
     if (service === 'stripe') return !!((c as StripeCredentials).apiKey);
     if (service === 'notion') return !!((c as NotionCredentials).apiKey);
     if (service === 'database') return !!((c as DatabaseCredentials).integration_id);
+    if (service === 'shopify') return !!((c as ShopifyCredentials).accessToken);
+    if (service === 'confluence') return !!((c as ConfluenceCredentials).token && (c as ConfluenceCredentials).email && (c as ConfluenceCredentials).baseUrl);
+    if (service === 'zendesk') return !!((c as ZendeskCredentials).token && (c as ZendeskCredentials).email && (c as ZendeskCredentials).subdomain);
+    if (service === 'hubspot') return !!((c as HubSpotCredentials).accessToken);
+    if (service === 'freshdesk') return !!((c as FreshdeskCredentials).apiKey && (c as FreshdeskCredentials).domain);
+    if (service === 'intercom') return !!((c as IntercomCredentials).accessToken);
+    if (service === 'woocommerce') return !!((c as WooCommerceCredentials).consumerKey && (c as WooCommerceCredentials).consumerSecret && (c as WooCommerceCredentials).storeUrl);
     return false;
   }, []);
 

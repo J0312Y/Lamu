@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
+import { CookieBanner, initCookieConsent } from './components/CookieBanner'
+import { ToastProvider } from './components/ui/Toast'
+import { ConfirmProvider } from './components/ui/ConfirmModal'
 import Home from './pages/Home'
 import Downloads from './pages/Downloads'
 import Pricing from './pages/Pricing'
@@ -23,6 +26,7 @@ function ScrollToTop() {
 }
 
 function MarketingLayout() {
+  useEffect(() => { initCookieConsent() }, [])
   return (
     <div style={{ background: '#000', minHeight: '100vh', color: '#fff' }}>
       <Navbar />
@@ -42,6 +46,7 @@ function MarketingLayout() {
         </Routes>
       </main>
       <Footer />
+      <CookieBanner />
     </div>
   )
 }
@@ -70,8 +75,12 @@ function Router() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ScrollToTop />
-      <Router />
+      <ToastProvider>
+        <ConfirmProvider>
+          <ScrollToTop />
+          <Router />
+        </ConfirmProvider>
+      </ToastProvider>
     </BrowserRouter>
   )
 }

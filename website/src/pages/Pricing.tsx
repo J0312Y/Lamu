@@ -142,7 +142,7 @@ function PaymentModal({ plan, onClose }: { plan: ApiPlan; onClose: () => void })
                 validUntil: plan.billing_period === 'lifetime' ? 'À vie' : periodLabel(plan.billing_period),
                 amount: plan.price,
                 currency: plan.currency,
-                product: `Lamuka ${d2.plan_name || plan.name}`,
+                product: `Lamu ${d2.plan_name || plan.name}`,
               }
               saveLicenseToStorage(record)
               setLicense(record)
@@ -336,7 +336,7 @@ function PaymentModal({ plan, onClose }: { plan: ApiPlan; onClose: () => void })
 
               <div style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginBottom: 10 }}>COMMENT ACTIVER DANS LAMUKA :</div>
-                {['Ouvrez Lamuka sur votre bureau', 'Allez dans Paramètres → Licence', 'Collez votre clé de licence', "Cliquez sur Activer — c'est tout !"].map((s, i) => (
+                {['Ouvrez Lamu sur votre bureau', 'Allez dans Paramètres → Licence', 'Collez votre clé de licence', "Cliquez sur Activer — c'est tout !"].map((s, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: i < 3 ? 8 : 0, fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>
                     <span style={{ width: 20, height: 20, background: 'rgba(99,102,241,0.2)', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#818cf8', flexShrink: 0 }}>{i + 1}</span>{s}
                   </div>
@@ -371,11 +371,11 @@ function PaymentModal({ plan, onClose }: { plan: ApiPlan; onClose: () => void })
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 
 const faqItems = [
-  { q: "Ai-je besoin d'une licence pour utiliser Lamuka ?", a: "Non. Toutes les fonctionnalités de base fonctionnent gratuitement avec vos propres clés API. La licence débloque des fonctionnalités avancées selon votre plan." },
-  { q: "Comment recevoir ma clé de licence ?", a: "Après confirmation du paiement, votre clé s'affiche immédiatement à l'écran et vous est envoyée par email. Copiez-la et collez-la dans Lamuka sous Paramètres → Licence." },
+  { q: "Ai-je besoin d'une licence pour utiliser Lamu ?", a: "Non. Le plan gratuit vous permet de decouvrir toutes les fonctionnalites de base. Les plans payants debloquent plus de messages, des fonctionnalites avancees et le support prioritaire." },
+  { q: "Comment recevoir ma clé de licence ?", a: "Après confirmation du paiement, votre clé s'affiche immédiatement à l'écran et vous est envoyée par email. Copiez-la et collez-la dans Lamu sous Paramètres → Licence." },
   { q: "J'ai perdu ma clé de licence, que faire ?", a: "Rendez-vous sur lamuka.com/recover, entrez votre email d'achat, et nous vous renverrons votre clé instantanément." },
   { q: "Quel mode de paiement est accepté ?", a: "Nous acceptons les paiements Mobile Money (Airtel Money). Entrez votre numéro, confirmez la demande sur votre téléphone, et votre clé est prête." },
-  { q: "La licence lifetime est-elle vraiment à vie ?", a: "Oui. Paiement unique, pas d'abonnement, pas de renouvellement. Payez une fois, utilisez pour toujours avec toutes les mises à jour." },
+  { q: "La licence lifetime est-elle vraiment à vie ?", a: "Oui. Paiement unique, pas d'abonnement, pas de renouvellement. Utilisez pour toujours avec toutes les mises à jour incluses." },
   { q: "Ma licence est-elle transférable ?", a: "Non. Chaque licence est nominative et liée à un seul utilisateur." },
 ]
 

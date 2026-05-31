@@ -5,7 +5,8 @@ import { BorderBeam } from '../components/BorderBeam'
 import {
   Download, Shield, Zap, EyeOff, Monitor, Globe, ChevronDown, Mic, Database,
   Mail, Brain, FileText, BarChart3, Calendar, MessageSquare,
-  GraduationCap, BookOpen, Layers, CheckCircle2, Play
+  GraduationCap, BookOpen, Layers, CheckCircle2, Play,
+  Laptop, Cloud, Check, Minus
 } from 'lucide-react'
 
 // ── Animation helpers ─────────────────────────────────────────────────────────
@@ -81,21 +82,30 @@ const features = [
   { icon: GraduationCap, label: "Simulateur d'Entretien", desc: 'Questions comportementales, techniques et coding avec scoring IA', color: '#818cf8', bg: 'rgba(99,102,241,0.12)' },
   { icon: FileText, label: 'Generateur CV', desc: 'CV + lettre de motivation generes par IA, export Markdown', color: '#4ade80', bg: 'rgba(74,222,128,0.1)' },
   { icon: MessageSquare, label: 'Resume de Reunion', desc: "Resume IA automatique de vos reunions, sauvegarde dans la KB", color: '#fbbf24', bg: 'rgba(251,191,36,0.1)' },
-  { icon: Globe, label: 'Multi-Fournisseur IA', desc: 'OpenAI, Claude, Gemini, Grok, Mistral, ou endpoint custom', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)' },
-  { icon: Mic, label: 'Multi-Fournisseur STT', desc: 'Whisper, ElevenLabs, Groq, Deepgram, ou custom', color: '#22d3ee', bg: 'rgba(34,211,238,0.1)' },
+  { icon: Globe, label: 'IA Multi-Modeles', desc: 'GPT-4, Claude, Gemini et plus — IA integree ou vos propres cles API', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)' },
+  { icon: Mic, label: 'Reconnaissance Vocale', desc: 'Transcription avancee avec Whisper, ElevenLabs, Groq, Deepgram', color: '#22d3ee', bg: 'rgba(34,211,238,0.1)' },
   { icon: Monitor, label: 'Multi-Plateforme', desc: 'Natif sur macOS, Windows et Linux', color: '#fb7185', bg: 'rgba(251,113,133,0.1)' },
 ]
 
+// SVG data URIs for brands not on simpleicons
+const svgIcon = (d: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white">${d}</svg>`)}`
+const ICON_OPENAI = svgIcon('<path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.047 6.047 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/>')
+const ICON_XAI = svgIcon('<text x="12" y="17" text-anchor="middle" font-size="14" font-weight="bold" font-family="Arial" fill="white">𝕏</text>')
+const ICON_GROQ = svgIcon('<text x="12" y="17" text-anchor="middle" font-size="11" font-weight="bold" font-family="Arial" fill="white">G</text>')
+const ICON_COHERE = svgIcon('<text x="12" y="17" text-anchor="middle" font-size="11" font-weight="bold" font-family="Arial" fill="white">C</text>')
+const ICON_AZURE = svgIcon('<path d="M13.05 4.24L6.56 18.05a.5.5 0 0 0 .44.74h10.5a.5.5 0 0 0 .44-.26l3.7-7a.5.5 0 0 0-.44-.74h-5.26l3.32-6.33a.5.5 0 0 0-.45-.72h-5.32a.5.5 0 0 0-.44.26z" fill="white"/>')
+const ICON_IBM = svgIcon('<text x="12" y="16" text-anchor="middle" font-size="9" font-weight="900" font-family="Arial" fill="white" letter-spacing="1">IBM</text>')
+
 const aiProviders = [
-  { name: 'OpenAI',     logo: 'https://cdn.simpleicons.org/openai/ffffff',     bg: 'rgba(0,0,0,0.4)' },
-  { name: 'Anthropic',  logo: 'https://cdn.simpleicons.org/anthropic/ffffff',   bg: 'rgba(204,150,82,0.15)' },
-  { name: 'Google',     logo: 'https://cdn.simpleicons.org/google/ffffff',      bg: 'rgba(66,133,244,0.15)' },
-  { name: 'xAI Grok',   logo: 'https://cdn.simpleicons.org/xai/ffffff',         bg: 'rgba(255,255,255,0.06)' },
-  { name: 'Mistral',    logo: 'https://cdn.simpleicons.org/mistral/ffffff',     bg: 'rgba(255,122,0,0.15)' },
-  { name: 'Groq',       logo: 'https://cdn.simpleicons.org/groq/ffffff',        bg: 'rgba(139,92,246,0.15)' },
-  { name: 'Perplexity', logo: 'https://cdn.simpleicons.org/perplexity/ffffff',  bg: 'rgba(32,178,170,0.15)' },
-  { name: 'Ollama',     logo: 'https://cdn.simpleicons.org/ollama/ffffff',      bg: 'rgba(255,255,255,0.06)' },
-  { name: 'Cohere',     logo: 'https://cdn.simpleicons.org/cohere/ffffff',      bg: 'rgba(57,101,223,0.15)' },
+  { name: 'OpenAI',     logo: ICON_OPENAI,                                        bg: 'rgba(0,0,0,0.4)' },
+  { name: 'Anthropic',  logo: 'https://cdn.simpleicons.org/anthropic/ffffff',      bg: 'rgba(204,150,82,0.15)' },
+  { name: 'Google',     logo: 'https://cdn.simpleicons.org/google/ffffff',         bg: 'rgba(66,133,244,0.15)' },
+  { name: 'xAI Grok',   logo: ICON_XAI,                                            bg: 'rgba(255,255,255,0.06)' },
+  { name: 'Mistral',    logo: 'https://cdn.simpleicons.org/mistralai/ffffff',      bg: 'rgba(255,122,0,0.15)' },
+  { name: 'Groq',       logo: ICON_GROQ,                                           bg: 'rgba(139,92,246,0.15)' },
+  { name: 'Perplexity', logo: 'https://cdn.simpleicons.org/perplexity/ffffff',     bg: 'rgba(32,178,170,0.15)' },
+  { name: 'Ollama',     logo: 'https://cdn.simpleicons.org/ollama/ffffff',         bg: 'rgba(255,255,255,0.06)' },
+  { name: 'Cohere',     logo: ICON_COHERE,                                         bg: 'rgba(57,101,223,0.15)' },
   { name: '+ Custom',   logo: null, dashed: true, bg: 'rgba(255,255,255,0.04)' },
 ]
 
@@ -128,6 +138,7 @@ export default function Home() {
       <ProductivitySection />
       <AIControlSection />
       <VoiceAudioSection />
+      <CompareSection />
       <FAQSection />
       <ExploreSection />
       <CtaSection />
@@ -280,7 +291,7 @@ function SystemAudioSection() {
                 Capturez l'audio systeme en direct pendant vos reunions, entretiens et presentations. Lamu ecoute ce qui se dit et le transmet directement a votre IA — sans saisie manuelle.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {["Capture l'audio systeme en temps reel", 'Fonctionne avec toutes les apps de reunion', 'Transcription auto avec votre fournisseur STT', 'Activation/desactivation par raccourci'].map(c => (
+                {["Capture l'audio systeme en temps reel", 'Fonctionne avec toutes les apps de reunion', 'Transcription automatique haute precision', 'Activation/desactivation par raccourci'].map(c => (
                   <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>
                     <div style={{ width: 18, height: 18, background: 'rgba(251,191,36,0.12)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
@@ -597,20 +608,20 @@ function ProductivitySection() {
 
 function AIControlSection() {
   const preconfigured = [
-    { name: 'Mistral AI', logo: 'https://cdn.simpleicons.org/mistral/ffffff', bg: 'rgba(255,122,0,0.12)' },
-    { name: 'Cohere',     logo: 'https://cdn.simpleicons.org/cohere/ffffff',  bg: 'rgba(57,101,223,0.12)' },
+    { name: 'Mistral AI', logo: 'https://cdn.simpleicons.org/mistralai/ffffff', bg: 'rgba(255,122,0,0.12)' },
+    { name: 'Cohere',     logo: ICON_COHERE,                                    bg: 'rgba(57,101,223,0.12)' },
     { name: 'Perplexity', logo: 'https://cdn.simpleicons.org/perplexity/ffffff', bg: 'rgba(32,178,170,0.12)' },
-    { name: 'Groq',       logo: 'https://cdn.simpleicons.org/groq/ffffff',    bg: 'rgba(139,92,246,0.12)' },
-    { name: 'Ollama',     logo: 'https://cdn.simpleicons.org/ollama/ffffff',  bg: 'rgba(255,255,255,0.05)' },
+    { name: 'Groq',       logo: ICON_GROQ,                                      bg: 'rgba(139,92,246,0.12)' },
+    { name: 'Ollama',     logo: 'https://cdn.simpleicons.org/ollama/ffffff',     bg: 'rgba(255,255,255,0.05)' },
   ]
 
   return (
     <section style={{ padding: '100px 24px', background: 'linear-gradient(to bottom,#000,rgba(6,5,15,1))' }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
         <SectionHeader
-          tag="Fournisseurs IA"
-          title="Controle Total sur l'IA"
-          subtitle="Connectez n'importe quel fournisseur IA via de simples commandes cURL. OpenAI, Anthropic, Google, xAI, Mistral, Cohere, Perplexity, Groq, Ollama, ou votre propre endpoint."
+          tag="Intelligence Artificielle"
+          title="Propulse par les Meilleurs Modeles IA"
+          subtitle="Par defaut, Lamu selectionne automatiquement le meilleur modele IA pour chaque situation. Vous pouvez aussi utiliser vos propres cles API pour un controle total."
         />
 
         {/* Two top cards */}
@@ -624,12 +635,12 @@ function AIControlSection() {
               style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 16, padding: 28, position: 'relative', overflow: 'hidden', height: '100%' }}
             >
               <BorderBeam colorTo="rgba(99,102,241,0.8)" duration={4} />
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 100, padding: '3px 12px', marginBottom: 16, fontSize: 11, fontWeight: 700, color: '#818cf8', letterSpacing: 0.5 }}>
-                OPTIONNEL
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: 100, padding: '3px 12px', marginBottom: 16, fontSize: 11, fontWeight: 700, color: '#4ade80', letterSpacing: 0.5 }}>
+                PAR DEFAUT
               </div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Lamu API</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Lamu IA Integre</h3>
               <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7 }}>
-                Vous ne souhaitez pas gerer vos propres cles API ? Utilisez notre API optionnelle pour un acces pratique a 120+ modeles IA premium dont GPT-4, Claude et Gemini.
+                Aucune configuration requise. Lamu selectionne automatiquement le meilleur modele IA pour chaque tache parmi 120+ modeles : GPT-4, Claude, Gemini et plus.
               </p>
             </motion.div>
           </StaggerItem>
@@ -641,9 +652,12 @@ function AIControlSection() {
               transition={{ type: 'spring', stiffness: 300, damping: 20 }}
               style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 28, position: 'relative', overflow: 'hidden', height: '100%' }}
             >
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Fournisseur IA Custom avec cURL</h3>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 100, padding: '3px 12px', marginBottom: 16, fontSize: 11, fontWeight: 700, color: '#818cf8', letterSpacing: 0.5 }}>
+                OPTIONNEL
+              </div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>Vos Propres Cles API</h3>
               <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 16 }}>
-                Tout endpoint compatible OpenAI fonctionne. Utilisez le template ci-dessous — Lamu remplit <code style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 4, padding: '1px 6px', fontSize: 12, color: '#818cf8' }}>{'{{PROMPT}}'}</code> et <code style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 4, padding: '1px 6px', fontSize: 12, color: '#818cf8' }}>{'{{API_KEY}}'}</code> automatiquement.
+                Vous preferez utiliser vos propres cles ? Connectez directement OpenAI, Anthropic, Google, Mistral, Groq, Ollama ou tout endpoint compatible OpenAI.
               </p>
               <div style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '14px 16px', fontFamily: 'monospace', fontSize: 12, lineHeight: 1.8, overflowX: 'auto' }}>
                 <div><span style={{ color: '#4ade80' }}>curl</span> <span style={{ color: '#fbbf24' }}>-s</span> https://api.openai.com/v1/chat/completions \</div>
@@ -658,7 +672,7 @@ function AIControlSection() {
         {/* All provider tiles */}
         <FadeIn>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 12, letterSpacing: 0.5 }}>FOURNISSEURS IA PRE-CONFIGURES</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 12, letterSpacing: 0.5 }}>MODELES IA DISPONIBLES</h3>
             <StaggerGroup delay={0.05} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8 }}>
               {aiProviders.map(p => (
                 <StaggerItem key={p.name}>
@@ -681,7 +695,7 @@ function AIControlSection() {
           </div>
 
           <div style={{ marginTop: 20 }}>
-            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 12, letterSpacing: 0.5 }}>AUTRES FOURNISSEURS PRE-CONFIGURES</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 12, letterSpacing: 0.5 }}>AUTRES MODELES INTEGRES</h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {preconfigured.map(p => (
                 <motion.div
@@ -706,13 +720,13 @@ function AIControlSection() {
 
 function VoiceAudioSection() {
   const sttProviders = [
-    { name: 'Groq Whisper',  logo: 'https://cdn.simpleicons.org/groq/ffffff',         bg: 'rgba(139,92,246,0.1)' },
+    { name: 'Groq Whisper',  logo: ICON_GROQ,                                          bg: 'rgba(139,92,246,0.1)' },
     { name: 'Google STT',    logo: 'https://cdn.simpleicons.org/google/ffffff',        bg: 'rgba(66,133,244,0.1)' },
     { name: 'Deepgram',      logo: 'https://cdn.simpleicons.org/deepgram/ffffff',      bg: 'rgba(6,182,212,0.1)' },
-    { name: 'Azure Speech',  logo: 'https://cdn.simpleicons.org/microsoftazure/ffffff',bg: 'rgba(0,120,212,0.1)' },
+    { name: 'Azure Speech',  logo: ICON_AZURE,                                         bg: 'rgba(0,120,212,0.1)' },
     { name: 'Speechmatics',  logo: null,                                               bg: 'rgba(16,185,129,0.08)' },
     { name: 'Rev.ai',        logo: null,                                               bg: 'rgba(249,115,22,0.08)' },
-    { name: 'IBM Watson',    logo: 'https://cdn.simpleicons.org/ibm/ffffff',           bg: 'rgba(99,102,241,0.1)' },
+    { name: 'IBM Watson',    logo: ICON_IBM,                                            bg: 'rgba(99,102,241,0.1)' },
     { name: '+ Custom',      logo: null, dashed: true,                                bg: 'rgba(255,255,255,0.04)' },
   ]
 
@@ -722,7 +736,7 @@ function VoiceAudioSection() {
         <SectionHeader
           tag="Voix & Audio"
           title="Capture Voix & Audio"
-          subtitle="Capturez l'audio systeme en temps reel pendant vos reunions et presentations. Enregistrez votre voix avec des fournisseurs STT avances."
+          subtitle="Capturez l'audio systeme en temps reel pendant vos reunions et presentations. Transcription vocale haute precision integree."
         />
 
         {/* Provider feature cards */}
@@ -738,7 +752,7 @@ function VoiceAudioSection() {
               <BorderBeam colorTo="rgba(16,185,129,0.7)" duration={4} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                 <div style={{ width: 36, height: 36, background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <img src="https://cdn.simpleicons.org/openai/ffffff" alt="OpenAI" width={20} height={20} style={{ objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.85 }} />
+                  <img src={ICON_OPENAI} alt="OpenAI" width={20} height={20} style={{ objectFit: 'contain', opacity: 0.85 }} />
                 </div>
                 <h3 style={{ fontSize: 16, fontWeight: 700 }}>OpenAI Whisper</h3>
               </div>
@@ -790,9 +804,9 @@ function VoiceAudioSection() {
           </StaggerItem>
         </StaggerGroup>
 
-        {/* Pre-configured STT providers */}
+        {/* STT providers */}
         <FadeIn>
-          <h3 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 12, letterSpacing: 0.5 }}>FOURNISSEURS STT PRE-CONFIGURES</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 12, letterSpacing: 0.5 }}>MOTEURS DE TRANSCRIPTION INTEGRES</h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {sttProviders.map(p => (
               <motion.div
@@ -817,20 +831,170 @@ function VoiceAudioSection() {
   )
 }
 
+// ── Compare: WebApp vs Desktop ────────────────────────────────────────────────
+
+const compareFeatures: { feature: string; desktop: 'yes' | 'no' | 'partial'; web: 'yes' | 'no' | 'partial'; note?: string }[] = [
+  { feature: 'Assistance IA en reunion',        desktop: 'yes',     web: 'no',      note: "Overlay invisible pendant l'appel" },
+  { feature: 'Invisible en partage d\'ecran',    desktop: 'yes',     web: 'no',      note: 'Exclue de la capture video (WDA)' },
+  { feature: 'Capture audio systeme',            desktop: 'yes',     web: 'no',      note: 'WASAPI / CoreAudio / PulseAudio' },
+  { feature: 'Transcription vocale (STT)',       desktop: 'yes',     web: 'no',      note: 'Whisper, ElevenLabs, Deepgram...' },
+  { feature: 'Raccourcis clavier globaux',       desktop: 'yes',     web: 'no',      note: 'Ctrl+Shift+. pour le micro' },
+  { feature: 'Utiliser ses propres cles API',    desktop: 'yes',     web: 'no',      note: 'OpenAI, Anthropic, Google...' },
+  { feature: 'Donnees 100% locales (SQLite)',    desktop: 'yes',     web: 'no',      note: 'Rien ne quitte votre machine' },
+  { feature: 'Chat IA',                          desktop: 'yes',     web: 'yes' },
+  { feature: 'Base de connaissances (RAG)',      desktop: 'yes',     web: 'yes' },
+  { feature: 'Simulateur d\'entretien',          desktop: 'yes',     web: 'yes' },
+  { feature: 'Generateur CV / Lettre',           desktop: 'yes',     web: 'no' },
+  { feature: 'Helpdesk & Ticketing',             desktop: 'no',      web: 'yes',     note: 'Support client avec scoring IA' },
+  { feature: 'Widget integrable sur site',       desktop: 'no',      web: 'yes',     note: 'Chat widget en une ligne de code' },
+  { feature: 'Gestion d\'equipe',                desktop: 'no',      web: 'yes',     note: 'Roles, permissions, collaboration' },
+  { feature: 'Analytics & Tableaux de bord',     desktop: 'partial', web: 'yes',     note: 'Avance dans le WebApp' },
+  { feature: 'Integrations (Slack, Email...)',   desktop: 'no',      web: 'yes',     note: 'Canaux de communication unifies' },
+  { feature: 'Accessible depuis un navigateur',  desktop: 'no',      web: 'yes',     note: 'Aucune installation requise' },
+  { feature: 'Fonctionne hors ligne',            desktop: 'yes',     web: 'no',      note: 'App native, pas de connexion requise' },
+]
+
+function StatusIcon({ status }: { status: 'yes' | 'no' | 'partial' }) {
+  if (status === 'yes') return <Check size={15} style={{ color: '#4ade80' }} />
+  if (status === 'partial') return <Minus size={15} style={{ color: '#fbbf24' }} />
+  return <Minus size={15} style={{ color: 'rgba(255,255,255,0.15)' }} />
+}
+
+function CompareSection() {
+  return (
+    <section style={{ padding: '100px 24px', background: 'linear-gradient(to bottom,#000,rgba(6,5,15,1))' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+        <SectionHeader
+          tag="Comparaison"
+          title="Desktop App vs WebApp"
+          subtitle="Deux experiences complementaires. Choisissez celle qui correspond a votre usage — ou utilisez les deux."
+        />
+
+        {/* Top cards: Desktop vs WebApp identity */}
+        <StaggerGroup delay={0.05} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16, marginBottom: 40 }}>
+          <StaggerItem>
+            <motion.div
+              whileHover={{ y: -4 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 16, padding: 28, position: 'relative', overflow: 'hidden', height: '100%' }}
+            >
+              <BorderBeam colorTo="rgba(139,92,246,0.7)" duration={4} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 40, height: 40, background: 'rgba(139,92,246,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Laptop size={20} style={{ color: '#a78bfa' }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700 }}>Desktop App</h3>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>Tauri + Rust • ~10MB</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 16 }}>
+                Pour les individus et les entreprises. Assistant IA natif sur votre machine — en reunion avec overlay invisible, au quotidien pour le chat IA, la preparation d'entretiens, la redaction de CV, ou l'interrogation de vos bases de donnees. Donnees 100% locales.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {['Reunions', 'Productivite', 'Entretiens', 'Entreprise', 'Confidentialite', 'Hors ligne'].map(tag => (
+                  <span key={tag} style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 100, padding: '3px 10px' }}>{tag}</span>
+                ))}
+              </div>
+            </motion.div>
+          </StaggerItem>
+
+          <StaggerItem>
+            <motion.div
+              whileHover={{ y: -4 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 16, padding: 28, position: 'relative', overflow: 'hidden', height: '100%' }}
+            >
+              <BorderBeam colorTo="rgba(99,102,241,0.7)" duration={4} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 40, height: 40, background: 'rgba(99,102,241,0.15)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Cloud size={20} style={{ color: '#818cf8' }} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700 }}>WebApp</h3>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>Navigateur • Aucune installation</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, marginBottom: 16 }}>
+                Pour les equipes et les entreprises. Chat IA, base de connaissances, helpdesk avec ticketing, widget integrable et analytics avances — accessible depuis n'importe quel navigateur, sans rien installer.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {['Support client', 'Equipe', 'Analytics', 'Widget'].map(tag => (
+                  <span key={tag} style={{ fontSize: 11, fontWeight: 600, color: '#818cf8', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 100, padding: '3px 10px' }}>{tag}</span>
+                ))}
+              </div>
+            </motion.div>
+          </StaggerItem>
+        </StaggerGroup>
+
+        {/* Comparison table */}
+        <FadeIn>
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px', padding: '14px 20px', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.08)', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Fonctionnalite</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Laptop size={13} /> Desktop</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}><Cloud size={13} /> Web</span>
+            </div>
+            {/* Rows */}
+            {compareFeatures.map((f, i) => (
+              <div
+                key={f.feature}
+                style={{
+                  display: 'grid', gridTemplateColumns: '1fr 100px 100px', padding: '12px 20px',
+                  borderBottom: i < compareFeatures.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                  background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,0.8)' }}>{f.feature}</span>
+                  {f.note && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginLeft: 8 }}>{f.note}</span>}
+                </div>
+                <div style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}><StatusIcon status={f.desktop} /></div>
+                <div style={{ textAlign: 'center', display: 'flex', justifyContent: 'center' }}><StatusIcon status={f.web} /></div>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+
+        {/* Bottom recommendation */}
+        <FadeIn delay={0.1}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 16, marginTop: 24 }}>
+            <div style={{ background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 12, padding: '18px 22px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Laptop size={14} /> Ideal pour</div>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, margin: 0 }}>
+                Commerciaux, developpeurs, candidats, freelances, equipes — toute personne ou entreprise qui veut un assistant IA natif, rapide et confidentiel : en reunion, pour coder, rediger, analyser des donnees ou preparer un entretien.
+              </p>
+            </div>
+            <div style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 12, padding: '18px 22px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#818cf8', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Cloud size={14} /> Ideal pour</div>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, margin: 0 }}>
+                Startups, PME et grandes entreprises — qui veulent un assistant IA pour leur support client, un widget integrable, des analytics et une plateforme collaborative sans installation.
+              </p>
+            </div>
+          </div>
+        </FadeIn>
+
+      </div>
+    </section>
+  )
+}
+
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 
 const faqData = [
-  { q: 'Lamu est-il gratuit ?', a: "Oui. Toutes les fonctionnalites de base fonctionnent gratuitement avec vos propres cles API. La licence Dev Pro debloque des fonctionnalites premium, le raccourci de deplacement de fenetre et le support prioritaire." },
+  { q: 'Lamu est-il gratuit ?', a: "Oui. Le plan gratuit vous permet de decouvrir toutes les fonctionnalites de base. Les plans payants debloquent plus de messages, des fonctionnalites avancees et le support prioritaire. Consultez la page Tarifs pour les details." },
   { q: 'Comment Lamu est-il invisible dans les appels video ?', a: "Lamu utilise une fenetre overlay transparente, toujours au premier plan, exclue de la capture video. Zoom, Google Meet, Teams et toutes les plateformes majeures ne la detectent ni ne l'enregistrent." },
-  { q: 'Comment mes donnees sont-elles gerees ?', a: "Toutes les donnees sont stockees localement sur votre appareil via SQLite. Aucune donnee n'est envoyee aux serveurs de Lamu. Vos conversations vont directement de votre machine a votre fournisseur IA." },
-  { q: 'Quels fournisseurs IA sont supportes ?', a: "Tout fournisseur avec une API compatible OpenAI : OpenAI, Anthropic, Google Gemini, xAI Grok, Mistral, Cohere, Perplexity, Groq, Ollama, et tout endpoint custom." },
-  { q: 'Quels fournisseurs STT sont supportes ?', a: 'OpenAI Whisper, ElevenLabs, Groq Whisper, Google STT, Deepgram, Azure Speech, Speechmatics, Rev.ai, IBM Watson, et tout endpoint STT custom via cURL.' },
+  { q: 'Comment mes donnees sont-elles gerees ?', a: "Toutes les donnees sont stockees localement sur votre appareil via SQLite. Aucune donnee n'est envoyee aux serveurs de Lamu. Vos conversations restent privees et securisees." },
+  { q: 'Quels modeles IA sont utilises ?', a: "Par defaut, Lamu utilise automatiquement les meilleurs modeles du marche : GPT-4, Claude, Gemini, Llama, Mistral et plus de 120 autres. Vous pouvez aussi connecter vos propres cles API (OpenAI, Anthropic, Google, etc.) dans l'app desktop pour un controle total." },
+  { q: 'Comment fonctionne la reconnaissance vocale ?', a: 'Lamu integre les meilleurs moteurs de transcription : Whisper, ElevenLabs, Groq, Google, Deepgram et plus. La transcription est automatique et haute precision.' },
   { q: 'Quels systemes sont supportes ?', a: 'macOS 11+, Windows 10/11 (x64) et Linux (Debian, RHEL, AppImage). Builds natifs pour chaque plateforme.' },
   { q: 'Pourquoi Lamu est-il si leger et rapide ?', a: "Lamu est construit avec Tauri et Rust au lieu d'Electron. Resultat : un binaire de ~10MB (vs ~270MB pour les apps Electron), demarrage sub-100ms et ~50MB d'utilisation RAM." },
   { q: "Que comprend le plan Dev Pro ?", a: "Dev Pro debloque des reponses IA plus rapides via routage optimise, le raccourci de deplacement de fenetre (Ctrl+Shift+W), le support email prioritaire, l'acces anticipe aux nouvelles fonctionnalites et l'activation multi-appareils." },
   { q: 'Puis-je connecter mes bases de donnees ?', a: "Oui. Lamu supporte les integrations MySQL et PostgreSQL. Vous pouvez interroger vos bases en langage naturel, l'IA genere le SQL automatiquement. Les lectures sont executees directement, les ecritures necessitent votre approbation." },
   { q: 'Comment fonctionne le simulateur d\'entretien ?', a: "Le simulateur genere des questions comportementales, techniques, system design ou coding. L'IA evalue chaque reponse avec un scoring sur la clarte, la pertinence et la structure (0-10). Parfait pour preparer vos entretiens." },
-  { q: "Lamu fonctionne-t-il hors ligne ?", a: "Support partiel hors ligne. L'app elle-meme se lance et fonctionne hors ligne. Les fonctionnalites IA necessitent une connexion internet pour atteindre votre fournisseur, sauf si vous utilisez un modele local via Ollama." },
+  { q: "Lamu fonctionne-t-il hors ligne ?", a: "Support partiel hors ligne. L'app elle-meme se lance et fonctionne hors ligne. Les fonctionnalites IA necessitent une connexion internet, sauf si vous utilisez un modele local via Ollama avec vos propres cles." },
   { q: 'Sur combien d\'appareils puis-je utiliser ma licence ?', a: "La licence Dev Pro supporte l'activation sur 2 appareils simultanement. Contactez support@lamuka.com si vous avez besoin de sieges supplementaires." },
 ]
 
@@ -949,7 +1113,7 @@ function ExploreSection() {
               <div>
                 <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Pret a commencer ?</h3>
                 <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
-                  Telechargez Lamu gratuitement. ~10MB, demarrage en moins de 100ms, compatible avec tout fournisseur IA.
+                  Telechargez Lamu gratuitement. ~10MB, demarrage en moins de 100ms. IA integree ou vos propres cles API.
                 </p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>

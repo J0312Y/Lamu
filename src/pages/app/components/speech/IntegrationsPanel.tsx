@@ -24,6 +24,13 @@ import {
   type StripeCredentials,
   type NotionCredentials,
   type DatabaseCredentials,
+  type ShopifyCredentials,
+  type ConfluenceCredentials,
+  type ZendeskCredentials,
+  type HubSpotCredentials,
+  type FreshdeskCredentials,
+  type IntercomCredentials,
+  type WooCommerceCredentials,
 } from '../../../../hooks/useIntegrations';
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -198,7 +205,7 @@ function ServiceCard({
 // ── Main component ─────────────────────────────────────────────────────────────
 
 // All known integration slugs
-const ALL_INTEGRATIONS = ['github', 'gitlab', 'jira', 'slack', 'google', 'stripe', 'notion', 'database'] as const;
+const ALL_INTEGRATIONS = ['github', 'gitlab', 'jira', 'slack', 'google', 'stripe', 'notion', 'database', 'shopify', 'confluence', 'zendesk', 'hubspot', 'freshdesk', 'intercom', 'woocommerce'] as const;
 type IntegrationSlug = (typeof ALL_INTEGRATIONS)[number];
 
 export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProps) {
@@ -282,6 +289,90 @@ export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProp
   const [dbSsl, setDbSsl] = useState(false);
   const [dbTesting, setDbTesting] = useState(false);
   const [dbResult, setDbResult] = useState<TestResult>(null);
+
+  // ── Shopify state ──────────────────────────────────────────────────────────
+  const [shopifyTesting] = useState(false);
+  const [shopifyResult, setShopifyResult] = useState<TestResult>(null);
+
+  // ── Confluence state ──────────────────────────────────────────────────────
+  const [confEmail, setConfEmail] = useState((credentials.confluence as ConfluenceCredentials)?.email || '');
+  const [confToken, setConfToken] = useState((credentials.confluence as ConfluenceCredentials)?.token || '');
+  const [confBaseUrl, setConfBaseUrl] = useState((credentials.confluence as ConfluenceCredentials)?.baseUrl || '');
+  const [confTesting, setConfTesting] = useState(false);
+  const [confResult, setConfResult] = useState<TestResult>(null);
+
+  // ── Zendesk state ─────────────────────────────────────────────────────────
+  const [zdEmail, setZdEmail] = useState((credentials.zendesk as ZendeskCredentials)?.email || '');
+  const [zdToken, setZdToken] = useState((credentials.zendesk as ZendeskCredentials)?.token || '');
+  const [zdSubdomain, setZdSubdomain] = useState((credentials.zendesk as ZendeskCredentials)?.subdomain || '');
+  const [zdTesting, setZdTesting] = useState(false);
+  const [zdResult, setZdResult] = useState<TestResult>(null);
+
+  // ── HubSpot state ─────────────────────────────────────────────────────────
+  const [hsToken, setHsToken] = useState((credentials.hubspot as HubSpotCredentials)?.accessToken || '');
+  const [hsTesting, setHsTesting] = useState(false);
+  const [hsResult, setHsResult] = useState<TestResult>(null);
+
+  // ── Freshdesk state ───────────────────────────────────────────────────────
+  const [fdKey, setFdKey] = useState((credentials.freshdesk as FreshdeskCredentials)?.apiKey || '');
+  const [fdDomain, setFdDomain] = useState((credentials.freshdesk as FreshdeskCredentials)?.domain || '');
+  const [fdTesting, setFdTesting] = useState(false);
+  const [fdResult, setFdResult] = useState<TestResult>(null);
+
+  // ── Intercom state ────────────────────────────────────────────────────────
+  const [icToken, setIcToken] = useState((credentials.intercom as IntercomCredentials)?.accessToken || '');
+  const [icTesting, setIcTesting] = useState(false);
+  const [icResult, setIcResult] = useState<TestResult>(null);
+
+  // ── WooCommerce state ─────────────────────────────────────────────────────
+  const [wcKey, setWcKey] = useState((credentials.woocommerce as WooCommerceCredentials)?.consumerKey || '');
+  const [wcSecret, setWcSecret] = useState((credentials.woocommerce as WooCommerceCredentials)?.consumerSecret || '');
+  const [wcUrl, setWcUrl] = useState((credentials.woocommerce as WooCommerceCredentials)?.storeUrl || '');
+  const [wcTesting, setWcTesting] = useState(false);
+  const [wcResult, setWcResult] = useState<TestResult>(null);
+
+  // ── OAuth popup state ───────────────────────────────────────────────────────
+  const [oauthConnecting, setOauthConnecting] = useState('');
+
+  const startOAuthConnect = useCallback(async (provider: string) => {
+    setOauthConnecting(provider);
+    try {
+      const r = await fetch(`${apiBase}/api/oauth/${provider}/start`, {
+        headers: { 'Content-Type': 'application/json', ...(authHeader?.() || {}) },
+      });
+      const d = await r.json();
+      if (d.auth_url) {
+        const w = 500, h = 650;
+        const left = (window.screen.width - w) / 2;
+        const top = (window.screen.height - h) / 2;
+        window.open(d.auth_url, `oauth_${provider}`, `width=${w},height=${h},left=${left},top=${top}`);
+      }
+    } catch {} finally {
+      setTimeout(() => setOauthConnecting(''), 3000);
+    }
+  }, [apiBase, authHeader]);
+
+  // Listen for OAuth popup success
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'oauth_success') {
+        const provider = e.data.provider;
+        setOauthConnecting('');
+        if (provider === 'google') {
+          setCredential('google', { accessToken: 'oauth', email: 'OAuth connecté' });
+          setGoogleResult({ ok: true, label: 'OAuth connecté' });
+        } else if (provider === 'slack') {
+          setCredential('slack', { token: 'oauth', team: 'OAuth connecté' });
+          setSlackResult({ ok: true, label: 'OAuth connecté' });
+        } else if (provider === 'shopify') {
+          setCredential('shopify', { accessToken: 'oauth', shop: e.data.shop || 'OAuth connecté', connected_at: new Date().toISOString() });
+          setShopifyResult({ ok: true, label: e.data.shop || 'OAuth connecté' });
+        }
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [setCredential]);
 
   // ── Test helper ────────────────────────────────────────────────────────────
 
@@ -565,6 +656,78 @@ export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProp
     }
   };
 
+  // ── Confluence ─────────────────────────────────────────────────────────────
+  const testConfluence = async () => {
+    if (!confEmail.trim() || !confToken.trim() || !confBaseUrl.trim()) return;
+    setConfTesting(true); setConfResult(null);
+    try {
+      const res = await testIntegration('confluence' as IntegrationService, { email: confEmail.trim(), token: confToken.trim(), baseUrl: confBaseUrl.trim() });
+      setConfResult(res || { ok: false, error: 'Pas de réponse' });
+      if (res?.ok) setCredential('confluence', { email: confEmail.trim(), token: confToken.trim(), baseUrl: confBaseUrl.trim() });
+    } catch (e) { setConfResult({ ok: false, error: String(e) }); }
+    finally { setConfTesting(false); }
+  };
+
+  // ── Zendesk ───────────────────────────────────────────────────────────────
+  const testZendesk = async () => {
+    if (!zdEmail.trim() || !zdToken.trim() || !zdSubdomain.trim()) return;
+    setZdTesting(true); setZdResult(null);
+    try {
+      const res = await testIntegration('zendesk' as IntegrationService, { email: zdEmail.trim(), token: zdToken.trim(), subdomain: zdSubdomain.trim() });
+      setZdResult(res || { ok: false, error: 'Pas de réponse' });
+      if (res?.ok) setCredential('zendesk', { email: zdEmail.trim(), token: zdToken.trim(), subdomain: zdSubdomain.trim() });
+    } catch (e) { setZdResult({ ok: false, error: String(e) }); }
+    finally { setZdTesting(false); }
+  };
+
+  // ── HubSpot ───────────────────────────────────────────────────────────────
+  const testHubSpot = async () => {
+    if (!hsToken.trim()) return;
+    setHsTesting(true); setHsResult(null);
+    try {
+      const res = await testIntegration('hubspot' as IntegrationService, { accessToken: hsToken.trim() });
+      setHsResult(res || { ok: false, error: 'Pas de réponse' });
+      if (res?.ok) setCredential('hubspot', { accessToken: hsToken.trim(), portalId: (res as { portalId?: string }).portalId });
+    } catch (e) { setHsResult({ ok: false, error: String(e) }); }
+    finally { setHsTesting(false); }
+  };
+
+  // ── Freshdesk ─────────────────────────────────────────────────────────────
+  const testFreshdesk = async () => {
+    if (!fdKey.trim() || !fdDomain.trim()) return;
+    setFdTesting(true); setFdResult(null);
+    try {
+      const res = await testIntegration('freshdesk' as IntegrationService, { apiKey: fdKey.trim(), domain: fdDomain.trim() });
+      setFdResult(res || { ok: false, error: 'Pas de réponse' });
+      if (res?.ok) setCredential('freshdesk', { apiKey: fdKey.trim(), domain: fdDomain.trim() });
+    } catch (e) { setFdResult({ ok: false, error: String(e) }); }
+    finally { setFdTesting(false); }
+  };
+
+  // ── Intercom ──────────────────────────────────────────────────────────────
+  const testIntercom = async () => {
+    if (!icToken.trim()) return;
+    setIcTesting(true); setIcResult(null);
+    try {
+      const res = await testIntegration('intercom' as IntegrationService, { accessToken: icToken.trim() });
+      setIcResult(res || { ok: false, error: 'Pas de réponse' });
+      if (res?.ok) setCredential('intercom', { accessToken: icToken.trim() });
+    } catch (e) { setIcResult({ ok: false, error: String(e) }); }
+    finally { setIcTesting(false); }
+  };
+
+  // ── WooCommerce ───────────────────────────────────────────────────────────
+  const testWooCommerce = async () => {
+    if (!wcKey.trim() || !wcSecret.trim() || !wcUrl.trim()) return;
+    setWcTesting(true); setWcResult(null);
+    try {
+      const res = await testIntegration('woocommerce' as IntegrationService, { consumerKey: wcKey.trim(), consumerSecret: wcSecret.trim(), storeUrl: wcUrl.trim() });
+      setWcResult(res || { ok: false, error: 'Pas de réponse' });
+      if (res?.ok) setCredential('woocommerce', { consumerKey: wcKey.trim(), consumerSecret: wcSecret.trim(), storeUrl: wcUrl.trim() });
+    } catch (e) { setWcResult({ ok: false, error: String(e) }); }
+    finally { setWcTesting(false); }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const ghConnected = isConnected('github');
@@ -575,6 +738,13 @@ export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProp
   const stripeConnected = isConnected('stripe');
   const notionConnected = isConnected('notion');
   const dbConnected = isConnected('database');
+  const shopifyConnected = isConnected('shopify' as IntegrationService);
+  const confConnected = isConnected('confluence' as IntegrationService);
+  const zdConnected = isConnected('zendesk' as IntegrationService);
+  const hsConnected = isConnected('hubspot' as IntegrationService);
+  const fdConnected = isConnected('freshdesk' as IntegrationService);
+  const icConnected = isConnected('intercom' as IntegrationService);
+  const wcConnected = isConnected('woocommerce' as IntegrationService);
 
   const connectedCount = [
     ghConnected && isEnabled('github'),
@@ -585,6 +755,13 @@ export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProp
     stripeConnected && isEnabled('stripe'),
     notionConnected && isEnabled('notion'),
     dbConnected && isEnabled('database'),
+    shopifyConnected && isEnabled('shopify'),
+    confConnected && isEnabled('confluence'),
+    zdConnected && isEnabled('zendesk'),
+    hsConnected && isEnabled('hubspot'),
+    fdConnected && isEnabled('freshdesk'),
+    icConnected && isEnabled('intercom'),
+    wcConnected && isEnabled('woocommerce'),
   ].filter(Boolean).length;
 
   const totalEnabled = ALL_INTEGRATIONS.filter(s => isEnabled(s)).length;
@@ -692,7 +869,20 @@ export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProp
         onTest={testSlack}
         onDisconnect={() => { removeCredential('slack'); setSlackToken(''); setSlackResult(null); }}
       >
-        <SecretInput value={slackToken} onChange={setSlackToken} placeholder="xoxb-xxxx — Bot Token" />
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="text-[10px] text-muted-foreground flex-1">Connexion rapide via OAuth :</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => startOAuthConnect('slack')}
+            disabled={oauthConnecting === 'slack'}
+            className="text-[10px] h-5 px-2 border-green-500/30 text-green-400 hover:bg-green-500/10"
+          >
+            {oauthConnecting === 'slack' ? <LoaderIcon className="w-2.5 h-2.5 animate-spin mr-1" /> : null}
+            {oauthConnecting === 'slack' ? 'En attente…' : 'Connecter OAuth'}
+          </Button>
+        </div>
+        <SecretInput value={slackToken} onChange={setSlackToken} placeholder="xoxb-xxxx — Bot Token (ou utilisez OAuth)" />
         <TextInput value={slackChannel} onChange={setSlackChannel} placeholder="#general (canal par défaut, optionnel)" />
       </ServiceCard>}
 
@@ -707,14 +897,27 @@ export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProp
         onTest={testGoogle}
         onDisconnect={() => { removeCredential('google'); setGoogleJson(''); setGoogleResult(null); }}
       >
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="text-[10px] text-muted-foreground flex-1">Connexion rapide via OAuth :</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => startOAuthConnect('google')}
+            disabled={oauthConnecting === 'google'}
+            className="text-[10px] h-5 px-2 border-green-500/30 text-green-400 hover:bg-green-500/10"
+          >
+            {oauthConnecting === 'google' ? <LoaderIcon className="w-2.5 h-2.5 animate-spin mr-1" /> : null}
+            {oauthConnecting === 'google' ? 'En attente…' : 'Connecter OAuth'}
+          </Button>
+        </div>
         <p className="text-[10px] text-muted-foreground">
-          Collez le JSON du Service Account Google (fichier .json téléchargé depuis la Google Cloud Console).
+          Ou collez le JSON du Service Account Google :
         </p>
         <textarea
           value={googleJson}
           onChange={(e) => setGoogleJson(e.target.value)}
           placeholder='{"type":"service_account","project_id":"..."}'
-          rows={4}
+          rows={3}
           className="w-full text-xs bg-black/20 border border-border/40 rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-violet-500/50 resize-none font-mono"
         />
       </ServiceCard>}
@@ -837,6 +1040,123 @@ export function IntegrationsPanel({ apiBase, authHeader }: IntegrationsPanelProp
           </div>
         </div>
       </div>}
+
+      {/* Shopify (OAuth) */}
+      {isEnabled('shopify') && <ServiceCard
+        title="Shopify"
+        icon="🛍️"
+        connected={shopifyConnected}
+        connectedLabel={(credentials.shopify as ShopifyCredentials)?.shop || 'Connecté'}
+        testResult={shopifyResult}
+        testing={shopifyTesting}
+        onTest={() => {}}
+        onDisconnect={() => { removeCredential('shopify' as IntegrationService); setShopifyResult(null); }}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground flex-1">Connectez votre boutique Shopify via OAuth :</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => startOAuthConnect('shopify')}
+            disabled={oauthConnecting === 'shopify'}
+            className="text-[10px] h-5 px-2 border-green-500/30 text-green-400 hover:bg-green-500/10"
+          >
+            {oauthConnecting === 'shopify' ? <LoaderIcon className="w-2.5 h-2.5 animate-spin mr-1" /> : null}
+            {oauthConnecting === 'shopify' ? 'En attente...' : 'Connecter OAuth'}
+          </Button>
+        </div>
+      </ServiceCard>}
+
+      {/* Confluence */}
+      {isEnabled('confluence') && <ServiceCard
+        title="Confluence"
+        icon="📘"
+        connected={confConnected}
+        connectedLabel={confConnected ? confBaseUrl || 'Connecté' : undefined}
+        testResult={confResult}
+        testing={confTesting}
+        onTest={testConfluence}
+        onDisconnect={() => { removeCredential('confluence' as IntegrationService); setConfEmail(''); setConfToken(''); setConfBaseUrl(''); setConfResult(null); }}
+      >
+        <TextInput value={confBaseUrl} onChange={setConfBaseUrl} placeholder="https://votre-domaine.atlassian.net/wiki" />
+        <TextInput value={confEmail} onChange={setConfEmail} placeholder="votre@email.com" />
+        <SecretInput value={confToken} onChange={setConfToken} placeholder="Token API Confluence" />
+      </ServiceCard>}
+
+      {/* Zendesk */}
+      {isEnabled('zendesk') && <ServiceCard
+        title="Zendesk"
+        icon="🎫"
+        connected={zdConnected}
+        connectedLabel={zdConnected ? `${zdSubdomain}.zendesk.com` : undefined}
+        testResult={zdResult}
+        testing={zdTesting}
+        onTest={testZendesk}
+        onDisconnect={() => { removeCredential('zendesk' as IntegrationService); setZdEmail(''); setZdToken(''); setZdSubdomain(''); setZdResult(null); }}
+      >
+        <TextInput value={zdSubdomain} onChange={setZdSubdomain} placeholder="sous-domaine (ex: monentreprise)" />
+        <TextInput value={zdEmail} onChange={setZdEmail} placeholder="votre@email.com" />
+        <SecretInput value={zdToken} onChange={setZdToken} placeholder="Token API Zendesk" />
+      </ServiceCard>}
+
+      {/* HubSpot */}
+      {isEnabled('hubspot') && <ServiceCard
+        title="HubSpot"
+        icon="🧡"
+        connected={hsConnected}
+        connectedLabel={hsConnected ? 'Connecté' : undefined}
+        testResult={hsResult}
+        testing={hsTesting}
+        onTest={testHubSpot}
+        onDisconnect={() => { removeCredential('hubspot' as IntegrationService); setHsToken(''); setHsResult(null); }}
+      >
+        <SecretInput value={hsToken} onChange={setHsToken} placeholder="Access Token HubSpot (Private App)" />
+      </ServiceCard>}
+
+      {/* Freshdesk */}
+      {isEnabled('freshdesk') && <ServiceCard
+        title="Freshdesk"
+        icon="🌿"
+        connected={fdConnected}
+        connectedLabel={fdConnected ? `${fdDomain}.freshdesk.com` : undefined}
+        testResult={fdResult}
+        testing={fdTesting}
+        onTest={testFreshdesk}
+        onDisconnect={() => { removeCredential('freshdesk' as IntegrationService); setFdKey(''); setFdDomain(''); setFdResult(null); }}
+      >
+        <TextInput value={fdDomain} onChange={setFdDomain} placeholder="sous-domaine (ex: monentreprise)" />
+        <SecretInput value={fdKey} onChange={setFdKey} placeholder="Clé API Freshdesk" />
+      </ServiceCard>}
+
+      {/* Intercom */}
+      {isEnabled('intercom') && <ServiceCard
+        title="Intercom"
+        icon="💬"
+        connected={icConnected}
+        connectedLabel={icConnected ? 'Connecté' : undefined}
+        testResult={icResult}
+        testing={icTesting}
+        onTest={testIntercom}
+        onDisconnect={() => { removeCredential('intercom' as IntegrationService); setIcToken(''); setIcResult(null); }}
+      >
+        <SecretInput value={icToken} onChange={setIcToken} placeholder="Access Token Intercom" />
+      </ServiceCard>}
+
+      {/* WooCommerce */}
+      {isEnabled('woocommerce') && <ServiceCard
+        title="WooCommerce"
+        icon="🛒"
+        connected={wcConnected}
+        connectedLabel={wcConnected ? wcUrl || 'Connecté' : undefined}
+        testResult={wcResult}
+        testing={wcTesting}
+        onTest={testWooCommerce}
+        onDisconnect={() => { removeCredential('woocommerce' as IntegrationService); setWcKey(''); setWcSecret(''); setWcUrl(''); setWcResult(null); }}
+      >
+        <TextInput value={wcUrl} onChange={setWcUrl} placeholder="https://votre-boutique.com" />
+        <SecretInput value={wcKey} onChange={setWcKey} placeholder="Consumer Key" />
+        <SecretInput value={wcSecret} onChange={setWcSecret} placeholder="Consumer Secret" />
+      </ServiceCard>}
     </div>
   );
 }

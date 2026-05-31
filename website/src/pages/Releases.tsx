@@ -1,19 +1,46 @@
 import { motion } from 'framer-motion'
-import { Download, Apple, Monitor, Terminal, Tag, ArrowRight } from 'lucide-react'
+import { Download, Apple, Tag, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { BorderBeam } from '../components/BorderBeam'
 
+function WindowsIcon({ size = 24, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+    </svg>
+  )
+}
+
+function LinuxIcon({ size = 24, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.345 1.884 1.345.358 0 .705-.127 1.001-.373.9-.5 1.476-1.785 1.476-3.075 0-.533-.081-1.01-.252-1.424-.21-.397-.476-.8-.762-1.023-.037-.065-.074-.13-.106-.195-.118-.234-.248-.606-.155-.867.09-.268.207-.467.296-.672.091-.178.14-.401.14-.601 0-.26-.071-.528-.185-.67-.064-.07-.107-.118-.15-.314-.024-.126-.027-.288.024-.461.065-.18.143-.397.171-.592.032-.198.024-.382-.049-.556-.094-.26-.272-.485-.456-.666-.182-.208-.356-.38-.398-.545-.14-.34-.25-.653-.333-.879l-.006-.018c-.027-.076-.051-.144-.08-.2-.11-.27-.244-.461-.31-.537a2.094 2.094 0 00-.136-.14c-.04-.045-.081-.083-.116-.144a1.12 1.12 0 01-.074-.314c-.022-.134-.023-.296-.023-.49 0-.39-.011-.789-.098-1.134-.09-.398-.237-.724-.477-.94-.165-.148-.352-.264-.532-.353-.053-.041-.092-.082-.09-.137.014-.067.041-.13.055-.143.071-.151.166-.339.168-.39.013-.096.022-.27-.019-.557-.064-.21-.097-.443-.177-.596-.067-.122-.178-.242-.297-.334-.019-.01-.039-.02-.058-.032-.076-.048-.154-.084-.235-.106-.08-.024-.16-.033-.238-.033z"/>
+    </svg>
+  )
+}
+
 const releases = [
   {
-    version: '0.1.9',
-    date: '15 Avril 2026',
+    version: '0.2.0',
+    date: '29 Mai 2026',
     tag: 'Derniere',
     tagColor: '#4ade80',
     size: '~10MB',
     platforms: [
+      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.2.0 - macOS' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.2.0 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.2.0 - Linux' },
+    ],
+    highlights: ['Application web', 'Helpdesk IA', 'Multi-canal', 'Licence par email'],
+  },
+  {
+    version: '0.1.9',
+    date: '15 Avril 2026',
+    size: '~10MB',
+    platforms: [
       { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - macOS' },
-      { name: 'Windows', icon: Monitor, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - Windows' },
-      { name: 'Linux', icon: Terminal, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - Linux' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - Linux' },
     ],
     highlights: ['Capture audio systeme', 'ElevenLabs STT', 'Integrations DB', 'Email vocal'],
   },
@@ -23,8 +50,8 @@ const releases = [
     size: '~11MB',
     platforms: [
       { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - macOS' },
-      { name: 'Windows', icon: Monitor, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - Windows' },
-      { name: 'Linux', icon: Terminal, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - Linux' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - Linux' },
     ],
     highlights: ['Overlay deplacable', "Mode capture d'ecran auto", 'Groq STT'],
   },
@@ -34,10 +61,10 @@ const releases = [
     size: '~11MB',
     platforms: [
       { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - macOS' },
-      { name: 'Windows', icon: Monitor, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - Windows' },
-      { name: 'Linux', icon: Terminal, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - Linux' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - Linux' },
     ],
-    highlights: ['Fournisseur IA custom via cURL', 'Google Gemini & Mistral', 'Refonte du tableau de bord'],
+    highlights: ['API developpeur', 'Google Gemini & Mistral', 'Refonte du tableau de bord'],
   },
 ]
 

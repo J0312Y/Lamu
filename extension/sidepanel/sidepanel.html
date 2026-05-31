@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lamu AI — Side Panel</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div id="app">
+    <div class="header">
+      <div class="logo">L</div>
+      <span class="title">Lamu AI</span>
+      <div class="tab-bar">
+        <button class="tab active" data-tab="chat">Chat</button>
+        <button class="tab" data-tab="kb">KB</button>
+        <button class="tab" data-tab="context">Context</button>
+      </div>
+    </div>
+
+    <!-- Chat tab -->
+    <div id="tab-chat" class="tab-content active">
+      <div id="messages" class="messages"></div>
+      <div class="input-area">
+        <textarea id="chat-input" class="input" placeholder="Ask Lamu AI..." rows="2"></textarea>
+        <div class="input-actions">
+          <label class="checkbox-label">
+            <input type="checkbox" id="use-context" checked />
+            <span>Include page context</span>
+          </label>
+          <button id="btn-send" class="btn">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KB tab -->
+    <div id="tab-kb" class="tab-content">
+      <div class="section">
+        <input id="kb-search" class="input" placeholder="Search knowledge base..." />
+        <div id="kb-results" class="results"></div>
+      </div>
+    </div>
+
+    <!-- Context tab -->
+    <div id="tab-context" class="tab-content">
+      <div class="section">
+        <div class="section-title">Current Page Context</div>
+        <div id="context-info" class="context-info">Click "Refresh" to capture the current page.</div>
+        <button id="btn-refresh-ctx" class="btn btn-secondary" style="margin-top:8px;">Refresh context</button>
+      </div>
+      <div class="section">
+        <div class="section-title">Detected Platform</div>
+        <div id="platform-info" class="platform-badge">-</div>
+      </div>
+    </div>
+  </div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "Lamu AI Assistant",
+  "version": "1.0.0",
+  "description": "AI assistant for meetings, helpdesk, and knowledge base — powered by Lamu",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "contextMenus",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://*.lamuka-tech.com/*",
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "css": ["content-style.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "commands": {
+    "toggle-panel": {
+      "suggested_key": { "default": "Ctrl+Shift+L" },
+      "description": "Toggle Lamu side panel"
+    },
+    "search-kb": {
+      "suggested_key": { "default": "Ctrl+Shift+K" },
+      "description": "Search Knowledge Base"
+    },
+    "draft-reply": {
+      "suggested_key": { "default": "Ctrl+Shift+D" },
+      "description": "Draft AI reply from page context"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

@@ -171,6 +171,16 @@ export const SystemAudio = (props: useSystemAudioType) => {
   const isVadMode = vadConfig.enabled;
   const hasResponse = lastAIResponse || isAIProcessing;
 
+  // Online/Offline detection
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const goOff = () => setIsOffline(true);
+    const goOn = () => setIsOffline(false);
+    window.addEventListener('offline', goOff);
+    window.addEventListener('online', goOn);
+    return () => { window.removeEventListener('offline', goOff); window.removeEventListener('online', goOn); };
+  }, []);
+
   // Keyboard shortcut for Cmd+K to toggle view mode
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -318,6 +328,13 @@ export const SystemAudio = (props: useSystemAudioType) => {
               </div>
             )}
             {!isBlocked && (<>
+            {/* Offline banner */}
+            {isOffline && (
+              <div className="flex-shrink-0 px-3 py-2 bg-amber-600 text-white text-[11px] font-medium flex items-center gap-2">
+                <div className="size-2 rounded-full bg-amber-300 animate-pulse" />
+                Hors ligne — le micro et les conversations restent accessibles, mais l'IA nécessite une connexion internet.
+              </div>
+            )}
             {/* Header - Mode Switcher + Actions */}
             <div className="flex-shrink-0 p-3 border-b border-border/50 space-y-2">
               {/* Row 1: VAD/Continuous switcher + actions */}

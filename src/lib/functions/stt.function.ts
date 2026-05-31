@@ -194,17 +194,35 @@ export async function fetchSTT(params: STTParams): Promise<string> {
 
     const fetchFunction = url?.includes("http") ? fetch : tauriFetch;
 
-    // Send request
-    let response: Response;
-    try {
-      response = await fetchFunction(url, {
-        method: curlJson.method || "POST",
-        headers: finalHeaders,
-        body: curlJson.method === "GET" ? undefined : body,
-      });
-    } catch (e) {
-      throw new Error(`Network error: ${e instanceof Error ? e.message : e}`);
+    // Send request with retry logic (exponential backoff: 2s, 4s, 8s)
+    const MAX_RETRIES = 3;
+    const BACKOFF_BASE = 2000;
+    let response: Response | undefined;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        response = await fetchFunction(url, {
+          method: curlJson.method || "POST",
+          headers: finalHeaders,
+          body: curlJson.method === "GET" ? undefined : body,
+        });
+        break; // Success — exit retry loop
+      } catch (e) {
+        const isNetworkError =
+          !navigator.onLine ||
+          (e instanceof TypeError &&
+            (e.message.includes("Failed to fetch") ||
+              e.message.includes("NetworkError") ||
+              e.message.includes("Network request failed")));
+        if (!isNetworkError || attempt >= MAX_RETRIES) {
+          throw new Error(!navigator.onLine
+            ? "Vous êtes hors ligne. La transcription vocale nécessite une connexion internet."
+            : `Erreur réseau : ${e instanceof Error ? e.message : e}`);
+        }
+        const delay = BACKOFF_BASE * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+      }
     }
+    if (!response) throw new Error("Transcription request failed after retries");
 
     if (!response.ok) {
       let errText = "";

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Lamu Admin</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -117,6 +118,7 @@ body.theme-dark .pb-openai{background:rgba(13,150,103,.2);color:#34D399}
 body.theme-dark .pb-anthropic{background:rgba(196,80,10,.2);color:#FB923C}
 body.theme-dark .pb-gemini{background:rgba(26,93,196,.2);color:#60A5FA}
 body.theme-dark .pb-other{background:rgba(75,85,99,.2);color:#9CA3AF}
+body.theme-dark .pb-mistral{background:rgba(176,122,0,.2);color:#FCD34D}
 /* Modals */
 body.theme-dark .modal{background:#111827;border-color:#1F2937}
 body.theme-dark .modal-header{border-color:#1F2937}
@@ -435,6 +437,8 @@ body.theme-dark .dash-quick-link:hover{border-color:var(--orange);color:var(--or
 .pb-gemini{background:#E8F0FF;color:#1A5DC4}
 .pb-mistral{background:#FFF9E6;color:#B07A00}
 .pb-other{background:#F3F4F6;color:#4B5563}
+.pb-groq,.pb-openai,.pb-anthropic,.pb-gemini,.pb-mistral,.pb-other{display:inline-flex;align-items:center;gap:5px}
+.pb-logo{width:14px;height:14px;border-radius:3px;object-fit:contain;vertical-align:middle;flex-shrink:0}
 
 /* ─ Status badges ─────────────────────────────────────────────── */
 .status-on{background:#DCFCE7;color:#16A34A;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700}
@@ -600,6 +604,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
 .monospace{font-family:'Consolas','Fira Code',monospace;font-size:12px}
 .empty-state{text-align:center;padding:40px;color:var(--muted)}
 .truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+.ws-dot{width:8px;height:8px;border-radius:50%;background:#EF4444;display:inline-block;margin-left:8px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -609,10 +615,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <div class="login-card">
     <div class="login-logo">
       <div class="logo-badge">
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="6" fill="var(--navy)"/>
-          <path d="M8 16V8h4.5c2.485 0 4.5 2.015 4.5 4.5S14.985 17 12.5 17H8" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        </svg>
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAEgUlEQVR42s1Xz0tcRxyfmfdWL1Zz8FINHvxBlgqudQM9KFuNKXRrLrEHD+JPGrvEXjwKCZik4NGDNdiSoihC/APSLdSt1lyjdUFlRb0YoYE0EK0X9+2b6XzGN7sb3X3uSpo6MOzsd+bN9/v9fH+OSf7nYWbbYM54H0y4MzLt0TMENRjj3Lbfp6aMGYYQnAs5sgoA1vqAz+fz+nz1n8qlhxDQKM2PZfIbKxpd+zMajcZO83hHAL0B1Kempia7u7sHMiF0wSFmZmZ+6uvrC8ES6UKYKQEYE8K2HebfxuPWsTzD5VliS2vgvGEYp2xra3hducOmuBPrnp6ekOaVRADOBicB7Gtra5uSeVySqCMpMc0TBomEjcscgDPTMxsD1ueioMBTUF9f/wnMoXkyLcCJ3ZXNqaM5heZgEon8Tufn5xnWoAFGrJ89+4VhYp3FydPNiwPU4ZHkeToMPc4HSkMpsSKOjIwYsViMtrd/zUGD9Q4P/yGhUEhBsLGxwYuLPzoXiXQeyeg467mEaM0XFiI0EPjc3NnZkWgkSFNTk/nkyc8M8i0uLrKjoyOCubz8B3PiPcfoyCrAifg6St68+Ztubm7S4+NjdfnW1hbd399XZ8LhMI3H4wQzHP41j2h5F6KMmRDeDjg7Ojr47dvtvLGx0dze3qbr6+uJq1fLxdu3B3RpaYlVVFSo85FIhB0cHNpFRUVK0HwSKHNxHKmdpfxgYGCADw0NcTAHQKurq3RrK0Y6Ozs5JtYrKyvUMJjKIzChDt0L14KUMxJy5843KmahuWTORkdHlfMFg0Fl9Pv37yVpfr9flJQUJ++wrIQrIqZL7BKPx1TeLh3OgM0BO7TFuHt3kPv9DUKvHz+eYAsLv5nXrnlJa2srl8KJQCCQjI68TIAMp+O8trbW09vba8zOziIzkUePvucvXqwkJiZ+sGVuIZhYg4Y9nJmenmZdXV0Gvk3lCTt/E3yIwbKUTgVbW9tXXCYZS2pvSxRQSpW9r1/3m4OD3xkyWxNMrEHDHs5I7blEwca3uAN3ZasXppsDwoFgw1u32ricBKEGb4fDweb9/f3KCbG+efMLMTw8bDc0NIgrV0qEk3LohZ3QydcKCZ3hEOc3brSoP3A46ZjJm8Hc2aMPHjw0y8rKhIwefl4omufnLZosw44gFKEGb5+bm1MCYA3Nsffy5T4dGxtjNTU1QpZeVTvyjgI3RJBgEOcItb29PYLZ3NzMAbvU3Kirq5NKCbK7u0vLy8s9T5+mqmgOAuSQupwRDH4p63sBwUTMgwbYq6qqBByusLCQeL1eUVpaKjSSmXiYboUiGwoYskpy6RPKNi0tLRwOB5sDdmheXV0tnj9fTuiGJdVNuRcjKxef0NExOTmpcMUaNN1DjI+P21pz1BMwT3NG60xX7NaSuaXqXFs1t5bM0D0b+vZXr/56XVlZ+bH06M/kxwm5b/MsA3daVlwmmQRPe3souuwRkHyQlvWDhErmheiMJWrT4KUfKmZKoxMCWmf8/gdt+Y/6bs3rcj1MLsXT7FI8Tj/0+BciRhCq33TJrwAAAABJRU5ErkJggg==" alt="Lamu" width="24" height="24" style="border-radius:6px"/>
       </div>
       <div><h2>Lamu Admin</h2><span>Management Console</span></div>
     </div>
@@ -632,10 +635,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <header>
     <a class="h-logo" href="#" onclick="return false">
       <div class="badge">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <rect x="2" y="2" width="20" height="20" rx="6" fill="var(--white)"/>
-          <path d="M8 16V8h4.5c2.485 0 4.5 2.015 4.5 4.5S14.985 17 12.5 17H8" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        </svg>
+        <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAEgUlEQVR42s1Xz0tcRxyfmfdWL1Zz8FINHvxBlgqudQM9KFuNKXRrLrEHD+JPGrvEXjwKCZik4NGDNdiSoihC/APSLdSt1lyjdUFlRb0YoYE0EK0X9+2b6XzGN7sb3X3uSpo6MOzsd+bN9/v9fH+OSf7nYWbbYM54H0y4MzLt0TMENRjj3Lbfp6aMGYYQnAs5sgoA1vqAz+fz+nz1n8qlhxDQKM2PZfIbKxpd+zMajcZO83hHAL0B1Kempia7u7sHMiF0wSFmZmZ+6uvrC8ES6UKYKQEYE8K2HebfxuPWsTzD5VliS2vgvGEYp2xra3hducOmuBPrnp6ekOaVRADOBicB7Gtra5uSeVySqCMpMc0TBomEjcscgDPTMxsD1ueioMBTUF9f/wnMoXkyLcCJ3ZXNqaM5heZgEon8Tufn5xnWoAFGrJ89+4VhYp3FydPNiwPU4ZHkeToMPc4HSkMpsSKOjIwYsViMtrd/zUGD9Q4P/yGhUEhBsLGxwYuLPzoXiXQeyeg467mEaM0XFiI0EPjc3NnZkWgkSFNTk/nkyc8M8i0uLrKjoyOCubz8B3PiPcfoyCrAifg6St68+Ztubm7S4+NjdfnW1hbd399XZ8LhMI3H4wQzHP41j2h5F6KMmRDeDjg7Ojr47dvtvLGx0dze3qbr6+uJq1fLxdu3B3RpaYlVVFSo85FIhB0cHNpFRUVK0HwSKHNxHKmdpfxgYGCADw0NcTAHQKurq3RrK0Y6Ozs5JtYrKyvUMJjKIzChDt0L14KUMxJy5843KmahuWTORkdHlfMFg0Fl9Pv37yVpfr9flJQUJ++wrIQrIqZL7BKPx1TeLh3OgM0BO7TFuHt3kPv9DUKvHz+eYAsLv5nXrnlJa2srl8KJQCCQjI68TIAMp+O8trbW09vba8zOziIzkUePvucvXqwkJiZ+sGVuIZhYg4Y9nJmenmZdXV0Gvk3lCTt/E3yIwbKUTgVbW9tXXCYZS2pvSxRQSpW9r1/3m4OD3xkyWxNMrEHDHs5I7blEwca3uAN3ZasXppsDwoFgw1u32ricBKEGb4fDweb9/f3KCbG+efMLMTw8bDc0NIgrV0qEk3LohZ3QydcKCZ3hEOc3brSoP3A46ZjJm8Hc2aMPHjw0y8rKhIwefl4omufnLZosw44gFKEGb5+bm1MCYA3Nsffy5T4dGxtjNTU1QpZeVTvyjgI3RJBgEOcItb29PYLZ3NzMAbvU3Kirq5NKCbK7u0vLy8s9T5+mqmgOAuSQupwRDH4p63sBwUTMgwbYq6qqBByusLCQeL1eUVpaKjSSmXiYboUiGwoYskpy6RPKNi0tLRwOB5sDdmheXV0tnj9fTuiGJdVNuRcjKxef0NExOTmpcMUaNN1DjI+P21pz1BMwT3NG60xX7NaSuaXqXFs1t5bM0D0b+vZXr/56XVlZ+bH06M/kxwm5b/MsA3daVlwmmQRPe3souuwRkHyQlvWDhErmheiMJWrT4KUfKmZKoxMCWmf8/gdt+Y/6bs3rcj1MLsXT7FI8Tj/0+BciRhCq33TJrwAAAABJRU5ErkJggg==" alt="Lamu" width="20" height="20" style="border-radius:6px"/>
       </div>
       <span class="name">Lamu</span>
     </a>
@@ -646,6 +646,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <button class="h-icon-btn" title="Toggle theme" onclick="toggleTheme()" type="button" id="theme-toggle-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="theme-icon"><path d="M12 3v2"/><path d="M12 19v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/><circle cx="12" cy="12" r="5"/></svg>
       </button>
+      <span class="ws-dot" id="ws-status" title="WebSocket déconnecté"></span>
       <button class="h-icon-btn notif-btn" title="Notifications" onclick="toggleNotifPanel()" type="button" id="notif-btn">
         <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
         <span class="notif-badge" id="notif-badge">0</span>
@@ -771,6 +772,62 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     <button class="nav-item" onclick="showPage('notifications')" data-page="notifications" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
       Notifications
+    </button>
+    <button class="nav-item" onclick="showPage('widget')" data-page="widget" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Widget Chat
+    </button>
+    <button class="nav-item" onclick="showPage('bots')" data-page="bots" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/></svg>
+      Bots (Slack/Teams)
+    </button>
+    <button class="nav-item" onclick="showPage('sla')" data-page="sla" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      SLA Tracking
+    </button>
+    <button class="nav-item" onclick="showPage('csat')" data-page="csat" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-6 0v4"/><rect x="2" y="9" width="20" height="13" rx="2"/><circle cx="12" cy="16" r="1"/></svg>
+      CSAT / NPS
+    </button>
+    <button class="nav-item" onclick="showPage('workflows')" data-page="workflows" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+      Workflows
+    </button>
+    <button class="nav-item" onclick="showPage('dashboards')" data-page="dashboards" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboards
+    </button>
+    <button class="nav-item" onclick="showPage('abtests')" data-page="abtests" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      A/B Tests
+    </button>
+    <button class="nav-item" onclick="showPage('archive')" data-page="archive" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+      Archives
+    </button>
+    <button class="nav-item" onclick="showPage('auditlogs')" data-page="auditlogs" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Audit Logs
+    </button>
+    <button class="nav-item" onclick="showPage('sso')" data-page="sso" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      SSO
+    </button>
+    <button class="nav-item" onclick="showPage('tags')" data-page="tags" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      Tags
+    </button>
+    <button class="nav-item" onclick="showPage('customfields')" data-page="customfields" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      Champs custom
+    </button>
+    <button class="nav-item" onclick="showPage('exports')" data-page="exports" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Exports
+    </button>
+    <button class="nav-item" onclick="showPage('i18n')" data-page="i18n" type="button">
+      <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      Langues
     </button>
     <button class="nav-item" onclick="showPage('settings')" data-page="settings" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.77 1.77 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.77 1.77 0 0 0-1.82-.33 1.77 1.77 0 0 0-1 1.53V21a2 2 0 0 1-4 0v-.09a1.77 1.77 0 0 0-1-1.53 1.77 1.77 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.77 1.77 0 0 0 4.6 15a1.77 1.77 0 0 0-1.53-1H3a2 2 0 0 1 0-4h.09a1.77 1.77 0 0 0 1.53-1 1.77 1.77 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.77 1.77 0 0 0 8.6 4.6a1.77 1.77 0 0 0 1-1.53V3a2 2 0 0 1 4 0v.09a1.77 1.77 0 0 0 1 1.53 1.77 1.77 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.77 1.77 0 0 0 19.4 8.6a1.77 1.77 0 0 0 1.53 1H21a2 2 0 0 1 0 4h-.09a1.77 1.77 0 0 0-1.53 1z"/></svg>
@@ -940,8 +997,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div><div class="page-full-title">Paiements</div><div class="page-full-sub">Historique des transactions Mobile Money</div></div>
       <div class="page-actions">
         <input class="table-search" type="search" placeholder="Rechercher transaction…" oninput="paymentSearch=this.value; renderPaymentsTable()" />
-        <button class="btn btn-ghost btn-sm" onclick="exportPayments()">📤 CSV</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportPaymentsExcel()">📄 Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportPayments()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportPaymentsExcel()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="loadPayments()">↻ Actualiser</button>
       </div>
     </div>
@@ -1147,6 +1204,45 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
               Tester le fallback
             </button>
             <span id="fallback-test-result" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Model Routing per Use Case -->
+      <div class="settings-section">
+        <div class="settings-section-title">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/></svg>
+          Routing des modèles par cas d'usage
+        </div>
+        <div class="field-hint" style="margin-bottom:16px">
+          Chaque cas d'usage peut utiliser un modèle différent pour optimiser coût, vitesse et qualité. Ces modèles doivent être des IDs valides sur votre provider (ex: OpenRouter).
+          Laissez vide pour utiliser le modèle principal par défaut.
+        </div>
+        <div class="settings-grid">
+          <div class="form-group" style="margin:0">
+            <label><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat (conversations)</label>
+            <input id="s-model-chat" type="text" placeholder="google/gemini-3.5-flash" />
+            <div class="field-hint">Modèle par défaut pour le chat WebApp</div>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg> Temps réel (réunions, coaching)</label>
+            <input id="s-model-realtime" type="text" placeholder="meta-llama/llama-4-scout" />
+            <div class="field-hint">Le plus rapide — mode réunion, coaching live</div>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M15 5v2"/><path d="M15.01 14h.01"/><path d="M20 5v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3l2 3h5a2 2 0 0 1 2 2z"/></svg> Helpdesk (tickets, suggestions)</label>
+            <input id="s-model-helpdesk" type="text" placeholder="openai/gpt-4.1-mini" />
+            <div class="field-hint">Équilibre qualité/vitesse pour le support</div>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> Raisonnement (résumés, analyses)</label>
+            <input id="s-model-reasoning" type="text" placeholder="anthropic/claude-sonnet-4.6" />
+            <div class="field-hint">Meilleure qualité — résumés, analyses complexes</div>
+          </div>
+          <div class="form-group" style="margin:0;grid-column:1/-1">
+            <label><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="M4.22 4.22l2.83 2.83"/><path d="M16.95 16.95l2.83 2.83"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="M4.22 19.78l2.83-2.83"/><path d="M16.95 7.05l2.83-2.83"/></svg> Embeddings</label>
+            <input id="s-model-embeddings" type="text" placeholder="openai/text-embedding-3-small" />
+            <div class="field-hint">Modèle pour la vectorisation des documents (KB)</div>
           </div>
         </div>
       </div>
@@ -1377,11 +1473,11 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           </div>
         </div>
 
-        <!-- SharePoint -->
-        <div class="oauth-provider-block" style="border-bottom:none;margin-bottom:0;padding-bottom:0">
+        <!-- SharePoint / Microsoft Teams -->
+        <div class="oauth-provider-block">
           <div class="oauth-provider-label">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="#0078D4"><rect width="24" height="24" rx="4"/><text x="4" y="17" font-size="14" font-weight="bold" fill="white">S</text></svg>
-            SharePoint / Microsoft (Azure)
+            SharePoint / Microsoft Teams (Azure)
           </div>
           <div class="settings-grid">
             <div class="form-group" style="margin:0">
@@ -1393,6 +1489,184 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
               <input id="s-sharepoint-client-secret" type="password" placeholder="xxxxxxxx" />
             </div>
           </div>
+          <div class="field-hint">Utilisé pour SharePoint, Teams et OneDrive. Redirect URI : <code>{BACKEND_URL}/api/oauth/teams/callback</code></div>
+        </div>
+
+        <!-- Slack -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" fill="#E01E5A"/><path d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.527 2.527 0 0 1 2.521 2.521 2.527 2.527 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z" fill="#36C5F0"/><path d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312z" fill="#2EB67D"/><path d="M15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z" fill="#ECB22E"/></svg>
+            Slack
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>Client ID</label>
+              <input id="s-slack-client-id" type="text" placeholder="xxxxx.xxxxx" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Client Secret</label>
+              <input id="s-slack-client-secret" type="password" placeholder="xxxxxxxx" />
+            </div>
+          </div>
+          <div class="field-hint">Redirect URI : <code>{BACKEND_URL}/api/oauth/slack/callback</code> — Scopes : channels:read, channels:history</div>
+        </div>
+
+        <!-- Shopify -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#96BF48"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.139-.192-.236-.192s-1.975-.139-1.975-.139-1.311-1.312-1.457-1.457c-.042-.042-.088-.063-.139-.076l-.783 19.155zm-2.531-17.206c0 0-.497.149-1.311.392C11.06 5.586 9.794 4.293 8.278 4.293c-.046 0-.09 0-.137.004C7.91 3.96 7.611 3.74 7.352 3.74c-2.494 0-3.706 3.117-4.08 4.702-.973.302-1.665.516-1.753.545C.946 9.16.921 9.185.883 9.726.856 10.128 0 20.143 0 20.143l11.685 2.191L12.806 6.773z"/></svg>
+            Shopify
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>API Key (Client ID)</label>
+              <input id="s-shopify-client-id" type="text" placeholder="xxxxxxxxxxxxx" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>API Secret Key</label>
+              <input id="s-shopify-client-secret" type="password" placeholder="shpss_xxxxxx" />
+            </div>
+          </div>
+          <div class="field-hint">Creer une App depuis le Shopify Partner Dashboard ou le store admin. OAuth est automatique via le App Store.</div>
+        </div>
+
+        <!-- Confluence / Atlassian -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#0052CC"><path d="M1.483 17.173c-.322.511-.677 1.098-.986 1.59a.667.667 0 0 0 .243.911l4.425 2.676a.666.666 0 0 0 .911-.244c.274-.46.617-1.024.986-1.633 2.538-4.2 5.075-3.713 9.586-1.582l4.55 2.134a.667.667 0 0 0 .877-.315l2.4-5.193a.667.667 0 0 0-.316-.876c-1.23-.582-3.637-1.71-4.576-2.148-6.735-3.16-12.145-3.14-18.1 4.68zm21.034-10.346c.322-.511.677-1.098.986-1.59a.667.667 0 0 0-.243-.911L18.835 1.65a.666.666 0 0 0-.911.244c-.274.46-.617 1.024-.986 1.633-2.538 4.2-5.075 3.713-9.586 1.582L2.802 2.975a.667.667 0 0 0-.877.315L-.475 8.483a.667.667 0 0 0 .316.876c1.23.582 3.637 1.71 4.576 2.148 6.735 3.16 12.145 3.14 18.1-4.68z"/></svg>
+            Confluence / Atlassian
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>Email utilisateur</label>
+              <input id="s-confluence-email" type="email" placeholder="user@company.com" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>API Token</label>
+              <input id="s-confluence-api-token" type="password" placeholder="xxxxxx" />
+            </div>
+          </div>
+          <div class="settings-grid">
+            <div class="form-group" style="margin:0">
+              <label>Instance URL</label>
+              <input id="s-confluence-url" type="text" placeholder="https://yourcompany.atlassian.net" />
+            </div>
+          </div>
+          <div class="field-hint">Generer un API Token sur <code>id.atlassian.com/manage-profile/security/api-tokens</code></div>
+        </div>
+
+        <!-- Zendesk -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#03363D"><path d="M11.088 2.785v14.576L0 2.785h11.088zm1.824 18.443V6.652L24 21.228H12.912zM11.088 21.228a5.544 5.544 0 1 1-11.088 0h11.088zM24 2.785a5.544 5.544 0 1 1-11.088 0H24z"/></svg>
+            Zendesk
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>Subdomain</label>
+              <input id="s-zendesk-subdomain" type="text" placeholder="yourcompany" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Email / Token</label>
+              <input id="s-zendesk-email" type="text" placeholder="admin@company.com/token" />
+            </div>
+          </div>
+          <div class="settings-grid">
+            <div class="form-group" style="margin:0">
+              <label>API Token</label>
+              <input id="s-zendesk-api-token" type="password" placeholder="xxxxxx" />
+            </div>
+          </div>
+          <div class="field-hint">Admin → Channels → API → Activer token access</div>
+        </div>
+
+        <!-- HubSpot -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#FF7A59"><path d="M17.002 8.455V5.458a2.085 2.085 0 0 0 1.2-1.884 2.1 2.1 0 0 0-2.1-2.1 2.1 2.1 0 0 0-2.1 2.1c0 .822.48 1.529 1.17 1.872v3.009a5.373 5.373 0 0 0-2.544 1.212L5.97 5.028a2.478 2.478 0 0 0 .09-.66A2.37 2.37 0 1 0 3.69 6.738a2.352 2.352 0 0 0 1.164-.312l6.543 4.596a5.4 5.4 0 0 0-.756 2.754 5.427 5.427 0 0 0 .882 2.97l-2.046 2.046a1.86 1.86 0 0 0-.558-.09 1.89 1.89 0 1 0 1.89 1.89 1.86 1.86 0 0 0-.09-.558l2.016-2.016a5.394 5.394 0 1 0 4.267-9.563z"/></svg>
+            HubSpot
+          </div>
+          <div class="settings-grid">
+            <div class="form-group" style="margin:0">
+              <label>Private App Access Token</label>
+              <input id="s-hubspot-api-token" type="password" placeholder="pat-na1-xxxxxx" />
+            </div>
+          </div>
+          <div class="field-hint">HubSpot → Settings → Integrations → Private Apps → Create</div>
+        </div>
+
+        <!-- Freshdesk -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#2C9F46"><rect width="24" height="24" rx="4"/><text x="5" y="17" font-size="13" font-weight="bold" fill="white">F</text></svg>
+            Freshdesk
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>Domain</label>
+              <input id="s-freshdesk-domain" type="text" placeholder="yourcompany.freshdesk.com" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>API Key</label>
+              <input id="s-freshdesk-api-key" type="password" placeholder="xxxxxx" />
+            </div>
+          </div>
+          <div class="field-hint">Profile → API Key (en haut a droite dans Freshdesk)</div>
+        </div>
+
+        <!-- Intercom -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#286EFA"><rect width="24" height="24" rx="4"/><text x="6" y="17" font-size="12" font-weight="bold" fill="white">IC</text></svg>
+            Intercom
+          </div>
+          <div class="settings-grid">
+            <div class="form-group" style="margin:0">
+              <label>Access Token</label>
+              <input id="s-intercom-api-token" type="password" placeholder="dG9rOxxxxxxx" />
+            </div>
+          </div>
+          <div class="field-hint">Settings → Integrations → Developer Hub → Create app → Authentication</div>
+        </div>
+
+        <!-- WooCommerce -->
+        <div class="oauth-provider-block">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#96588A"><rect width="24" height="24" rx="4"/><text x="3" y="17" font-size="11" font-weight="bold" fill="white">WC</text></svg>
+            WooCommerce
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>Store URL</label>
+              <input id="s-woocommerce-url" type="text" placeholder="https://yourstore.com" />
+            </div>
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>Consumer Key</label>
+              <input id="s-woocommerce-key" type="text" placeholder="ck_xxxxxx" />
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Consumer Secret</label>
+              <input id="s-woocommerce-secret" type="password" placeholder="cs_xxxxxx" />
+            </div>
+          </div>
+          <div class="field-hint">WooCommerce → Settings → Advanced → REST API → Add Key (Read permission)</div>
+        </div>
+
+        <!-- Website Crawl -->
+        <div class="oauth-provider-block" style="border-bottom:none;margin-bottom:0;padding-bottom:0">
+          <div class="oauth-provider-label">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            Website Crawl
+          </div>
+          <div class="settings-grid" style="margin-bottom:8px">
+            <div class="form-group" style="margin:0">
+              <label>URLs a crawler (1 par ligne)</label>
+              <textarea id="s-webcrawl-urls" rows="3" placeholder="https://docs.yourcompany.com&#10;https://help.yourcompany.com" style="width:100%;font-size:13px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);resize:vertical"></textarea>
+            </div>
+          </div>
+          <div class="field-hint">Les pages seront crawlees et indexees dans la Knowledge Base automatiquement</div>
         </div>
 
       </div>
@@ -1411,7 +1685,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">🐙</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/github/1E2B4A" width="22" height="22" alt="GitHub" style="border-radius:4px" onerror="this.outerHTML='🐙'"/></span>
           <div class="cn-info">
             <div class="cn-name">GitHub</div>
             <div class="cn-desc">Repositories, issues, pull requests, commits</div>
@@ -1420,7 +1694,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">🦊</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/gitlab/FC6D26" width="22" height="22" alt="GitLab" style="border-radius:4px" onerror="this.outerHTML='🦊'"/></span>
           <div class="cn-info">
             <div class="cn-name">GitLab</div>
             <div class="cn-desc">Projets, issues, merge requests — self-hosted ou GitLab.com</div>
@@ -1429,7 +1703,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">🎯</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/jira/0052CC" width="22" height="22" alt="Jira" style="border-radius:4px" onerror="this.outerHTML='🎯'"/></span>
           <div class="cn-info">
             <div class="cn-name">Jira</div>
             <div class="cn-desc">Issues, sprints, projets Atlassian</div>
@@ -1438,7 +1712,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">💬</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/slack/4A154B" width="22" height="22" alt="Slack" style="border-radius:4px" onerror="this.outerHTML='💬'"/></span>
           <div class="cn-info">
             <div class="cn-name">Slack</div>
             <div class="cn-desc">Messages, canaux, notifications</div>
@@ -1447,7 +1721,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">📁</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/googledrive/4285F4" width="22" height="22" alt="Google Drive" style="border-radius:4px" onerror="this.outerHTML='📁'"/></span>
           <div class="cn-info">
             <div class="cn-name">Google Drive</div>
             <div class="cn-desc">Fichiers, documents, Drive partagé</div>
@@ -1456,7 +1730,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">💳</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/stripe/635BFF" width="22" height="22" alt="Stripe" style="border-radius:4px" onerror="this.outerHTML='💳'"/></span>
           <div class="cn-info">
             <div class="cn-name">Stripe</div>
             <div class="cn-desc">Clients, paiements, abonnements</div>
@@ -1465,7 +1739,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">📝</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/notion/000000" width="22" height="22" alt="Notion" style="border-radius:4px" onerror="this.outerHTML='📝'"/></span>
           <div class="cn-info">
             <div class="cn-name">Notion</div>
             <div class="cn-desc">Bases de données, pages, workspace</div>
@@ -1474,12 +1748,93 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         </div>
 
         <div class="cn-row">
-          <span class="cn-icon">🗄️</span>
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/postgresql/4169E1" width="22" height="22" alt="Database" style="border-radius:4px" onerror="this.outerHTML='🗄️'"/></span>
           <div class="cn-info">
             <div class="cn-name">Base de données</div>
             <div class="cn-desc">PostgreSQL, MySQL — requêtes en lecture seule</div>
           </div>
           <label class="cn-toggle"><input type="checkbox" id="cn-enable-database" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/shopify/7AB55C" width="22" height="22" alt="Shopify" style="border-radius:4px" onerror="this.outerHTML='🛒'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">Shopify</div>
+            <div class="cn-desc">Produits, commandes, clients — sync e-commerce</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-shopify" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/confluence/172B4D" width="22" height="22" alt="Confluence" style="border-radius:4px" onerror="this.outerHTML='📋'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">Confluence</div>
+            <div class="cn-desc">Espaces, pages, documentation interne Atlassian</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-confluence" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/microsoftteams/6264A7" width="22" height="22" alt="Microsoft Teams" style="border-radius:4px" onerror="this.outerHTML='👥'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">Microsoft Teams</div>
+            <div class="cn-desc">Canaux, messages, fichiers SharePoint</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-teams" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/zendesk/03363D" width="22" height="22" alt="Zendesk" style="border-radius:4px" onerror="this.outerHTML='🎫'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">Zendesk</div>
+            <div class="cn-desc">Articles Help Center, tickets, FAQ</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-zendesk" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/hubspot/FF7A59" width="22" height="22" alt="HubSpot" style="border-radius:4px" onerror="this.outerHTML='🔶'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">HubSpot</div>
+            <div class="cn-desc">Contacts, deals, articles KB</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-hubspot" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/freshdesk/058C36" width="22" height="22" alt="Freshdesk" style="border-radius:4px" onerror="this.outerHTML='🟢'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">Freshdesk</div>
+            <div class="cn-desc">Tickets, articles solution, contacts</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-freshdesk" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/intercom/6AFDEF" width="22" height="22" alt="Intercom" style="border-radius:4px" onerror="this.outerHTML='💙'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">Intercom</div>
+            <div class="cn-desc">Conversations, articles Help Center, contacts</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-intercom" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><img src="https://cdn.simpleicons.org/woocommerce/96588A" width="22" height="22" alt="WooCommerce" style="border-radius:4px" onerror="this.outerHTML='🛍️'"/></span>
+          <div class="cn-info">
+            <div class="cn-name">WooCommerce</div>
+            <div class="cn-desc">Produits, commandes, clients WordPress</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-woocommerce" checked /><span class="cn-slider"></span></label>
+        </div>
+
+        <div class="cn-row">
+          <span class="cn-icon"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--navy)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+          <div class="cn-info">
+            <div class="cn-name">Website Crawl</div>
+            <div class="cn-desc">Crawler automatique de pages web pour la KB</div>
+          </div>
+          <label class="cn-toggle"><input type="checkbox" id="cn-enable-webcrawl" checked /><span class="cn-slider"></span></label>
         </div>
 
       </div>
@@ -1539,8 +1894,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div><div class="page-full-title">Licenses</div><div class="page-full-sub">Generate and manage customer license keys</div></div>
       <div class="page-actions">
         <input class="table-search" type="search" placeholder="Rechercher licence…" oninput="licenseSearch=this.value; renderLicensesTable()" />
-        <button class="btn btn-ghost btn-sm" onclick="exportLicenses()">📤 Export CSV</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportLicensesExcel()">📄 Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportLicenses()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Export CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportLicensesExcel()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-license-modal').classList.add('open')">↓ Import LMKA-</button>
         <button class="btn btn-orange btn-sm" onclick="openLicenseModal()">+ Generate License</button>
       </div>
@@ -1660,8 +2015,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div><div class="page-full-title">Audit Logs</div><div class="page-full-sub">Derniers événements et usage détaillé</div></div>
       <div class="page-actions">
         <input class="table-search" type="search" placeholder="Rechercher audit…" oninput="auditSearch=this.value; renderAuditTable()" />
-        <button class="btn btn-ghost btn-sm" onclick="exportAuditCsv()">📤 CSV</button>
-        <button class="btn btn-ghost btn-sm" onclick="exportAuditExcel()">📄 Excel</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportAuditCsv()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportAuditExcel()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Excel</button>
       </div>
     </div>
     <div class="card">
@@ -1711,7 +2066,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         <div id="agent-detail-deliverable" style="display:none;margin-top:14px">
           <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.5px">LIVRABLE</div>
           <pre id="agent-deliverable-content" style="font-size:12px;background:var(--bg);border-radius:8px;padding:14px;white-space:pre-wrap;overflow-x:auto;max-height:400px;overflow-y:auto;border:1px solid var(--border)"></pre>
-          <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="copyDeliverable()">📋 Copier</button>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="copyDeliverable()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copier</button>
         </div>
       </div>
     </div>
@@ -1836,7 +2191,606 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     </div>
   </div>
 
+  <!-- ── Widget Chat Customization ─────────────────────────────────── -->
+  <div class="page-full" id="page-widget">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Widget Chat</div><div class="page-full-sub">Configurez l'apparence et le comportement du widget chat embeddable</div></div>
+      <button class="btn btn-orange btn-sm" onclick="saveWidgetConfig()">Sauvegarder</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start">
+
+      <!-- Config form -->
+      <div class="card" style="padding:24px">
+        <div class="settings-section-title" style="margin-bottom:18px">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          Apparence
+        </div>
+
+        <div class="settings-grid" style="margin-bottom:14px">
+          <div class="form-group" style="margin:0">
+            <label>Couleur principale</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input id="wc-color" type="color" value="#6366f1" style="width:48px;height:36px;border:1px solid var(--border);border-radius:8px;padding:2px;cursor:pointer" oninput="updateWidgetPreview()" />
+              <input id="wc-color-hex" type="text" value="#6366f1" style="width:100px" oninput="document.getElementById('wc-color').value=this.value;updateWidgetPreview()" />
+            </div>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Position</label>
+            <select id="wc-position" onchange="updateWidgetPreview()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;background:var(--white)">
+              <option value="bottom-right">Bas droite</option>
+              <option value="bottom-left">Bas gauche</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-grid" style="margin-bottom:14px">
+          <div class="form-group" style="margin:0">
+            <label>Titre du header</label>
+            <input id="wc-header" type="text" placeholder="Assistant IA" oninput="updateWidgetPreview()" />
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Message de bienvenue</label>
+            <input id="wc-welcome" type="text" placeholder="Bonjour ! Comment puis-je vous aider ?" oninput="updateWidgetPreview()" />
+          </div>
+        </div>
+
+        <div class="settings-grid" style="margin-bottom:14px">
+          <div class="form-group" style="margin:0">
+            <label>Placeholder input</label>
+            <input id="wc-placeholder" type="text" value="Tapez votre message..." oninput="updateWidgetPreview()" />
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>URL avatar (optionnel)</label>
+            <input id="wc-avatar" type="text" placeholder="https://..." oninput="updateWidgetPreview()" />
+          </div>
+        </div>
+
+        <div class="settings-grid" style="margin-bottom:14px">
+          <div class="form-group" style="margin:0">
+            <label>Auto-ouverture (secondes, 0 = off)</label>
+            <input id="wc-autodelay" type="number" value="0" min="0" max="120" />
+          </div>
+          <div class="form-group" style="margin:0;display:flex;align-items:center;gap:10px;padding-top:22px">
+            <label class="cn-toggle"><input type="checkbox" id="wc-branding" checked /><span class="cn-slider"></span></label>
+            <span style="font-size:13px">Afficher "Powered by Lamu"</span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:14px">
+          <label>CSS personnalis&eacute; (optionnel)</label>
+          <textarea id="wc-custom-css" rows="3" placeholder=".lamu-widget { border-radius: 20px; }" style="width:100%;font-family:monospace;font-size:12px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-xs);resize:vertical"></textarea>
+        </div>
+
+        <div class="settings-section-title" style="margin:24px 0 14px">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+          Code d'int&eacute;gration
+        </div>
+        <div class="field-hint" style="margin-bottom:10px">Copiez ce code dans le &lt;body&gt; de votre site web :</div>
+        <div style="position:relative">
+          <pre id="wc-embed-code" style="background:#0F172A;color:#E2E8F0;padding:14px 16px;border-radius:10px;font-size:12px;overflow-x:auto;line-height:1.6;white-space:pre-wrap;word-break:break-all">&lt;script src="YOUR_BACKEND_URL/widget.js" data-agent="AGENT_ID"&gt;&lt;/script&gt;</pre>
+          <button class="btn btn-sm btn-ghost" style="position:absolute;top:8px;right:8px;color:#94A3B8" onclick="navigator.clipboard.writeText(document.getElementById('wc-embed-code').textContent);this.textContent='Copié !';setTimeout(()=>this.textContent='Copier',2000)">Copier</button>
+        </div>
+      </div>
+
+      <!-- Live preview -->
+      <div>
+        <div class="card" style="padding:20px">
+          <div style="font-weight:700;font-size:13px;margin-bottom:14px;color:var(--navy)">Apercu en direct</div>
+          <div id="wc-preview" style="background:#f8fafc;border-radius:14px;border:1px solid var(--border);overflow:hidden;height:420px;position:relative;font-family:system-ui,sans-serif">
+            <!-- Preview rendered by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bots (Slack / Teams) page ─────────────────────────────────── -->
+  <div class="page-full" id="page-bots">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Bots Natifs (Slack / Teams)</div><div class="page-full-sub">Configurez les bots qui répondent directement dans Slack et Microsoft Teams</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:24px">
+      <!-- Slack Bot -->
+      <div class="card" style="padding:24px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+          <img src="https://cdn.simpleicons.org/slack/4A154B" width="28" height="28" alt="Slack" style="border-radius:6px" onerror="this.outerHTML='<span style=font-size:28px>💬</span>'"/>
+          <div>
+            <div style="font-weight:700;font-size:15px;color:var(--navy)">Slack Bot</div>
+            <div style="font-size:11px;color:var(--muted)">Bot qui répond dans les threads, DMs et @mentions</div>
+          </div>
+          <span id="slack-bot-status" style="margin-left:auto;font-size:11px;padding:4px 10px;border-radius:99px;font-weight:600;background:#fee2e2;color:#dc2626">Non configuré</span>
+        </div>
+
+        <div class="form-group"><label>Bot Token (xoxb-...)</label><input id="sb-token" type="password" placeholder="xoxb-your-slack-bot-token" /></div>
+        <div class="form-group"><label>Signing Secret</label><input id="sb-signing" type="password" placeholder="Signing secret from Slack App settings" /></div>
+        <div class="form-group"><label>Agent helpdesk associé</label><select id="sb-agent"><option value="">Sélectionner un agent...</option></select></div>
+
+        <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:8px;padding:14px;margin:14px 0;font-size:12px">
+          <div style="font-weight:700;margin-bottom:8px;color:var(--navy)">Instructions de setup :</div>
+          <ol style="margin:0;padding-left:18px;color:var(--muted);line-height:1.8">
+            <li>Créez une <a href="https://api.slack.com/apps" target="_blank" style="color:var(--orange)">Slack App</a></li>
+            <li>OAuth Scopes (Bot) : <code>chat:write</code>, <code>app_mentions:read</code>, <code>im:history</code>, <code>channels:history</code>, <code>users:read</code></li>
+            <li>Event Subscriptions URL : <code id="sb-events-url">-</code></li>
+            <li>Events: <code>message.im</code>, <code>app_mention</code></li>
+            <li>Installez l'app dans votre workspace</li>
+          </ol>
+        </div>
+
+        <button class="btn btn-orange btn-sm" onclick="saveSlackBot()">Sauvegarder</button>
+      </div>
+
+      <!-- Teams Bot -->
+      <div class="card" style="padding:24px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+          <img src="https://cdn.simpleicons.org/microsoftteams/6264A7" width="28" height="28" alt="Teams" style="border-radius:6px" onerror="this.outerHTML='<span style=font-size:28px>🟣</span>'"/>
+          <div>
+            <div style="font-weight:700;font-size:15px;color:var(--navy)">Microsoft Teams Bot</div>
+            <div style="font-size:11px;color:var(--muted)">Bot qui répond dans les canaux et DMs Teams</div>
+          </div>
+          <span id="teams-bot-status" style="margin-left:auto;font-size:11px;padding:4px 10px;border-radius:99px;font-weight:600;background:#fee2e2;color:#dc2626">Non configuré</span>
+        </div>
+
+        <div class="form-group"><label>Microsoft App ID</label><input id="tb-appid" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /></div>
+        <div class="form-group"><label>Microsoft App Secret</label><input id="tb-secret" type="password" placeholder="App password from Azure" /></div>
+        <div class="form-group"><label>Agent helpdesk associé</label><select id="tb-agent"><option value="">Sélectionner un agent...</option></select></div>
+
+        <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:8px;padding:14px;margin:14px 0;font-size:12px">
+          <div style="font-weight:700;margin-bottom:8px;color:var(--navy)">Instructions de setup :</div>
+          <ol style="margin:0;padding-left:18px;color:var(--muted);line-height:1.8">
+            <li>Enregistrez un bot sur <a href="https://dev.botframework.com" target="_blank" style="color:var(--orange)">Bot Framework</a></li>
+            <li>Créez une app Azure AD → notez App ID + Secret</li>
+            <li>Messaging endpoint : <code id="tb-endpoint-url">-</code></li>
+            <li>Activez le canal Microsoft Teams</li>
+            <li>Ajoutez le bot à votre équipe Teams</li>
+          </ol>
+        </div>
+
+        <button class="btn btn-orange btn-sm" onclick="saveTeamsBot()">Sauvegarder</button>
+      </div>
+
+      <!-- WhatsApp Bot -->
+      <div class="card" style="padding:24px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+          <img src="https://cdn.simpleicons.org/whatsapp/25D366" width="28" height="28" alt="WhatsApp" style="border-radius:6px" onerror="this.outerHTML='<span style=font-size:28px>W</span>'"/>
+          <div>
+            <div style="font-weight:700;font-size:15px;color:var(--navy)">WhatsApp Bot</div>
+            <div style="font-size:11px;color:var(--muted)">Bot qui répond aux clients via WhatsApp Business</div>
+          </div>
+          <span id="whatsapp-bot-status" style="margin-left:auto;font-size:11px;padding:4px 10px;border-radius:99px;font-weight:600;background:#fee2e2;color:#dc2626">Non configuré</span>
+        </div>
+
+        <div class="form-group"><label>Phone Number ID</label><input id="wa-phone-id" type="text" placeholder="1234567890" /></div>
+        <div class="form-group"><label>Access Token (permanent)</label><input id="wa-token" type="password" placeholder="EAAxxxxxxx..." /></div>
+        <div class="form-group"><label>Verify Token</label><input id="wa-verify" type="text" placeholder="Token personnalisé pour la vérification webhook" /></div>
+        <div class="form-group"><label>Agent helpdesk associé</label><select id="wa-agent"><option value="">Sélectionner un agent...</option></select></div>
+
+        <div style="background:var(--sidebar);border:1px solid var(--border);border-radius:8px;padding:14px;margin:14px 0;font-size:12px">
+          <div style="font-weight:700;margin-bottom:8px;color:var(--navy)">Instructions de setup :</div>
+          <ol style="margin:0;padding-left:18px;color:var(--muted);line-height:1.8">
+            <li>Créez une app sur <a href="https://developers.facebook.com" target="_blank" style="color:var(--orange)">Meta for Developers</a></li>
+            <li>Ajoutez le produit <strong>WhatsApp</strong> à votre app</li>
+            <li>Obtenez un <strong>Permanent Access Token</strong> (System User Token)</li>
+            <li>Webhook Callback URL : <code id="wa-webhook-url">-</code></li>
+            <li>Verify Token : le même que ci-dessus</li>
+            <li>Abonnez-vous au champ <code>messages</code></li>
+          </ol>
+        </div>
+
+        <button class="btn btn-orange btn-sm" onclick="saveWhatsAppBot()">Sauvegarder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SLA Tracking page ─────────────────────────────────────────── -->
+  <div class="page-full" id="page-sla">
+    <div class="page-full-header">
+      <div><div class="page-full-title">SLA Tracking</div><div class="page-full-sub">Politiques SLA, temps de réponse et conformité</div></div>
+      <div>
+        <button class="btn btn-ghost btn-sm" onclick="checkSlaBreach()">Vérifier SLA maintenant</button>
+        <button class="btn btn-orange btn-sm" onclick="openSlaModal()">+ Nouvelle politique</button>
+      </div>
+    </div>
+
+    <!-- SLA Stats cards -->
+    <div id="sla-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Temps moyen 1ère réponse</div>
+        <div id="sla-avg-fr" style="font-size:24px;font-weight:800;color:var(--navy)">—</div>
+      </div>
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Temps moyen résolution</div>
+        <div id="sla-avg-res" style="font-size:24px;font-weight:800;color:var(--navy)">—</div>
+      </div>
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Conformité 1ère réponse</div>
+        <div id="sla-fr-rate" style="font-size:24px;font-weight:800;color:#16a34a">—</div>
+      </div>
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Conformité résolution</div>
+        <div id="sla-res-rate" style="font-size:24px;font-weight:800;color:#16a34a">—</div>
+      </div>
+    </div>
+
+    <!-- At-risk tickets -->
+    <div class="card" style="padding:18px;margin-bottom:24px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--navy)"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#D97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Tickets à risque (>80% du SLA écoulé)</div>
+      <div id="sla-at-risk" style="font-size:12px;color:var(--muted)">Aucun ticket à risque</div>
+    </div>
+
+    <!-- SLA policies table -->
+    <div class="card" style="padding:18px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--navy)">Politiques SLA</div>
+      <table class="table" style="width:100%">
+        <thead><tr><th>Nom</th><th>Priorité</th><th>1ère réponse</th><th>Résolution</th><th>Heures ouvrées</th><th>Statut</th><th></th></tr></thead>
+        <tbody id="sla-policies-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── CSAT / NPS ──────────────────────────────────────────────── -->
+  <div class="page-full" id="page-csat">
+    <div class="page-full-header">
+      <div><div class="page-full-title">CSAT & NPS</div><div class="page-full-sub">Satisfaction client, Net Promoter Score, tendances</div></div>
+    </div>
+    <div id="csat-stats-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px">
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Note moyenne</div>
+        <div id="csat-avg" style="font-size:24px;font-weight:800;color:var(--navy)">—</div>
+      </div>
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">NPS Score</div>
+        <div id="csat-nps" style="font-size:24px;font-weight:800;color:var(--orange)">—</div>
+      </div>
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Total réponses</div>
+        <div id="csat-total" style="font-size:24px;font-weight:800;color:var(--navy)">—</div>
+      </div>
+      <div class="card" style="padding:18px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Promoteurs</div>
+        <div id="csat-promoters" style="font-size:24px;font-weight:800;color:#16a34a">—</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+      <div class="card" style="padding:18px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--navy)">Distribution des notes (1-5)</div>
+        <div id="csat-rating-dist" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+      <div class="card" style="padding:18px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--navy)">Distribution NPS (0-10)</div>
+        <div id="csat-nps-dist" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+    <div class="card" style="padding:18px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--navy)">Commentaires récents</div>
+      <div id="csat-comments" style="font-size:12px;color:var(--muted)">Aucun commentaire</div>
+    </div>
+  </div>
+
+  <!-- ── Workflows ──────────────────────────────────────────────── -->
+  <div class="page-full" id="page-workflows">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Workflows d'escalade</div><div class="page-full-sub">Automatisations visuelles pour les tickets</div></div>
+      <button class="btn btn-orange btn-sm" onclick="openWorkflowModal()">+ Nouveau workflow</button>
+    </div>
+    <div class="card" style="padding:18px">
+      <table class="table" style="width:100%">
+        <thead><tr><th>Nom</th><th>Noeuds</th><th>Actif</th><th>Créé</th><th></th></tr></thead>
+        <tbody id="workflows-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Custom Dashboards ──────────────────────────────────────── -->
+  <div class="page-full" id="page-dashboards">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Dashboards personnalisés</div><div class="page-full-sub">Créez vos tableaux de bord avec 23 types de widgets</div></div>
+      <button class="btn btn-orange btn-sm" onclick="openDashboardModal()">+ Nouveau dashboard</button>
+    </div>
+    <div id="dashboards-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px"></div>
+  </div>
+
+  <!-- ── A/B Tests ──────────────────────────────────────────────── -->
+  <div class="page-full" id="page-abtests">
+    <div class="page-full-header">
+      <div><div class="page-full-title">A/B Tests de prompts</div><div class="page-full-sub">Testez et comparez les performances de vos prompts IA</div></div>
+      <button class="btn btn-orange btn-sm" onclick="openAbTestModal()">+ Nouveau test</button>
+    </div>
+    <div class="card" style="padding:18px">
+      <table class="table" style="width:100%">
+        <thead><tr><th>Nom</th><th>Agent</th><th>Statut</th><th>Gagnant</th><th>Score A</th><th>Score B</th><th></th></tr></thead>
+        <tbody id="abtests-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Archives ──────────────────────────────────────────────── -->
+  <div class="page-full" id="page-archive">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Archives</div><div class="page-full-sub">Conversations et tickets archivés</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-sm" id="archive-tab-convs" onclick="switchArchiveTab('convs')" style="background:var(--orange);color:#fff">Conversations</button>
+      <button class="btn btn-ghost btn-sm" id="archive-tab-tickets" onclick="switchArchiveTab('tickets')">Tickets</button>
+    </div>
+    <div class="card" style="padding:18px">
+      <table class="table" style="width:100%">
+        <thead id="archive-thead"></thead>
+        <tbody id="archive-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Audit Logs ──────────────────────────────────────────────── -->
+  <div class="page-full" id="page-auditlogs">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Audit Logs</div><div class="page-full-sub">Historique complet des actions du système</div></div>
+      <div style="display:flex;gap:8px">
+        <select id="audit-action-filter" onchange="loadAuditLogsPage()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);font-size:12px;background:var(--white);color:var(--navy)">
+          <option value="">Toutes les actions</option>
+        </select>
+        <input id="audit-actor-filter" placeholder="Filtre acteur..." onkeyup="loadAuditLogsPage()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);font-size:12px;width:150px" />
+      </div>
+    </div>
+    <div class="card" style="padding:18px">
+      <table class="table" style="width:100%">
+        <thead><tr><th>Date</th><th>Acteur</th><th>Type</th><th>Action</th><th>Ressource</th><th>ID</th><th>Détails</th></tr></thead>
+        <tbody id="auditlogs-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── SSO ──────────────────────────────────────────────────────── -->
+  <div class="page-full" id="page-sso">
+    <div class="page-full-header">
+      <div><div class="page-full-title">SSO / Enterprise Auth</div><div class="page-full-sub">Configurez SAML ou OIDC pour vos utilisateurs</div></div>
+      <button class="btn btn-orange btn-sm" onclick="openSsoModal()">+ Nouvelle config SSO</button>
+    </div>
+    <div class="card" style="padding:18px">
+      <table class="table" style="width:100%">
+        <thead><tr><th>Nom</th><th>Type</th><th>Statut</th><th>Domaines</th><th>Auto-provision</th><th></th></tr></thead>
+        <tbody id="sso-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Tags ──────────────────────────────────────────────────────── -->
+  <div class="page-full" id="page-tags">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Tags</div><div class="page-full-sub">Gérez les étiquettes pour les tickets et conversations</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="new-tag-name" placeholder="Nouveau tag..." style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);font-size:12px;width:150px" />
+        <input id="new-tag-color" type="color" value="#6366f1" style="width:32px;height:32px;border:none;cursor:pointer" />
+        <button class="btn btn-orange btn-sm" onclick="createTag()">Ajouter</button>
+      </div>
+    </div>
+    <div class="card" style="padding:18px">
+      <div id="tags-list" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+  </div>
+
+  <!-- ── Custom Fields ──────────────────────────────────────────── -->
+  <div class="page-full" id="page-customfields">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Champs personnalisés</div><div class="page-full-sub">Ajoutez des champs sur vos tickets helpdesk</div></div>
+      <button class="btn btn-orange btn-sm" onclick="openFieldModal()">+ Nouveau champ</button>
+    </div>
+    <div class="card" style="padding:18px">
+      <table class="table" style="width:100%">
+        <thead><tr><th>Clé</th><th>Label</th><th>Type</th><th>Requis</th><th>Ordre</th><th></th></tr></thead>
+        <tbody id="customfields-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Exports ──────────────────────────────────────────────────── -->
+  <div class="page-full" id="page-exports">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Exports CSV</div><div class="page-full-sub">Téléchargez vos données au format CSV</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+      <div class="card" style="padding:24px;text-align:center">
+        <div style="margin:0 auto 8px;width:44px;height:44px;border-radius:12px;background:#EEF1F8;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="var(--navy)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5v2"/><path d="M15.01 14h.01"/><path d="M20 5v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3l2 3h5a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:4px">Tickets</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Tous les tickets helpdesk</div>
+        <button class="btn btn-orange btn-sm" onclick="downloadExport('tickets')">Télécharger CSV</button>
+      </div>
+      <div class="card" style="padding:24px;text-align:center">
+        <div style="margin:0 auto 8px;width:44px;height:44px;border-radius:12px;background:#F0EEFF;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6C3AE8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:4px">Conversations</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Toutes les conversations</div>
+        <button class="btn btn-orange btn-sm" onclick="downloadExport('conversations')">Télécharger CSV</button>
+      </div>
+      <div class="card" style="padding:24px;text-align:center">
+        <div style="margin:0 auto 8px;width:44px;height:44px;border-radius:12px;background:#DCFCE7;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#16A34A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:4px">Analytics</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Requêtes et tokens par jour</div>
+        <button class="btn btn-orange btn-sm" onclick="downloadExport('analytics')">Télécharger CSV</button>
+      </div>
+      <div class="card" style="padding:24px;text-align:center">
+        <div style="margin:0 auto 8px;width:44px;height:44px;border-radius:12px;background:#FFF3EB;display:flex;align-items:center;justify-content:center">
+          <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:var(--navy);margin-bottom:4px">CSAT</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:16px">Évaluations et NPS</div>
+        <button class="btn btn-orange btn-sm" onclick="downloadExport('csat')">Télécharger CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── i18n / Languages ──────────────────────────────────────────── -->
+  <div class="page-full" id="page-i18n">
+    <div class="page-full-header">
+      <div><div class="page-full-title">Langues / i18n</div><div class="page-full-sub">Configuration multilingue pour les agents et le widget</div></div>
+    </div>
+    <div class="card" style="padding:18px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--navy)">Langue par défaut</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="i18n-default" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);font-size:13px;background:var(--white);color:var(--navy)">
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+          <option value="pt">Português</option>
+          <option value="de">Deutsch</option>
+        </select>
+        <button class="btn btn-orange btn-sm" onclick="saveDefaultLang()">Enregistrer</button>
+      </div>
+    </div>
+    <div class="card" style="padding:18px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:12px;color:var(--navy)">Traductions disponibles</div>
+      <div id="i18n-preview" style="font-size:12px;color:var(--muted)"></div>
+    </div>
+  </div>
+
 </div><!-- /app -->
+
+<!-- SSO Config Modal -->
+<div class="modal-overlay" id="sso-modal">
+  <div class="modal" style="width:560px">
+    <h3 id="sso-modal-title">Nouvelle config SSO</h3>
+    <input type="hidden" id="sso-edit-id"/>
+    <div class="form-group"><label>Nom</label><input id="sso-name" placeholder="Ex: Google Workspace, Okta" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select id="sso-provider"><option value="oidc">OIDC (Google, Azure AD)</option><option value="saml">SAML (Okta, OneLogin)</option></select>
+      </div>
+      <div class="form-group"><label>Domaines autorisés</label><input id="sso-domains" placeholder="example.com,company.org" /></div>
+    </div>
+    <div id="sso-oidc-fields">
+      <div class="form-group"><label>Client ID</label><input id="sso-client-id" /></div>
+      <div class="form-group"><label>Client Secret</label><input id="sso-client-secret" type="password" /></div>
+      <div class="form-group"><label>Discovery URL</label><input id="sso-discovery" placeholder="https://accounts.google.com/.well-known/openid-configuration" /></div>
+    </div>
+    <div id="sso-saml-fields" style="display:none">
+      <div class="form-group"><label>Issuer / Entity ID</label><input id="sso-issuer" /></div>
+      <div class="form-group"><label>SSO URL</label><input id="sso-sso-url" /></div>
+      <div class="form-group"><label>Certificat (PEM)</label><textarea id="sso-certificate" rows="3" style="font-family:monospace;font-size:11px"></textarea></div>
+    </div>
+    <div class="form-group"><label>Redirect URI</label><input id="sso-redirect" placeholder="https://yourserver.com/api/sso/callback" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Auto-provision</label><select id="sso-auto"><option value="1">Oui</option><option value="0">Non</option></select></div>
+      <div class="form-group"><label>Rôle par défaut</label><select id="sso-role"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('sso-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveSsoConfig()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Field Modal -->
+<div class="modal-overlay" id="field-modal">
+  <div class="modal" style="width:440px">
+    <h3>Nouveau champ personnalisé</h3>
+    <div class="form-group"><label>Clé technique</label><input id="cf-key" placeholder="ex: department" /></div>
+    <div class="form-group"><label>Label affiché</label><input id="cf-label" placeholder="ex: Département" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select id="cf-type"><option value="text">Texte</option><option value="number">Nombre</option><option value="select">Liste</option><option value="boolean">Oui/Non</option><option value="date">Date</option></select>
+      </div>
+      <div class="form-group"><label>Requis</label><select id="cf-required"><option value="0">Non</option><option value="1">Oui</option></select></div>
+    </div>
+    <div class="form-group"><label>Options (pour type Liste, séparées par virgule)</label><input id="cf-options" placeholder="Option A, Option B, Option C" /></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('field-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveCustomField()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Workflow Modal -->
+<div class="modal-overlay" id="workflow-modal">
+  <div class="modal" style="width:600px">
+    <h3 id="workflow-modal-title">Nouveau workflow</h3>
+    <input type="hidden" id="workflow-edit-id"/>
+    <div class="form-group"><label>Nom</label><input id="wf-name" placeholder="Ex: Escalade VIP" /></div>
+    <div class="form-group"><label>Description</label><input id="wf-desc" placeholder="Description du workflow" /></div>
+    <div class="form-group">
+      <label>Noeuds (JSON)</label>
+      <textarea id="wf-nodes" rows="6" style="font-family:monospace;font-size:11px" placeholder='[{"id":"1","type":"trigger","data":{"event":"ticket_created"}},{"id":"2","type":"condition","data":{"field":"priority","op":"eq","value":"urgent"}},{"id":"3","type":"action","data":{"action":"assign","params":{"to":"senior-agent"}}}]'></textarea>
+    </div>
+    <div class="form-group">
+      <label>Arêtes (JSON)</label>
+      <textarea id="wf-edges" rows="4" style="font-family:monospace;font-size:11px" placeholder='[{"from":"1","to":"2"},{"from":"2","to":"3","label":"true"}]'></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('workflow-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveWorkflow()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard Modal -->
+<div class="modal-overlay" id="dashboard-modal">
+  <div class="modal" style="width:600px">
+    <h3 id="dashboard-modal-title">Nouveau dashboard</h3>
+    <input type="hidden" id="dash-edit-id"/>
+    <div class="form-group"><label>Nom</label><input id="dash-name" placeholder="Ex: Vue Support" /></div>
+    <div class="form-group"><label>Description</label><input id="dash-description" placeholder="Description" /></div>
+    <div class="form-group">
+      <label>Widgets (JSON)</label>
+      <textarea id="dash-widgets" rows="8" style="font-family:monospace;font-size:11px" placeholder='[{"type":"stat_total_tickets","title":"Total tickets","w":1,"h":1},{"type":"chart_tickets_by_day","title":"Tickets/jour","w":2,"h":1}]'></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('dashboard-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveDashboard()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- A/B Test Modal -->
+<div class="modal-overlay" id="abtest-modal">
+  <div class="modal" style="width:600px">
+    <h3 id="abtest-modal-title">Nouveau A/B test</h3>
+    <input type="hidden" id="ab-edit-id"/>
+    <div class="form-group"><label>Nom</label><input id="ab-name" placeholder="Ex: Ton formel vs casual" /></div>
+    <div class="form-group"><label>Agent ID</label><input type="number" id="ab-agent" placeholder="ID de l'agent" /></div>
+    <div class="form-group"><label>Prompt A</label><textarea id="ab-prompt-a" rows="4" placeholder="Première variante du prompt"></textarea></div>
+    <div class="form-group"><label>Prompt B</label><textarea id="ab-prompt-b" rows="4" placeholder="Deuxième variante du prompt"></textarea></div>
+    <div class="form-group"><label>Cas de test (JSON array de strings)</label><textarea id="ab-cases" rows="3" style="font-family:monospace;font-size:11px" placeholder='["Bonjour, j ai un problème de facturation","Mon produit est arrivé cassé"]'></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('abtest-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveAbTest()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- SLA Policy Modal -->
+<div class="modal-overlay" id="sla-modal">
+  <div class="modal" style="width:480px">
+    <h3 id="sla-modal-title">Nouvelle politique SLA</h3>
+    <input type="hidden" id="sla-edit-id"/>
+    <div class="form-group"><label>Nom</label><input id="sla-name" placeholder="Ex: Standard, Premium" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Priorité</label>
+        <select id="sla-priority">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Heures ouvrées seulement</label>
+        <select id="sla-bh"><option value="1">Oui</option><option value="0">Non (24/7)</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>1ère réponse (minutes)</label><input type="number" id="sla-fr" value="60" min="1" /></div>
+      <div class="form-group"><label>Résolution (minutes)</label><input type="number" id="sla-res" value="480" min="1" /></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('sla-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveSlaPolicy()">Enregistrer</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Import License Modal ────────────────────────────────────────────── -->
 <div class="modal-overlay" id="import-license-modal">
@@ -1958,7 +2912,10 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div class="form-group"><label>Plan</label><select id="l-plan"><option value="pro">Pro</option></select></div>
       <div class="form-group"><label>Max Requêtes</label><input type="number" id="l-maxreq" value="9999999"/></div>
     </div>
-    <div class="form-group"><label>Expiry Date (leave blank = never)</label><input type="date" id="l-expires"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Expiry Date (leave blank = never)</label><input type="date" id="l-expires"/></div>
+      <div class="form-group"><label>WhatsApp (ex: 243990000000)</label><input type="tel" id="l-whatsapp" placeholder="243990000000"/></div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('license-modal')">Cancel</button>
       <button class="btn btn-orange" onclick="saveLicense()">Generate Key</button>
@@ -2108,7 +3065,7 @@ function showPage(name) {
 }
 
 function loadPage(name) {
-  const m = { dashboard: loadDashboard, models: loadModels, prompts: loadPrompts, kb: loadKb, plans: loadPlans, licenses: loadLicenses, payments: loadPayments, users: loadUsers, trials: loadTrials, conversations: loadConversations, audit: loadAudit, monitoring: loadMonitoring, agent: loadAgentRuns, notifications: loadNotifPage, settings: loadSettings };
+  const m = { dashboard: loadDashboard, models: loadModels, prompts: loadPrompts, kb: loadKb, plans: loadPlans, licenses: loadLicenses, payments: loadPayments, users: loadUsers, trials: loadTrials, conversations: loadConversations, audit: loadAudit, monitoring: loadMonitoring, agent: loadAgentRuns, notifications: loadNotifPage, widget: loadWidgetPage, bots: loadBotsPage, sla: loadSlaPage, csat: loadCsatPage, workflows: loadWorkflowsPage, dashboards: loadDashboardsPage, abtests: loadAbTestsPage, archive: loadArchivePage, auditlogs: loadAuditLogsPage, sso: loadSsoPage, tags: loadTagsPage, customfields: loadCustomFieldsPage, exports: loadExportsPage, i18n: loadI18nPage, settings: loadSettings };
   if (m[name]) m[name]();
 }
 
@@ -2613,7 +3570,7 @@ async function loadDashboard() {
         const provBadge = { groq:'pb-groq', openai:'pb-openai', anthropic:'pb-anthropic', gemini:'pb-gemini', mistral:'pb-mistral' }[prov] || 'pb-other';
         return `<div class="model-bar-row">
           <div class="model-bar-name">${esc(m.ai_model || 'unknown')}</div>
-          <span class="mc-badge ${provBadge}" style="font-size:10px;margin-right:8px">${cap(prov)}</span>
+          <span class="mc-badge ${provBadge}" style="font-size:10px;margin-right:8px">${provLogoImg(prov)}${cap(prov)}</span>
           <div class="model-bar-track"><div class="model-bar-fill" style="width:${barW}%;background:${col}"></div></div>
           <div class="model-bar-count">${fmt(cnt)}</div>
           <div style="font-size:11px;color:var(--muted);min-width:36px;text-align:right">${pct}%</div>
@@ -2710,13 +3667,67 @@ let ALL_PLANS = [];
 
 // Source de vérité unique — même liste que src/config/plan-features.ts dans l'app
 const PLAN_FEATURES = [
-  { key: 'drag_window',      label: 'Déplacer la fenêtre overlay',  group: 'Interface' },
-  { key: 'screenshot',       label: "Capture d'écran",              group: 'Interface' },
-  { key: 'file_attachments', label: 'Pièces jointes (fichiers)',    group: 'Interface' },
-  { key: 'audio_capture',    label: 'Capture audio / microphone',   group: 'Audio'     },
-  { key: 'meeting_mode',     label: 'Mode réunion (meeting mode)',  group: 'Audio'     },
-  { key: 'knowledge_base',   label: 'Base de connaissances (KB)',   group: 'IA'        },
-  { key: 'contact_support',  label: 'Contacter le support',         group: 'Support'   },
+  // ── Chat & IA ──
+  { key: 'chat',              label: 'Chat IA conversationnel',           group: 'Chat & IA' },
+  { key: 'multi_models',      label: 'Choix du modèle IA',               group: 'Chat & IA' },
+  { key: 'premium_models',    label: 'Modèles premium (GPT-4o, Claude, Gemini Pro)', group: 'Chat & IA' },
+  { key: 'system_prompts',    label: 'Prompts système personnalisés',     group: 'Chat & IA' },
+  { key: 'file_attachments',  label: 'Pièces jointes (fichiers)',         group: 'Chat & IA' },
+  { key: 'streaming',         label: 'Réponses en streaming',             group: 'Chat & IA' },
+
+  // ── Base de connaissances ──
+  { key: 'knowledge_base',    label: 'Base de connaissances (KB)',         group: 'Connaissances' },
+  { key: 'kb_upload',         label: 'Upload de documents (PDF, texte)',   group: 'Connaissances' },
+  { key: 'kb_url',            label: 'Indexation par URL',                 group: 'Connaissances' },
+  { key: 'kb_crawl',          label: 'Crawl de site web',                  group: 'Connaissances' },
+  { key: 'kb_gaps',           label: 'Détection des lacunes KB (IA)',      group: 'Connaissances' },
+  { key: 'auto_sync',         label: 'Auto-sync des sources KB',           group: 'Connaissances' },
+
+  // ── Intégrations ──
+  { key: 'integrations',      label: 'Intégrations (Google Drive, Slack, GitHub...)', group: 'Intégrations' },
+  { key: 'notion',            label: 'Intégration Notion',                 group: 'Intégrations' },
+  { key: 'confluence',        label: 'Intégration Confluence',             group: 'Intégrations' },
+  { key: 'shopify',           label: 'Intégration Shopify',                group: 'Intégrations' },
+
+  // ── Helpdesk & Support ──
+  { key: 'helpdesk',          label: 'Helpdesk IA (tickets)',              group: 'Helpdesk' },
+  { key: 'helpdesk_auto_reply', label: 'Réponses automatiques aux tickets', group: 'Helpdesk' },
+  { key: 'helpdesk_channels', label: 'Canaux de réception (email, widget, API)', group: 'Helpdesk' },
+  { key: 'escalation',        label: 'Règles d\'escalade',                group: 'Helpdesk' },
+  { key: 'csat',              label: 'Enquêtes CSAT / NPS',               group: 'Helpdesk' },
+  { key: 'sla',               label: 'Suivi SLA',                          group: 'Helpdesk' },
+  { key: 'workflows',         label: 'Workflows automatisés',              group: 'Helpdesk' },
+
+  // ── Widget & Agents ──
+  { key: 'widget',            label: 'Widget chatbot embeddable',          group: 'Widget' },
+  { key: 'widget_agents',     label: 'Agents IA personnalisés (widget)',   group: 'Widget' },
+  { key: 'widget_customization', label: 'Personnalisation du widget (couleur, avatar)', group: 'Widget' },
+
+  // ── App Desktop (Tauri) ──
+  { key: 'drag_window',       label: 'Déplacer la fenêtre overlay',       group: 'App Desktop' },
+  { key: 'screenshot',        label: 'Capture d\'écran automatique',      group: 'App Desktop' },
+  { key: 'audio_capture',     label: 'Capture audio / microphone',        group: 'App Desktop' },
+  { key: 'meeting_mode',      label: 'Mode réunion (meeting mode)',       group: 'App Desktop' },
+  { key: 'meeting_summary',   label: 'Résumé de réunion IA',              group: 'App Desktop' },
+  { key: 'coaching_tips',     label: 'Conseils de coaching en temps réel', group: 'App Desktop' },
+  { key: 'playbook',          label: 'Playbook / script de réunion',      group: 'App Desktop' },
+  { key: 'tts',               label: 'Synthèse vocale (TTS)',             group: 'App Desktop' },
+  { key: 'interview_prep',    label: 'Simulateur d\'entretien',           group: 'App Desktop' },
+  { key: 'cv_generator',      label: 'Générateur CV & lettre de motivation', group: 'App Desktop' },
+  { key: 'email_vocal',       label: 'Envoi d\'email par commande vocale', group: 'App Desktop' },
+
+  // ── Analytics & Avancé ──
+  { key: 'analytics',         label: 'Analytiques & statistiques',         group: 'Analytics' },
+  { key: 'custom_dashboards', label: 'Dashboards personnalisés',           group: 'Analytics' },
+  { key: 'ab_tests',          label: 'A/B Tests de prompts',               group: 'Analytics' },
+  { key: 'simulation',        label: 'Simulation de conversations',        group: 'Analytics' },
+  { key: 'ai_actions',        label: 'Actions IA automatisées',            group: 'Analytics' },
+
+  // ── Équipe & Support ──
+  { key: 'team',              label: 'Gestion d\'équipe (multi-utilisateurs)', group: 'Équipe' },
+  { key: 'team_roles',        label: 'Rôles & permissions (admin, éditeur, membre)', group: 'Équipe' },
+  { key: 'contact_support',   label: 'Support prioritaire',                group: 'Équipe' },
+  { key: 'api_access',        label: 'Accès API publique',                 group: 'Équipe' },
 ];
 
 const PERIOD_LABEL = { free: 'Gratuit', lifetime: 'À vie', monthly: '/mois', yearly: '/an' };
@@ -2769,8 +3780,8 @@ function renderPlans(plans) {
         </div>
       </div>
       <div class="plan-actions">
-        <button class="btn btn-ghost btn-xs" style="flex:1" onclick="editPlan(${JSON.stringify(p).replace(/"/g,'&quot;')})">✏ Modifier</button>
-        <button class="btn btn-outline-orange btn-xs" onclick="showPage('licenses')" title="Voir les licences">🔑</button>
+        <button class="btn btn-ghost btn-xs" style="flex:1" onclick="editPlan(${JSON.stringify(p).replace(/"/g,'&quot;')})"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier</button>
+        <button class="btn btn-outline-orange btn-xs" onclick="showPage('licenses')" title="Voir les licences"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></button>
         ${Number(p.license_count) === 0 ? `<button class="btn btn-danger btn-xs" onclick="deletePlan('${esc(p.id)}')">✕</button>` : ''}
       </div>
     </div>`;
@@ -2874,7 +3885,7 @@ async function loadModels() {
   container.innerHTML = models.map(m => `
     <div class="model-card">
       <div class="mc-top">
-        <span class="mc-badge ${PROV_CLASS[m.provider] || 'pb-other'}">${esc(m.provider)}</span>
+        <span class="mc-badge ${PROV_CLASS[m.provider] || 'pb-other'}">${provLogoImg(m.provider)}${esc(m.provider)}</span>
         <span class="${m.is_available ? 'status-on' : 'status-off'}">${m.is_available ? 'Active' : 'Off'}</span>
       </div>
       <div class="mc-name">${esc(m.name)}</div>
@@ -3035,13 +4046,13 @@ function renderLicensesTable() {
       <td class="text-muted text-sm">${l.expires_at ? fmtDate(l.expires_at) : 'Never'}</td>
       <td class="tbl-actions">
         <button class="btn btn-ghost btn-xs" onclick="toggleLic(${l.id})">${l.is_active ? 'Disable' : 'Enable'}</button>
-        ${l.customer_email ? `<button class="btn btn-ghost btn-xs" title="Renvoyer la clé par email" onclick="resendLicenseEmail('${esc(l.license_key)}')">📧</button>` : ''}
+        ${l.customer_email ? `<button class="btn btn-ghost btn-xs" title="Renvoyer la clé par email" onclick="resendLicenseEmail('${esc(l.license_key)}')"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg></button>` : ''}
         <button class="btn btn-danger btn-xs" onclick="deleteLic(${l.id})">Delete</button>
       </td>
     </tr>`).join('') : '<tr><td colspan="7" class="empty-state">No licenses yet</td></tr>';
 }
 function openLicenseModal() {
-  ['l-name','l-email','l-expires'].forEach(id => document.getElementById(id).value = '');
+  ['l-name','l-email','l-expires','l-whatsapp'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('l-maxreq').value = '9999999';
   if (ALL_PLANS.length) populateLicensePlanSelect(ALL_PLANS);
   else api('/plans').then(d => { ALL_PLANS = d?.plans || []; populateLicensePlanSelect(ALL_PLANS); });
@@ -3054,7 +4065,8 @@ function openLicenseModal() {
   document.getElementById('license-modal').classList.add('open');
 }
 async function saveLicense() {
-  const body = { customer_name: document.getElementById('l-name').value.trim(), customer_email: document.getElementById('l-email').value.trim(), plan: document.getElementById('l-plan').value, max_requests: parseInt(document.getElementById('l-maxreq').value) || 1000, expires_at: document.getElementById('l-expires').value || null };
+  const waPhone = document.getElementById('l-whatsapp').value.trim();
+  const body = { customer_name: document.getElementById('l-name').value.trim(), customer_email: document.getElementById('l-email').value.trim(), plan: document.getElementById('l-plan').value, max_requests: parseInt(document.getElementById('l-maxreq').value) || 1000, expires_at: document.getElementById('l-expires').value || null, whatsapp_phone: waPhone || null };
   const r = await api('/licenses', { method: 'POST', body: JSON.stringify(body) });
   if (r?.ok) { alert('✓ License: ' + r.license_key); closeModal('license-modal'); loadLicenses(); loadDashboard(); }
   else alert(r?.error || 'Error');
@@ -3142,8 +4154,8 @@ function renderPaymentsTable() {
       <td>${statusHtml}</td>
       <td class="text-muted text-sm">${p.created_at ? fmtDate(p.created_at) : '—'}</td>
       <td class="tbl-actions">
-        ${p.customer_email && p.license_key ? `<button class="btn btn-ghost btn-xs" onclick="resendLicenseEmail('${esc(p.license_key)}')" title="Renvoyer email">📧</button>` : ''}
-        ${p.license_key ? `<button class="btn btn-ghost btn-xs" title="Clé: ${esc(p.license_key)}" onclick="navigator.clipboard.writeText('${esc(p.license_key)}').then(()=>alert('Copié !'))">🔑</button>` : ''}
+        ${p.customer_email && p.license_key ? `<button class="btn btn-ghost btn-xs" onclick="resendLicenseEmail('${esc(p.license_key)}')" title="Renvoyer email"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg></button>` : ''}
+        ${p.license_key ? `<button class="btn btn-ghost btn-xs" title="Clé: ${esc(p.license_key)}" onclick="navigator.clipboard.writeText('${esc(p.license_key)}').then(()=>alert('Copié !'))"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></button>` : ''}
       </td>
     </tr>`;
   }).join('') : '<tr><td colspan="7" class="empty-state">Aucune transaction</td></tr>';
@@ -3357,13 +4369,17 @@ async function openThread(id, title, count) {
   const data = await api('/conversations/' + encodeURIComponent(id) + '/messages');
   const msgs = data?.messages || [];
   const roleColors = { user: '#F97316', assistant: '#1E2B4A', system: '#8892A4' };
-  const roleIcons = { user: '👤', assistant: '🤖', system: '⚙' };
+  const roleIcons = {
+    user: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    assistant: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg>',
+    system: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+  };
   document.getElementById('conv-thread-messages').innerHTML = msgs.map(m => {
     const ts = m.timestamp > 1e12 ? new Date(m.timestamp) : new Date(m.timestamp * 1000);
     const isUser = m.role === 'user';
     return `<div style="display:flex;flex-direction:column;align-items:${isUser ? 'flex-end' : 'flex-start'};gap:4px">
       <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
-        <span>${roleIcons[m.role] || '💬'}</span>
+        <span>${roleIcons[m.role] || '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'}</span>
         <span style="font-weight:600;color:${roleColors[m.role] || '#8892A4'}">${m.role}</span>
         <span>${ts.toLocaleTimeString()}</span>
       </div>
@@ -3520,6 +4536,12 @@ async function loadSettings() {
   document.getElementById('s-ai-fallback-url').value   = s.ai_fallback_url   || '';
   document.getElementById('s-ai-fallback-key').value   = s.ai_fallback_key   || '';
   document.getElementById('s-ai-fallback-model').value = s.ai_fallback_model || '';
+  // Model routing
+  document.getElementById('s-model-chat').value       = s.ai_model_chat || '';
+  document.getElementById('s-model-realtime').value    = s.ai_model_realtime || '';
+  document.getElementById('s-model-helpdesk').value    = s.ai_model_helpdesk || '';
+  document.getElementById('s-model-reasoning').value   = s.ai_model_reasoning || '';
+  document.getElementById('s-model-embeddings').value  = s.ai_model_embeddings || '';
   updateFallbackState();
   updateProviderBadges(s);
   // OAuth credentials
@@ -3532,9 +4554,28 @@ async function loadSettings() {
   document.getElementById('s-salesforce-client-secret').value = s.salesforce_client_secret || '';
   document.getElementById('s-sharepoint-client-id').value    = s.sharepoint_client_id || '';
   document.getElementById('s-sharepoint-client-secret').value = s.sharepoint_client_secret || '';
+  document.getElementById('s-slack-client-id').value         = s.slack_client_id || '';
+  document.getElementById('s-slack-client-secret').value     = s.slack_client_secret || '';
+  document.getElementById('s-shopify-client-id').value       = s.shopify_client_id || '';
+  document.getElementById('s-shopify-client-secret').value   = s.shopify_client_secret || '';
+  document.getElementById('s-confluence-email').value        = s.confluence_email || '';
+  document.getElementById('s-confluence-api-token').value    = s.confluence_api_token || '';
+  document.getElementById('s-confluence-url').value          = s.confluence_url || '';
+  document.getElementById('s-zendesk-subdomain').value       = s.zendesk_subdomain || '';
+  document.getElementById('s-zendesk-email').value           = s.zendesk_email || '';
+  document.getElementById('s-zendesk-api-token').value       = s.zendesk_api_token || '';
+  document.getElementById('s-hubspot-api-token').value       = s.hubspot_api_token || '';
+  document.getElementById('s-freshdesk-domain').value        = s.freshdesk_domain || '';
+  document.getElementById('s-freshdesk-api-key').value       = s.freshdesk_api_key || '';
+  document.getElementById('s-intercom-api-token').value      = s.intercom_api_token || '';
+  document.getElementById('s-woocommerce-url').value         = s.woocommerce_url || '';
+  document.getElementById('s-woocommerce-key').value         = s.woocommerce_key || '';
+  document.getElementById('s-woocommerce-secret').value      = s.woocommerce_secret || '';
+  document.getElementById('s-webcrawl-urls').value           = s.webcrawl_urls || '';
   // Connector toggles — default all enabled if not set
-  const enabled = s.enabled_integrations ? JSON.parse(s.enabled_integrations) : ['github','gitlab','jira','slack','google','stripe','notion','database'];
-  ['github','gitlab','jira','slack','google','stripe','notion','database'].forEach(k => {
+  const allConnectors = ['github','gitlab','jira','slack','google','stripe','notion','database','shopify','confluence','teams','zendesk','hubspot','freshdesk','intercom','woocommerce','webcrawl'];
+  const enabled = s.enabled_integrations ? JSON.parse(s.enabled_integrations) : allConnectors;
+  allConnectors.forEach(k => {
     const el = document.getElementById('cn-enable-' + k);
     if (el) el.checked = enabled.includes(k);
   });
@@ -3582,6 +4623,12 @@ async function saveSettings() {
     ai_fallback_url:    document.getElementById('s-ai-fallback-url').value.trim(),
     ai_fallback_key:    document.getElementById('s-ai-fallback-key').value.trim(),
     ai_fallback_model:  document.getElementById('s-ai-fallback-model').value.trim(),
+    // Model routing per use case
+    ai_model_chat:      document.getElementById('s-model-chat').value.trim(),
+    ai_model_realtime:  document.getElementById('s-model-realtime').value.trim(),
+    ai_model_helpdesk:  document.getElementById('s-model-helpdesk').value.trim(),
+    ai_model_reasoning: document.getElementById('s-model-reasoning').value.trim(),
+    ai_model_embeddings:document.getElementById('s-model-embeddings').value.trim(),
     // OAuth credentials
     google_client_id:         document.getElementById('s-google-client-id').value.trim(),
     google_client_secret:     document.getElementById('s-google-client-secret').value.trim(),
@@ -3592,9 +4639,27 @@ async function saveSettings() {
     salesforce_client_secret: document.getElementById('s-salesforce-client-secret').value.trim(),
     sharepoint_client_id:     document.getElementById('s-sharepoint-client-id').value.trim(),
     sharepoint_client_secret: document.getElementById('s-sharepoint-client-secret').value.trim(),
+    slack_client_id:          document.getElementById('s-slack-client-id').value.trim(),
+    slack_client_secret:      document.getElementById('s-slack-client-secret').value.trim(),
+    shopify_client_id:        document.getElementById('s-shopify-client-id').value.trim(),
+    shopify_client_secret:    document.getElementById('s-shopify-client-secret').value.trim(),
+    confluence_email:         document.getElementById('s-confluence-email').value.trim(),
+    confluence_api_token:     document.getElementById('s-confluence-api-token').value.trim(),
+    confluence_url:           document.getElementById('s-confluence-url').value.trim(),
+    zendesk_subdomain:        document.getElementById('s-zendesk-subdomain').value.trim(),
+    zendesk_email:            document.getElementById('s-zendesk-email').value.trim(),
+    zendesk_api_token:        document.getElementById('s-zendesk-api-token').value.trim(),
+    hubspot_api_token:        document.getElementById('s-hubspot-api-token').value.trim(),
+    freshdesk_domain:         document.getElementById('s-freshdesk-domain').value.trim(),
+    freshdesk_api_key:        document.getElementById('s-freshdesk-api-key').value.trim(),
+    intercom_api_token:       document.getElementById('s-intercom-api-token').value.trim(),
+    woocommerce_url:          document.getElementById('s-woocommerce-url').value.trim(),
+    woocommerce_key:          document.getElementById('s-woocommerce-key').value.trim(),
+    woocommerce_secret:       document.getElementById('s-woocommerce-secret').value.trim(),
+    webcrawl_urls:            document.getElementById('s-webcrawl-urls').value.trim(),
     // Connector toggles
     enabled_integrations: JSON.stringify(
-      ['github','gitlab','jira','slack','google','stripe','notion','database'].filter(k => {
+      ['github','gitlab','jira','slack','google','stripe','notion','database','shopify','confluence','teams','zendesk','hubspot','freshdesk','intercom','woocommerce','webcrawl'].filter(k => {
         const el = document.getElementById('cn-enable-' + k);
         return el ? el.checked : true;
       })
@@ -3731,6 +4796,20 @@ function detectProvider(modelStr) {
   if (s.includes('mistral')) return 'mistral';
   return 'other';
 }
+/* Provider brand logos (SVG data URIs) */
+const _svgI = (d, vb) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb||'0 0 24 24'}" fill="currentColor">${d}</svg>`)}`;
+const PROV_LOGOS = {
+  openai: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%230D9667" d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.998 5.998 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>')}`,
+  anthropic: 'https://cdn.simpleicons.org/anthropic/C4500A',
+  gemini: 'https://cdn.simpleicons.org/googlegemini/1A5DC4',
+  mistral: 'https://cdn.simpleicons.org/mistral/B07A00',
+  groq: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" rx="24" fill="%236C3AE8"/><text x="60" y="78" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="900" font-size="64" fill="white">G</text></svg>')}`,
+  other: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%234B5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>')}`
+};
+function provLogoImg(prov) {
+  const src = PROV_LOGOS[prov] || PROV_LOGOS.other;
+  return `<img class="pb-logo" src="${src}" alt="${prov}" onerror="this.style.display='none'"/>`;
+}
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
 document.querySelectorAll('.modal-overlay').forEach(el => {
@@ -3840,8 +4919,13 @@ const AGENT_STATUS = {
 };
 
 const TOOL_ICONS = {
-  query_stats: '📊', search_knowledge_base: '🔍', compile_report: '📄',
-  send_email: '✉️', create_task: '✅', extract_action_items: '🗂️', finish: '🏁',
+  query_stats: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>',
+  search_knowledge_base: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  compile_report: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  send_email: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>',
+  create_task: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+  extract_action_items: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  finish: '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
 };
 
 let _agentRuns = [];
@@ -3919,7 +5003,7 @@ async function showAgentDetail(runId) {
   if (!steps.length) { stepsEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Aucune étape enregistrée</p>'; }
   else {
     stepsEl.innerHTML = steps.map(s => {
-      const icon = TOOL_ICONS[s.tool_name] || '🔧';
+      const icon = TOOL_ICONS[s.tool_name] || '<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>';
       const stColor = s.status === 'success' || s.status === 'approved' ? '#4ade80' : s.status === 'rejected' || s.status === 'failed' ? '#f87171' : '#f59e0b';
       const resultPreview = s.tool_result ? JSON.stringify(s.tool_result).slice(0, 200) : '—';
       return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
@@ -3963,8 +5047,961 @@ if (TOKEN) {
         onLogin(payload.username, payload.role);
       } catch { onLogin('Admin', 'admin'); }
       startNotifPolling();
+      initWebSocket();
     } else { logout(); }
   });
+}
+
+// ─── Widget Chat Customization ──────────────────────────────────────────────
+
+async function loadWidgetPage() {
+  // Load global widget settings from DB
+  try {
+    const s = await api('/settings');
+    if (s) {
+      document.getElementById('wc-color').value     = s.widget_color || '#6366f1';
+      document.getElementById('wc-color-hex').value  = s.widget_color || '#6366f1';
+      document.getElementById('wc-header').value     = s.widget_header || '';
+      document.getElementById('wc-welcome').value    = s.widget_welcome || '';
+      document.getElementById('wc-placeholder').value = s.widget_placeholder || 'Tapez votre message...';
+      document.getElementById('wc-avatar').value     = s.widget_avatar || '';
+      document.getElementById('wc-autodelay').value  = s.widget_auto_delay || '0';
+      document.getElementById('wc-branding').checked = s.widget_branding !== '0';
+      document.getElementById('wc-custom-css').value = s.widget_custom_css || '';
+      document.getElementById('wc-position').value   = s.widget_position || 'bottom-right';
+    }
+  } catch {}
+  updateWidgetPreview();
+}
+
+async function saveWidgetConfig() {
+  const settings = {
+    widget_color:       document.getElementById('wc-color').value,
+    widget_header:      document.getElementById('wc-header').value.trim(),
+    widget_welcome:     document.getElementById('wc-welcome').value.trim(),
+    widget_placeholder: document.getElementById('wc-placeholder').value.trim(),
+    widget_avatar:      document.getElementById('wc-avatar').value.trim(),
+    widget_position:    document.getElementById('wc-position').value,
+    widget_auto_delay:  document.getElementById('wc-autodelay').value,
+    widget_branding:    document.getElementById('wc-branding').checked ? '1' : '0',
+    widget_custom_css:  document.getElementById('wc-custom-css').value,
+  };
+  try {
+    const r = await api('/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
+    if (r?.ok) alert('Widget config sauvegardee !'); else alert(r?.error || 'Erreur');
+  } catch (e) { alert('Erreur: ' + e.message); }
+}
+function updateWidgetPreview() {
+  const color    = document.getElementById('wc-color').value || '#6366f1';
+  const header   = document.getElementById('wc-header').value || 'Assistant IA';
+  const welcome  = document.getElementById('wc-welcome').value || 'Bonjour ! Comment puis-je vous aider ?';
+  const placeholder = document.getElementById('wc-placeholder').value || 'Tapez votre message...';
+  const avatar   = document.getElementById('wc-avatar').value;
+  const branding = document.getElementById('wc-branding').checked;
+
+  // Update hex input
+  document.getElementById('wc-color-hex').value = color;
+
+  const avatarHtml = avatar
+    ? `<img src="${avatar}" style="width:32px;height:32px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'" />`
+    : `<div style="width:32px;height:32px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center"><svg width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>`;
+
+  const el = document.getElementById('wc-preview');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+      <div style="background:${color};color:white;padding:14px 16px;display:flex;align-items:center;gap:10px;border-radius:14px 14px 0 0">
+        ${avatarHtml}
+        <div>
+          <div style="font-weight:700;font-size:14px">${header}</div>
+          <div style="font-size:11px;opacity:.8">En ligne</div>
+        </div>
+        <div style="margin-left:auto;cursor:pointer;opacity:.7">&#x2715;</div>
+      </div>
+      <div style="flex:1;padding:16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;background:#fff">
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div style="width:28px;height:28px;border-radius:50%;background:${color}20;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" fill="${color}" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div style="background:#f1f5f9;padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;max-width:240px;line-height:1.4">${welcome}</div>
+        </div>
+        <div style="display:flex;justify-content:flex-end">
+          <div style="background:${color};color:white;padding:10px 14px;border-radius:14px 14px 4px 14px;font-size:13px;max-width:200px;line-height:1.4">Bonjour, j'ai une question</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div style="width:28px;height:28px;border-radius:50%;background:${color}20;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="12" height="12" fill="${color}" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+          <div style="background:#f1f5f9;padding:10px 14px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.4"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};animation:pulse 1s infinite;margin-right:4px"></span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};animation:pulse 1s infinite .2s;margin-right:4px"></span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};animation:pulse 1s infinite .4s"></span></div>
+        </div>
+      </div>
+      <div style="padding:10px 14px;border-top:1px solid #e8edf4;display:flex;gap:8px;align-items:center;background:#fff;border-radius:0 0 14px 14px">
+        <input type="text" placeholder="${placeholder}" disabled style="flex:1;border:1px solid #e2e8f0;border-radius:20px;padding:8px 14px;font-size:13px;background:#f8fafc;outline:none" />
+        <div style="width:34px;height:34px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="14" height="14" fill="white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></div>
+      </div>
+      ${branding ? '<div style="text-align:center;padding:6px;font-size:10px;color:#94a3b8">Powered by Lamu</div>' : ''}
+    </div>
+  `;
+}
+
+// Init preview on page load
+setTimeout(updateWidgetPreview, 500);
+
+/* ══ Bots (Slack / Teams) page ═════════════════════════════════════════ */
+
+async function loadBotsPage() {
+  // Set Events URL hints
+  const baseUrl = API_BASE.replace(/\/api$/, '').replace(/\/$/, '');
+  const sbUrl = document.getElementById('sb-events-url');
+  const tbUrl = document.getElementById('tb-endpoint-url');
+  const waUrl = document.getElementById('wa-webhook-url');
+  if (sbUrl) sbUrl.textContent = `${baseUrl}/api/slack/events`;
+  if (tbUrl) tbUrl.textContent = `${baseUrl}/api/teams/messages`;
+  if (waUrl) waUrl.textContent = `${baseUrl}/api/whatsapp/webhook`;
+
+  // Load agents for dropdowns
+  try {
+    const data = await api('/helpdesk/agents');
+    const agents = data?.agents || [];
+    for (const selId of ['sb-agent', 'tb-agent', 'wa-agent']) {
+      const sel = document.getElementById(selId);
+      if (!sel) continue;
+      sel.innerHTML = '<option value="">Sélectionner un agent...</option>' + agents.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+    }
+  } catch {}
+
+  // Load Slack bot config
+  try {
+    const sc = await api('/slack/bot/config');
+    const slackStatus = document.getElementById('slack-bot-status');
+    if (sc?.configured) {
+      slackStatus.textContent = 'Configuré';
+      slackStatus.style.background = '#dcfce7'; slackStatus.style.color = '#16a34a';
+    }
+    if (sc?.default_agent_id) document.getElementById('sb-agent').value = sc.default_agent_id;
+  } catch {}
+
+  // Load Teams bot config
+  try {
+    const tc = await api('/teams/bot/config');
+    const teamsStatus = document.getElementById('teams-bot-status');
+    if (tc?.configured) {
+      teamsStatus.textContent = 'Configuré';
+      teamsStatus.style.background = '#dcfce7'; teamsStatus.style.color = '#16a34a';
+    }
+    if (tc?.default_agent_id) document.getElementById('tb-agent').value = tc.default_agent_id;
+  } catch {}
+
+  // Load WhatsApp bot config
+  try {
+    const wc = await api('/whatsapp/bot/config');
+    const waStatus = document.getElementById('whatsapp-bot-status');
+    if (wc?.configured) {
+      waStatus.textContent = 'Configuré';
+      waStatus.style.background = '#dcfce7'; waStatus.style.color = '#16a34a';
+    }
+    if (wc?.default_agent_id) document.getElementById('wa-agent').value = wc.default_agent_id;
+  } catch {}
+}
+
+async function saveSlackBot() {
+  const token = document.getElementById('sb-token').value.trim();
+  const signing = document.getElementById('sb-signing').value.trim();
+  const agentId = document.getElementById('sb-agent').value;
+  const body = {};
+  if (token) body.bot_token = token;
+  if (signing) body.signing_secret = signing;
+  if (agentId) body.default_agent_id = agentId;
+  try {
+    await fetch(API_BASE + '/slack/bot/config', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+    showToast('Slack bot sauvegardé', 'success');
+    loadBotsPage();
+  } catch (e) { showToast('Erreur: ' + e.message, 'error'); }
+}
+
+async function saveTeamsBot() {
+  const appId = document.getElementById('tb-appid').value.trim();
+  const secret = document.getElementById('tb-secret').value.trim();
+  const agentId = document.getElementById('tb-agent').value;
+  const body = {};
+  if (appId) body.app_id = appId;
+  if (secret) body.app_secret = secret;
+  if (agentId) body.default_agent_id = agentId;
+  try {
+    await fetch(API_BASE + '/teams/bot/config', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+    showToast('Teams bot sauvegardé', 'success');
+    loadBotsPage();
+  } catch (e) { showToast('Erreur: ' + e.message, 'error'); }
+}
+
+async function saveWhatsAppBot() {
+  const phoneId = document.getElementById('wa-phone-id').value.trim();
+  const token = document.getElementById('wa-token').value.trim();
+  const verify = document.getElementById('wa-verify').value.trim();
+  const agentId = document.getElementById('wa-agent').value;
+  const body = {};
+  if (phoneId) body.phone_number_id = phoneId;
+  if (token) body.access_token = token;
+  if (verify) body.verify_token = verify;
+  if (agentId) body.default_agent_id = agentId;
+  try {
+    await fetch(API_BASE + '/whatsapp/bot/config', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+    showToast('WhatsApp bot sauvegardé', 'success');
+    loadBotsPage();
+  } catch (e) { showToast('Erreur: ' + e.message, 'error'); }
+}
+
+/* ══ SLA Tracking page ════════════════════════════════════════════════ */
+
+async function loadSlaPage() {
+  // Stats
+  try {
+    const stats = await api('/sla/stats');
+    document.getElementById('sla-avg-fr').textContent = stats?.avg_first_response_minutes ? stats.avg_first_response_minutes + ' min' : '—';
+    document.getElementById('sla-avg-res').textContent = stats?.avg_resolution_minutes ? (parseFloat(stats.avg_resolution_minutes) > 60 ? (parseFloat(stats.avg_resolution_minutes)/60).toFixed(1) + 'h' : stats.avg_resolution_minutes + ' min') : '—';
+    const frRate = document.getElementById('sla-fr-rate');
+    const resRate = document.getElementById('sla-res-rate');
+    frRate.textContent = (stats?.first_response_compliance_rate ?? '—') + '%';
+    resRate.textContent = (stats?.resolution_compliance_rate ?? '—') + '%';
+    frRate.style.color = (stats?.first_response_compliance_rate || 0) >= 90 ? '#16a34a' : (stats?.first_response_compliance_rate || 0) >= 70 ? '#d97706' : '#dc2626';
+    resRate.style.color = (stats?.resolution_compliance_rate || 0) >= 90 ? '#16a34a' : (stats?.resolution_compliance_rate || 0) >= 70 ? '#d97706' : '#dc2626';
+
+    // At-risk tickets
+    const atRiskEl = document.getElementById('sla-at-risk');
+    if (stats?.at_risk_tickets?.length > 0) {
+      atRiskEl.innerHTML = stats.at_risk_tickets.map(t => `<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px"><span style="font-weight:600;color:var(--navy)">${t.id.slice(0,8)}</span><span style="flex:1">${t.subject || '—'}</span><span class="badge" style="background:${t.priority==='urgent'?'#dc2626':t.priority==='high'?'#d97706':'#6366f1'};color:#fff">${t.priority}</span></div>`).join('');
+    } else {
+      atRiskEl.textContent = 'Aucun ticket à risque';
+    }
+  } catch {}
+
+  // Policies
+  try {
+    const data = await api('/sla/policies');
+    const body = document.getElementById('sla-policies-body');
+    body.innerHTML = (data?.policies || []).map(p => `
+      <tr>
+        <td style="font-weight:600">${p.name}</td>
+        <td><span class="badge" style="background:${p.priority==='urgent'?'#dc2626':p.priority==='high'?'#d97706':p.priority==='low'?'#6b7280':'#6366f1'};color:#fff">${p.priority}</span></td>
+        <td>${p.first_response_minutes} min</td>
+        <td>${p.resolution_minutes > 60 ? (p.resolution_minutes/60).toFixed(1) + 'h' : p.resolution_minutes + ' min'}</td>
+        <td>${p.business_hours_only ? 'Oui' : '24/7'}</td>
+        <td><span style="color:${p.is_active ? '#16a34a' : '#dc2626'};font-weight:600">${p.is_active ? 'Actif' : 'Inactif'}</span></td>
+        <td><button class="btn btn-ghost btn-xs" onclick="editSlaPolicy('${p.id}','${p.name}','${p.priority}',${p.first_response_minutes},${p.resolution_minutes},${p.business_hours_only})">Modifier</button> <button class="btn btn-ghost btn-xs" style="color:#dc2626" onclick="deleteSlaPolicy('${p.id}')">Suppr.</button></td>
+      </tr>
+    `).join('');
+  } catch {}
+}
+
+function openSlaModal() {
+  document.getElementById('sla-edit-id').value = '';
+  document.getElementById('sla-name').value = '';
+  document.getElementById('sla-priority').value = 'medium';
+  document.getElementById('sla-fr').value = 60;
+  document.getElementById('sla-res').value = 480;
+  document.getElementById('sla-bh').value = '1';
+  document.getElementById('sla-modal-title').textContent = 'Nouvelle politique SLA';
+  document.getElementById('sla-modal').classList.add('active');
+}
+
+function editSlaPolicy(id, name, priority, fr, res, bh) {
+  document.getElementById('sla-edit-id').value = id;
+  document.getElementById('sla-name').value = name;
+  document.getElementById('sla-priority').value = priority;
+  document.getElementById('sla-fr').value = fr;
+  document.getElementById('sla-res').value = res;
+  document.getElementById('sla-bh').value = bh ? '1' : '0';
+  document.getElementById('sla-modal-title').textContent = 'Modifier politique SLA';
+  document.getElementById('sla-modal').classList.add('active');
+}
+
+async function saveSlaPolicy() {
+  const id = document.getElementById('sla-edit-id').value;
+  const body = {
+    name: document.getElementById('sla-name').value,
+    priority: document.getElementById('sla-priority').value,
+    first_response_minutes: parseInt(document.getElementById('sla-fr').value) || 60,
+    resolution_minutes: parseInt(document.getElementById('sla-res').value) || 480,
+    business_hours_only: document.getElementById('sla-bh').value === '1',
+  };
+  try {
+    if (id) {
+      await fetch(API_BASE + '/sla/policies/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+    } else {
+      await fetch(API_BASE + '/sla/policies', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body) });
+    }
+    closeModal('sla-modal');
+    showToast('Politique SLA sauvegardée', 'success');
+    loadSlaPage();
+  } catch (e) { showToast('Erreur: ' + e.message, 'error'); }
+}
+
+async function deleteSlaPolicy(id) {
+  if (!confirm('Supprimer cette politique SLA ?')) return;
+  try {
+    await fetch(API_BASE + '/sla/policies/' + id, { method: 'DELETE', headers: authHeaders() });
+    showToast('Politique supprimée', 'success');
+    loadSlaPage();
+  } catch (e) { showToast('Erreur: ' + e.message, 'error'); }
+}
+
+async function checkSlaBreach() {
+  try {
+    const data = await api('/sla/check');
+    showToast(`SLA vérifié : ${data?.breached || 0} violation(s) détectée(s)`, data?.breached > 0 ? 'warning' : 'success');
+    loadSlaPage();
+  } catch (e) { showToast('Erreur: ' + e.message, 'error'); }
+}
+
+// ─── WebSocket real-time notifications ──────────────────────────────────────
+let _socket = null;
+function initWebSocket() {
+  if (typeof io === 'undefined') return;
+  const wsUrl = API_BASE.replace(/\/api$/, '').replace(/\/$/, '');
+  try {
+    _socket = io(wsUrl, { path: '/ws', query: { room: 'admin' }, transports: ['websocket', 'polling'] });
+
+    _socket.on('connect', () => {
+      const dot = document.getElementById('ws-status');
+      if (dot) { dot.style.background = '#22C55E'; dot.title = 'WebSocket connecté'; }
+    });
+    _socket.on('disconnect', () => {
+      const dot = document.getElementById('ws-status');
+      if (dot) { dot.style.background = '#EF4444'; dot.title = 'WebSocket déconnecté'; }
+    });
+
+    // Real-time event handlers
+    _socket.on('ticket:new', (data) => {
+      showToast('Nouveau ticket', `${data.customer_name || 'Client'}: ${data.subject || ''}`, 'info');
+      fetchNotifications();
+    });
+    _socket.on('ticket:escalated', (data) => {
+      showToast('Ticket escaladé !', `Raison: ${data.reason || 'N/A'}`, 'warning');
+      fetchNotifications();
+    });
+    _socket.on('ticket:replied', (data) => {
+      showToast('Réponse auto envoyée', `Ticket: ${data.ticket_id?.slice(0,8) || ''}… (${data.sentiment})`, 'success');
+    });
+    _socket.on('integration:synced', (data) => {
+      showToast('Sync terminé', `${data.provider}: ${data.docs_added} doc(s) ajoutés`, 'success');
+    });
+    _socket.on('sla:breach', (data) => {
+      showToast('⚠️ Violation SLA', `Ticket ${data.ticket_id?.slice(0,8)}… — ${data.type === 'first_response' ? '1ère réponse' : 'Résolution'} dépassé (${data.elapsed_minutes}min)`, 'warning');
+    });
+    _socket.on('ticket:assigned', (data) => {
+      showToast('Ticket assigné', `Ticket ${data.ticket_id?.slice(0,8)}… → ${data.assigned_to || 'non assigné'}`, 'info');
+    });
+  } catch (e) { console.warn('[ws] Init failed:', e.message); }
+}
+
+// Toast notification helper
+let _toastTimeout = null;
+// ── CSAT Page ──────────────────────────────────────────────────────────────
+async function loadCsatPage() {
+  try {
+    const data = await api('/csat/stats');
+    if (!data) return;
+    document.getElementById('csat-avg').textContent = data.average_rating ? data.average_rating.toFixed(1) + '/5' : '—';
+    document.getElementById('csat-nps').textContent = data.nps_score != null ? data.nps_score : '—';
+    document.getElementById('csat-total').textContent = data.total_responses || 0;
+    document.getElementById('csat-promoters').textContent = data.nps_breakdown ? data.nps_breakdown.promoters + '%' : '—';
+
+    // Rating distribution bars
+    const rdEl = document.getElementById('csat-rating-dist');
+    if (data.rating_distribution) {
+      const max = Math.max(...Object.values(data.rating_distribution), 1);
+      rdEl.innerHTML = [5,4,3,2,1].map(r => {
+        const count = data.rating_distribution[r] || 0;
+        const pct = Math.round(count / max * 100);
+        const color = r >= 4 ? '#16a34a' : r === 3 ? '#F59E0B' : '#EF4444';
+        return `<div style="display:flex;align-items:center;gap:8px"><span style="width:20px;font-size:12px;font-weight:600">${r}★</span><div style="flex:1;background:#f1f5f9;border-radius:4px;height:18px"><div style="width:${pct}%;background:${color};height:100%;border-radius:4px;min-width:${count?'2px':'0'}"></div></div><span style="font-size:11px;color:var(--muted);width:30px;text-align:right">${count}</span></div>`;
+      }).join('');
+    }
+
+    // NPS distribution bars
+    const npsEl = document.getElementById('csat-nps-dist');
+    if (data.nps_distribution) {
+      const max = Math.max(...Object.values(data.nps_distribution), 1);
+      npsEl.innerHTML = Array.from({length:11}, (_,i) => 10-i).map(r => {
+        const count = data.nps_distribution[r] || 0;
+        const pct = Math.round(count / max * 100);
+        const color = r >= 9 ? '#16a34a' : r >= 7 ? '#F59E0B' : '#EF4444';
+        return `<div style="display:flex;align-items:center;gap:8px"><span style="width:24px;font-size:11px;font-weight:600">${r}</span><div style="flex:1;background:#f1f5f9;border-radius:4px;height:14px"><div style="width:${pct}%;background:${color};height:100%;border-radius:4px;min-width:${count?'2px':'0'}"></div></div><span style="font-size:11px;color:var(--muted);width:24px;text-align:right">${count}</span></div>`;
+      }).join('');
+    }
+
+    // Recent comments
+    const commentsEl = document.getElementById('csat-comments');
+    if (data.recent_comments && data.recent_comments.length) {
+      commentsEl.innerHTML = data.recent_comments.map(c => `
+        <div style="padding:10px 0;border-bottom:1px solid #f1f5f9">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-weight:600;color:var(--navy)">${esc(c.customer_email||'Anonyme')}</span>
+            <span style="color:var(--muted);font-size:11px">${c.rating ? c.rating+'★' : ''} ${c.nps_score!=null ? 'NPS:'+c.nps_score : ''}</span>
+          </div>
+          <div style="color:var(--dark)">${esc(c.comment)}</div>
+        </div>
+      `).join('');
+    } else {
+      commentsEl.textContent = 'Aucun commentaire';
+    }
+  } catch (e) { console.error('[csat]', e); }
+}
+
+// ── Workflows Page ─────────────────────────────────────────────────────────
+async function loadWorkflowsPage() {
+  try {
+    const data = await api('/workflows');
+    const workflows = data?.workflows || [];
+    const tbody = document.getElementById('workflows-body');
+    tbody.innerHTML = workflows.length ? workflows.map(w => {
+      const nodes = JSON.parse(w.nodes || '[]');
+      return `<tr>
+        <td style="font-weight:600">${esc(w.name)}</td>
+        <td>${nodes.length}</td>
+        <td>${w.active ? '<span style="color:#16a34a">●</span> Actif' : '<span style="color:var(--muted)">○</span> Inactif'}</td>
+        <td class="text-muted text-sm">${w.created_at ? new Date(w.created_at).toLocaleDateString('fr-FR') : '—'}</td>
+        <td style="text-align:right">
+          <button class="btn btn-ghost btn-sm" onclick="editWorkflow(${w.id})">Modifier</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleWorkflow(${w.id},${w.active?0:1})">
+            ${w.active ? 'Désactiver' : 'Activer'}
+          </button>
+          <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="deleteWorkflow(${w.id})">Supprimer</button>
+        </td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="5" class="empty-state">Aucun workflow</td></tr>';
+  } catch (e) { console.error('[workflows]', e); }
+}
+
+function openWorkflowModal(wf) {
+  document.getElementById('workflow-edit-id').value = wf ? wf.id : '';
+  document.getElementById('workflow-modal-title').textContent = wf ? 'Modifier workflow' : 'Nouveau workflow';
+  document.getElementById('wf-name').value = wf ? wf.name : '';
+  document.getElementById('wf-desc').value = wf ? (wf.description||'') : '';
+  document.getElementById('wf-nodes').value = wf ? (typeof wf.nodes === 'string' ? wf.nodes : JSON.stringify(wf.nodes, null, 2)) : '';
+  document.getElementById('wf-edges').value = wf ? (typeof wf.edges === 'string' ? wf.edges : JSON.stringify(wf.edges, null, 2)) : '';
+  document.getElementById('workflow-modal').classList.add('open');
+}
+
+async function editWorkflow(id) {
+  const data = await api('/workflows/' + id);
+  if (data?.workflow) openWorkflowModal(data.workflow);
+}
+
+async function saveWorkflow() {
+  const id = document.getElementById('workflow-edit-id').value;
+  const body = {
+    name: document.getElementById('wf-name').value,
+    description: document.getElementById('wf-desc').value,
+    nodes: document.getElementById('wf-nodes').value,
+    edges: document.getElementById('wf-edges').value
+  };
+  try { body.nodes = JSON.parse(body.nodes); } catch {}
+  try { body.edges = JSON.parse(body.edges); } catch {}
+  if (id) {
+    await api('/workflows/' + id, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  } else {
+    await api('/workflows', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  }
+  closeModal('workflow-modal');
+  loadWorkflowsPage();
+}
+
+async function toggleWorkflow(id, active) {
+  await api('/workflows/' + id, { method: 'PUT', body: JSON.stringify({ active }), headers: { 'Content-Type': 'application/json' } });
+  loadWorkflowsPage();
+}
+
+async function deleteWorkflow(id) {
+  if (!confirm('Supprimer ce workflow ?')) return;
+  await api('/workflows/' + id, { method: 'DELETE' });
+  loadWorkflowsPage();
+}
+
+// ── Custom Dashboards Page ─────────────────────────────────────────────────
+async function loadDashboardsPage() {
+  try {
+    const data = await api('/dashboards');
+    const dashboards = data?.dashboards || [];
+    const list = document.getElementById('dashboards-list');
+    if (!dashboards.length) {
+      list.innerHTML = '<div class="empty-state" style="grid-column:1/-1;padding:40px;text-align:center">Aucun dashboard personnalisé. Créez-en un !</div>';
+      return;
+    }
+    list.innerHTML = dashboards.map(d => {
+      const widgets = JSON.parse(d.widgets || '[]');
+      return `<div class="card" style="padding:18px;cursor:pointer" onclick="viewDashboard(${d.id})">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+          <div style="font-weight:700;font-size:14px;color:var(--navy)">${esc(d.name)}</div>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editDashboard(${d.id})">✎</button>
+            <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="event.stopPropagation();deleteDashboard(${d.id})">✕</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${esc(d.description||'')}</div>
+        <div style="font-size:11px;color:var(--muted)">${widgets.length} widget${widgets.length!==1?'s':''}</div>
+      </div>`;
+    }).join('');
+  } catch (e) { console.error('[dashboards]', e); }
+}
+
+function openDashboardModal(d) {
+  document.getElementById('dash-edit-id').value = d ? d.id : '';
+  document.getElementById('dashboard-modal-title').textContent = d ? 'Modifier dashboard' : 'Nouveau dashboard';
+  document.getElementById('dash-name').value = d ? d.name : '';
+  document.getElementById('dash-description').value = d ? (d.description||'') : '';
+  document.getElementById('dash-widgets').value = d ? (typeof d.widgets === 'string' ? d.widgets : JSON.stringify(d.widgets, null, 2)) : '[]';
+  document.getElementById('dashboard-modal').classList.add('open');
+}
+
+async function editDashboard(id) {
+  const data = await api('/dashboards/' + id);
+  if (data?.dashboard) openDashboardModal(data.dashboard);
+}
+
+async function saveDashboard() {
+  const id = document.getElementById('dash-edit-id').value;
+  const body = {
+    name: document.getElementById('dash-name').value,
+    description: document.getElementById('dash-description').value,
+    widgets: document.getElementById('dash-widgets').value
+  };
+  try { body.widgets = JSON.parse(body.widgets); } catch {}
+  if (id) {
+    await api('/dashboards/' + id, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  } else {
+    await api('/dashboards', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  }
+  closeModal('dashboard-modal');
+  loadDashboardsPage();
+}
+
+async function deleteDashboard(id) {
+  if (!confirm('Supprimer ce dashboard ?')) return;
+  await api('/dashboards/' + id, { method: 'DELETE' });
+  loadDashboardsPage();
+}
+
+async function viewDashboard(id) {
+  try {
+    const data = await api('/dashboards/' + id);
+    const d = data?.dashboard;
+    if (!d) return;
+    const widgets = typeof d.widgets === 'string' ? JSON.parse(d.widgets) : (d.widgets || []);
+    const list = document.getElementById('dashboards-list');
+    let html = `<div style="grid-column:1/-1;margin-bottom:16px"><button class="btn btn-ghost btn-sm" onclick="loadDashboardsPage()">← Retour</button> <span style="font-weight:700;font-size:16px;margin-left:8px">${esc(d.name)}</span></div>`;
+    html += '<div style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">';
+    for (const w of widgets) {
+      try {
+        const resp = await fetch(API_BASE + '/dashboards/widget-data', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+          body: JSON.stringify({ widget_type: w.type })
+        });
+        const wData = await resp.json();
+        html += `<div class="card" style="padding:16px">
+          <div style="font-weight:600;font-size:12px;margin-bottom:8px;color:var(--navy)">${esc(w.title || w.type)}</div>
+          <div style="font-size:24px;font-weight:800;color:var(--orange)">${wData.value != null ? wData.value : JSON.stringify(wData.data||wData.items||'—').substring(0,80)}</div>
+        </div>`;
+      } catch { html += `<div class="card" style="padding:16px"><div style="font-size:12px;color:var(--muted)">Erreur widget: ${esc(w.type)}</div></div>`; }
+    }
+    html += '</div>';
+    list.innerHTML = html;
+  } catch (e) { console.error('[viewDashboard]', e); }
+}
+
+// ── A/B Tests Page ─────────────────────────────────────────────────────────
+async function loadAbTestsPage() {
+  try {
+    const data = await api('/ab-tests');
+    const tests = data?.tests || [];
+    const tbody = document.getElementById('abtests-body');
+    tbody.innerHTML = tests.length ? tests.map(t => `<tr>
+      <td style="font-weight:600">${esc(t.name)}</td>
+      <td>${t.agent_id || '—'}</td>
+      <td><span class="badge" style="background:${t.status==='completed'?'#16a34a':t.status==='running'?'var(--orange)':'var(--muted)'};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">${t.status}</span></td>
+      <td style="font-weight:600;color:${t.winner==='A'?'#16a34a':t.winner==='B'?'var(--orange)':'var(--muted)'}">${t.winner || '—'}</td>
+      <td>${t.score_a != null ? t.score_a.toFixed(1) : '—'}</td>
+      <td>${t.score_b != null ? t.score_b.toFixed(1) : '—'}</td>
+      <td style="text-align:right">
+        ${t.status==='draft'?`<button class="btn btn-orange btn-sm" onclick="runAbTest(${t.id})">Lancer</button>`:''}
+        ${t.winner?`<button class="btn btn-ghost btn-sm" onclick="applyAbTest(${t.id})">Appliquer gagnant</button>`:''}
+        <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="deleteAbTest(${t.id})">Supprimer</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="7" class="empty-state">Aucun A/B test</td></tr>';
+  } catch (e) { console.error('[abtests]', e); }
+}
+
+function openAbTestModal() {
+  document.getElementById('ab-edit-id').value = '';
+  document.getElementById('abtest-modal-title').textContent = 'Nouveau A/B test';
+  document.getElementById('ab-name').value = '';
+  document.getElementById('ab-agent').value = '';
+  document.getElementById('ab-prompt-a').value = '';
+  document.getElementById('ab-prompt-b').value = '';
+  document.getElementById('ab-cases').value = '';
+  document.getElementById('abtest-modal').classList.add('open');
+}
+
+async function saveAbTest() {
+  const body = {
+    name: document.getElementById('ab-name').value,
+    agent_id: parseInt(document.getElementById('ab-agent').value) || null,
+    prompt_a: document.getElementById('ab-prompt-a').value,
+    prompt_b: document.getElementById('ab-prompt-b').value,
+    test_cases: document.getElementById('ab-cases').value
+  };
+  try { body.test_cases = JSON.parse(body.test_cases); } catch {}
+  await api('/ab-tests', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  closeModal('abtest-modal');
+  loadAbTestsPage();
+}
+
+async function runAbTest(id) {
+  showToast('A/B Test', 'Test en cours...', 'info');
+  try {
+    const data = await api('/ab-tests/' + id + '/run', { method: 'POST' });
+    showToast('A/B Test', `Terminé ! Gagnant: ${data?.winner || '—'}`, 'success');
+    loadAbTestsPage();
+  } catch (e) { showToast('Erreur', e.message, 'error'); }
+}
+
+async function applyAbTest(id) {
+  if (!confirm('Appliquer le prompt gagnant à l\'agent ?')) return;
+  await api('/ab-tests/' + id + '/apply', { method: 'POST' });
+  showToast('A/B Test', 'Prompt gagnant appliqué', 'success');
+}
+
+async function deleteAbTest(id) {
+  if (!confirm('Supprimer ce test ?')) return;
+  await api('/ab-tests/' + id, { method: 'DELETE' });
+  loadAbTestsPage();
+}
+
+// ── Archive Page ───────────────────────────────────────────────────────────
+let archiveTab = 'convs';
+function switchArchiveTab(tab) {
+  archiveTab = tab;
+  document.getElementById('archive-tab-convs').className = tab === 'convs' ? 'btn btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('archive-tab-convs').style.cssText = tab === 'convs' ? 'background:var(--orange);color:#fff' : '';
+  document.getElementById('archive-tab-tickets').className = tab === 'tickets' ? 'btn btn-sm' : 'btn btn-ghost btn-sm';
+  document.getElementById('archive-tab-tickets').style.cssText = tab === 'tickets' ? 'background:var(--orange);color:#fff' : '';
+  loadArchivePage();
+}
+
+async function loadArchivePage() {
+  try {
+    if (archiveTab === 'convs') {
+      document.getElementById('archive-thead').innerHTML = '<tr><th>ID</th><th>Titre</th><th>Email</th><th>Archivé le</th><th></th></tr>';
+      const data = await api('/webapp/conversations/archived');
+      const items = data?.conversations || [];
+      document.getElementById('archive-body').innerHTML = items.length ? items.map(c => `<tr>
+        <td class="text-muted text-sm">${c.id}</td>
+        <td>${esc(c.title||'Sans titre')}</td>
+        <td class="text-muted">${esc(c.user_email||'')}</td>
+        <td class="text-muted text-sm">${c.archived_at ? new Date(c.archived_at).toLocaleDateString('fr-FR') : '—'}</td>
+        <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="restoreConv('${c.id}')">Restaurer</button></td>
+      </tr>`).join('') : '<tr><td colspan="5" class="empty-state">Aucune conversation archivée</td></tr>';
+    } else {
+      document.getElementById('archive-thead').innerHTML = '<tr><th>ID</th><th>Sujet</th><th>Client</th><th>Archivé le</th><th></th></tr>';
+      const data = await api('/helpdesk/tickets/archived');
+      const items = data?.tickets || [];
+      document.getElementById('archive-body').innerHTML = items.length ? items.map(t => `<tr>
+        <td class="text-muted text-sm">#${t.id}</td>
+        <td>${esc(t.subject||'Sans sujet')}</td>
+        <td class="text-muted">${esc(t.customer_email||'')}</td>
+        <td class="text-muted text-sm">${t.archived_at ? new Date(t.archived_at).toLocaleDateString('fr-FR') : '—'}</td>
+        <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="restoreTicket(${t.id})">Restaurer</button></td>
+      </tr>`).join('') : '<tr><td colspan="5" class="empty-state">Aucun ticket archivé</td></tr>';
+    }
+  } catch (e) { console.error('[archive]', e); }
+}
+
+async function restoreConv(id) {
+  await api('/webapp/conversations/' + id + '/restore', { method: 'POST' });
+  showToast('Archive', 'Conversation restaurée', 'success');
+  loadArchivePage();
+}
+
+async function restoreTicket(id) {
+  await api('/helpdesk/tickets/' + id + '/restore', { method: 'POST' });
+  showToast('Archive', 'Ticket restauré', 'success');
+  loadArchivePage();
+}
+
+// ── Audit Logs Page ────────────────────────────────────────────────────────
+async function loadAuditLogsPage() {
+  try {
+    // Load action filter options
+    const actionsData = await api('/audit/actions');
+    const select = document.getElementById('audit-action-filter');
+    const currentVal = select.value;
+    if (select.options.length <= 1 && actionsData?.actions) {
+      for (const a of actionsData.actions) {
+        const opt = document.createElement('option'); opt.value = a; opt.textContent = a; select.appendChild(opt);
+      }
+    }
+    select.value = currentVal;
+
+    const params = new URLSearchParams();
+    const actionFilter = select.value;
+    const actorFilter = document.getElementById('audit-actor-filter').value.trim();
+    if (actionFilter) params.set('action', actionFilter);
+    if (actorFilter) params.set('actor', actorFilter);
+    params.set('limit', '100');
+
+    const data = await api('/audit/logs?' + params.toString());
+    const logs = data?.logs || [];
+    const tbody = document.getElementById('auditlogs-body');
+    tbody.innerHTML = logs.length ? logs.map(l => `<tr>
+      <td class="text-muted text-sm">${l.created_at ? new Date(l.created_at).toLocaleString('fr-FR') : '—'}</td>
+      <td>${esc(l.actor || '—')}</td>
+      <td><span style="padding:2px 8px;border-radius:8px;font-size:10px;background:${l.actor_type==='system'?'#dbeafe':'#fef3c7'};color:${l.actor_type==='system'?'#1d4ed8':'#92400e'}">${l.actor_type}</span></td>
+      <td style="font-weight:600">${esc(l.action)}</td>
+      <td class="text-muted">${esc(l.resource_type || '—')}</td>
+      <td class="text-muted">${esc(l.resource_id || '—')}</td>
+      <td class="text-muted text-sm">${l.details ? esc(JSON.stringify(JSON.parse(l.details)).slice(0, 60)) : '—'}</td>
+    </tr>`).join('') : '<tr><td colspan="7" class="empty-state">Aucun log</td></tr>';
+  } catch (e) { console.error('[auditlogs]', e); }
+}
+
+// ── SSO Page ───────────────────────────────────────────────────────────────
+async function loadSsoPage() {
+  try {
+    const data = await api('/sso/configs');
+    const configs = data?.configs || [];
+    const tbody = document.getElementById('sso-body');
+    tbody.innerHTML = configs.length ? configs.map(c => `<tr>
+      <td style="font-weight:600">${esc(c.name)}</td>
+      <td><span style="padding:2px 8px;border-radius:8px;font-size:10px;background:#e0e7ff;color:#3730a3">${c.provider.toUpperCase()}</span></td>
+      <td>${c.enabled ? '<span style="color:#16a34a">● Actif</span>' : '<span style="color:var(--muted)">○ Inactif</span>'}</td>
+      <td class="text-muted text-sm">${esc(c.allowed_domains || 'Tous')}</td>
+      <td>${c.auto_provision ? 'Oui' : 'Non'}</td>
+      <td style="text-align:right">
+        <button class="btn btn-ghost btn-sm" onclick="editSsoConfig(${c.id})">Modifier</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleSso(${c.id},${c.enabled?0:1})">${c.enabled?'Désactiver':'Activer'}</button>
+        <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="deleteSso(${c.id})">Supprimer</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty-state">Aucune config SSO</td></tr>';
+  } catch (e) { console.error('[sso]', e); }
+}
+
+function openSsoModal() {
+  document.getElementById('sso-edit-id').value = '';
+  document.getElementById('sso-modal-title').textContent = 'Nouvelle config SSO';
+  document.getElementById('sso-name').value = '';
+  document.getElementById('sso-provider').value = 'oidc';
+  document.getElementById('sso-domains').value = '';
+  document.getElementById('sso-client-id').value = '';
+  document.getElementById('sso-client-secret').value = '';
+  document.getElementById('sso-discovery').value = '';
+  document.getElementById('sso-issuer').value = '';
+  document.getElementById('sso-sso-url').value = '';
+  document.getElementById('sso-certificate').value = '';
+  document.getElementById('sso-redirect').value = window.location.origin + '/api/sso/callback';
+  document.getElementById('sso-auto').value = '1';
+  document.getElementById('sso-role').value = 'viewer';
+  toggleSsoFields();
+  document.getElementById('sso-modal').classList.add('open');
+}
+
+document.getElementById('sso-provider')?.addEventListener('change', toggleSsoFields);
+function toggleSsoFields() {
+  const isOidc = document.getElementById('sso-provider').value === 'oidc';
+  document.getElementById('sso-oidc-fields').style.display = isOidc ? 'block' : 'none';
+  document.getElementById('sso-saml-fields').style.display = isOidc ? 'none' : 'block';
+}
+
+async function saveSsoConfig() {
+  const id = document.getElementById('sso-edit-id').value;
+  const body = {
+    provider: document.getElementById('sso-provider').value,
+    name: document.getElementById('sso-name').value,
+    allowed_domains: document.getElementById('sso-domains').value,
+    client_id: document.getElementById('sso-client-id').value,
+    client_secret: document.getElementById('sso-client-secret').value,
+    discovery_url: document.getElementById('sso-discovery').value,
+    issuer: document.getElementById('sso-issuer').value,
+    sso_url: document.getElementById('sso-sso-url').value,
+    certificate: document.getElementById('sso-certificate').value,
+    redirect_uri: document.getElementById('sso-redirect').value,
+    auto_provision: parseInt(document.getElementById('sso-auto').value),
+    default_role: document.getElementById('sso-role').value,
+  };
+  if (id) {
+    await api('/sso/configs/' + id, { method: 'PUT', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  } else {
+    await api('/sso/configs', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  }
+  closeModal('sso-modal');
+  loadSsoPage();
+}
+
+async function editSsoConfig(id) {
+  const data = await api('/sso/configs');
+  const config = (data?.configs || []).find(c => c.id === id);
+  if (!config) return;
+  document.getElementById('sso-edit-id').value = config.id;
+  document.getElementById('sso-modal-title').textContent = 'Modifier SSO: ' + config.name;
+  document.getElementById('sso-name').value = config.name;
+  document.getElementById('sso-provider').value = config.provider;
+  document.getElementById('sso-domains').value = config.allowed_domains || '';
+  document.getElementById('sso-client-id').value = config.client_id || '';
+  document.getElementById('sso-discovery').value = config.discovery_url || '';
+  document.getElementById('sso-redirect').value = config.redirect_uri || '';
+  document.getElementById('sso-auto').value = config.auto_provision ? '1' : '0';
+  document.getElementById('sso-role').value = config.default_role || 'viewer';
+  toggleSsoFields();
+  document.getElementById('sso-modal').classList.add('open');
+}
+
+async function toggleSso(id, enabled) {
+  await api('/sso/configs/' + id, { method: 'PUT', body: JSON.stringify({ enabled }), headers: { 'Content-Type': 'application/json' } });
+  loadSsoPage();
+}
+
+async function deleteSso(id) {
+  if (!confirm('Supprimer cette config SSO ?')) return;
+  await api('/sso/configs/' + id, { method: 'DELETE' });
+  loadSsoPage();
+}
+
+// ── Tags Page ──────────────────────────────────────────────────────────────
+async function loadTagsPage() {
+  try {
+    const data = await api('/tags');
+    const tags = data?.tags || [];
+    const list = document.getElementById('tags-list');
+    list.innerHTML = tags.length ? tags.map(t => `
+      <div style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;background:${t.color}20;border:1px solid ${t.color}40;font-size:13px;font-weight:600;color:${t.color}">
+        <span style="width:8px;height:8px;border-radius:50%;background:${t.color}"></span>
+        ${esc(t.name)}
+        <span style="font-size:11px;font-weight:400;color:var(--muted);margin-left:4px">(${t.usage_count || 0})</span>
+        <button onclick="deleteTag(${t.id})" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:14px;padding:0 2px">×</button>
+      </div>
+    `).join('') : '<span style="color:var(--muted)">Aucun tag. Créez-en un ci-dessus.</span>';
+  } catch (e) { console.error('[tags]', e); }
+}
+
+async function createTag() {
+  const name = document.getElementById('new-tag-name').value.trim();
+  const color = document.getElementById('new-tag-color').value;
+  if (!name) return;
+  await api('/tags', { method: 'POST', body: JSON.stringify({ name, color }), headers: { 'Content-Type': 'application/json' } });
+  document.getElementById('new-tag-name').value = '';
+  loadTagsPage();
+}
+
+async function deleteTag(id) {
+  if (!confirm('Supprimer ce tag ?')) return;
+  await api('/tags/' + id, { method: 'DELETE' });
+  loadTagsPage();
+}
+
+// ── Custom Fields Page ─────────────────────────────────────────────────────
+async function loadCustomFieldsPage() {
+  try {
+    const data = await api('/helpdesk/fields');
+    const fields = data?.fields || [];
+    const tbody = document.getElementById('customfields-body');
+    tbody.innerHTML = fields.length ? fields.map(f => `<tr>
+      <td style="font-family:monospace;font-size:12px">${esc(f.field_key)}</td>
+      <td style="font-weight:600">${esc(f.label)}</td>
+      <td>${f.field_type}</td>
+      <td>${f.required ? '✓' : '—'}</td>
+      <td>${f.display_order}</td>
+      <td style="text-align:right">
+        <button class="btn btn-ghost btn-sm" style="color:#ef4444" onclick="deleteField(${f.id})">Supprimer</button>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="6" class="empty-state">Aucun champ personnalisé</td></tr>';
+  } catch (e) { console.error('[customfields]', e); }
+}
+
+function openFieldModal() {
+  document.getElementById('cf-key').value = '';
+  document.getElementById('cf-label').value = '';
+  document.getElementById('cf-type').value = 'text';
+  document.getElementById('cf-required').value = '0';
+  document.getElementById('cf-options').value = '';
+  document.getElementById('field-modal').classList.add('open');
+}
+
+async function saveCustomField() {
+  const body = {
+    field_key: document.getElementById('cf-key').value,
+    label: document.getElementById('cf-label').value,
+    field_type: document.getElementById('cf-type').value,
+    required: parseInt(document.getElementById('cf-required').value),
+    options: document.getElementById('cf-options').value ? document.getElementById('cf-options').value.split(',').map(s => s.trim()) : null,
+  };
+  await api('/helpdesk/fields', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
+  closeModal('field-modal');
+  loadCustomFieldsPage();
+}
+
+async function deleteField(id) {
+  if (!confirm('Supprimer ce champ ?')) return;
+  await api('/helpdesk/fields/' + id, { method: 'DELETE' });
+  loadCustomFieldsPage();
+}
+
+// ── Exports Page ───────────────────────────────────────────────────────────
+function loadExportsPage() { /* static page — nothing to load */ }
+
+function downloadExport(type) {
+  const a = document.createElement('a');
+  a.href = API_BASE + '/export/' + type;
+  a.download = type + '.csv';
+  // Need auth header — use fetch + blob
+  fetch(API_BASE + '/export/' + type, { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Export', type + '.csv téléchargé', 'success');
+    })
+    .catch(e => showToast('Erreur', e.message, 'error'));
+}
+
+// ── i18n Page ──────────────────────────────────────────────────────────────
+async function loadI18nPage() {
+  try {
+    const data = await api('/i18n/languages');
+    const langs = data?.available || ['fr'];
+    // Load current default from settings
+    // Show preview of all languages
+    let html = '';
+    for (const lang of langs) {
+      const tData = await fetch(API_BASE + '/i18n/translations/' + lang, { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+      const tr = await tData.json();
+      const trans = tr.translations || {};
+      html += `<div style="margin-bottom:16px"><div style="font-weight:700;font-size:12px;color:var(--navy);margin-bottom:6px">${lang.toUpperCase()}</div>`;
+      for (const [k, v] of Object.entries(trans)) {
+        html += `<div style="display:flex;gap:8px;padding:3px 0"><span style="font-family:monospace;color:var(--muted);width:160px;flex-shrink:0;font-size:11px">${k}</span><span style="font-size:12px">${esc(v)}</span></div>`;
+      }
+      html += '</div>';
+    }
+    document.getElementById('i18n-preview').innerHTML = html;
+  } catch (e) { console.error('[i18n]', e); }
+}
+
+async function saveDefaultLang() {
+  const lang = document.getElementById('i18n-default').value;
+  await api('/i18n/default', { method: 'PUT', body: JSON.stringify({ lang }), headers: { 'Content-Type': 'application/json' } });
+  showToast('Langues', 'Langue par défaut : ' + lang.toUpperCase(), 'success');
+}
+
+function showToast(title, message, type) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = 'position:fixed;top:70px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+    document.body.appendChild(container);
+  }
+  const colors = { info: '#3B82F6', warning: '#F59E0B', success: '#22C55E', error: '#EF4444' };
+  const toast = document.createElement('div');
+  toast.style.cssText = `pointer-events:auto;background:var(--white);border-left:4px solid ${colors[type]||colors.info};border-radius:10px;padding:12px 16px;box-shadow:0 4px 24px rgba(0,0,0,.12);max-width:340px;animation:slideIn .3s ease;font-size:13px`;
+  toast.innerHTML = `<div style="font-weight:700;margin-bottom:2px;color:var(--navy)">${title}</div><div style="color:var(--muted)">${message}</div>`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 5000);
 }
 </script>
 </body>

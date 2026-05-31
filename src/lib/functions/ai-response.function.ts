@@ -50,6 +50,7 @@ async function* fetchLamuAIResponse(params: {
   imagesBase64?: string[];
   history?: Message[];
   signal?: AbortSignal;
+  useCase?: string;
 }): AsyncIterable<string> {
   try {
     const {
@@ -58,6 +59,7 @@ async function* fetchLamuAIResponse(params: {
       imagesBase64 = [],
       history = [],
       signal,
+      useCase,
     } = params;
 
     // Check if already aborted before starting
@@ -110,6 +112,7 @@ async function* fetchLamuAIResponse(params: {
         systemPrompt,
         imageBase64,
         history: historyString,
+        useCase: useCase || undefined,
       });
 
       // Yield chunks as they come in
@@ -173,6 +176,7 @@ export async function* fetchAIResponse(params: {
   userMessage: string;
   imagesBase64?: string[];
   signal?: AbortSignal;
+  useCase?: string;
 }): AsyncIterable<string> {
   try {
     const {
@@ -214,6 +218,7 @@ export async function* fetchAIResponse(params: {
         imagesBase64,
         history: normalizedHistory,
         signal,
+        useCase: params.useCase,
       });
       return;
     }
@@ -308,26 +313,46 @@ export async function* fetchAIResponse(params: {
     const fetchFunction = url?.includes("http") ? fetch : tauriFetch;
 
     let response;
-    try {
-      response = await fetchFunction(url, {
-        method: curlJson.method || "POST",
-        headers,
-        body: curlJson.method === "GET" ? undefined : JSON.stringify(bodyObj),
-        signal,
-      });
-    } catch (fetchError) {
-      // Check if aborted
-      if (
-        signal?.aborted ||
-        (fetchError instanceof Error && fetchError.name === "AbortError")
-      ) {
-        return; // Silently return on abort
+    const MAX_RETRIES = 3;
+    const BACKOFF_BASE = 2000;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        response = await fetchFunction(url, {
+          method: curlJson.method || "POST",
+          headers,
+          body: curlJson.method === "GET" ? undefined : JSON.stringify(bodyObj),
+          signal,
+        });
+        break; // Success — exit retry loop
+      } catch (fetchError) {
+        // Check if aborted
+        if (
+          signal?.aborted ||
+          (fetchError instanceof Error && fetchError.name === "AbortError")
+        ) {
+          return; // Silently return on abort
+        }
+        const isNetworkError =
+          !navigator.onLine ||
+          (fetchError instanceof TypeError &&
+            (fetchError.message.includes("Failed to fetch") ||
+              fetchError.message.includes("NetworkError") ||
+              fetchError.message.includes("Network request failed")));
+        // Only retry on network errors, and only if we haven't exhausted retries
+        if (!isNetworkError || attempt >= MAX_RETRIES) {
+          yield isNetworkError
+            ? "Vous êtes hors ligne. Vérifiez votre connexion internet et réessayez."
+            : `Erreur réseau : ${fetchError instanceof Error ? fetchError.message : "Erreur inconnue"}. Vérifiez votre connexion ou la configuration du fournisseur IA.`;
+          return;
+        }
+        // Wait with exponential backoff (2s, 4s, 8s)
+        const delay = BACKOFF_BASE * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+        // Check abort again after waiting
+        if (signal?.aborted) return;
       }
-      yield `Network error during API request: ${
-        fetchError instanceof Error ? fetchError.message : "Unknown error"
-      }`;
-      return;
     }
+    if (!response) return;
 
     if (!response.ok) {
       let errorText = "";

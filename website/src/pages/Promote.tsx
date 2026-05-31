@@ -11,15 +11,15 @@ const stagger = { show: { transition: { staggerChildren: 0.1, delayChildren: 0.1
 const copyTexts = [
   {
     label: 'Court (Twitter / X)',
-    text: "Lamu est l'assistant IA invisible que j'attendais. ~10MB, fonctionne avec n'importe quel fournisseur IA, completement indetectable en visio. Integrations DB, email vocal, simulateur d'entretien et bien plus. lamuka.com",
+    text: "Lamu est l'assistant IA invisible que j'attendais. ~10MB, IA integree ou vos propres cles API, completement indetectable en visio. Integrations DB, email vocal, simulateur d'entretien et bien plus. lamuka.com",
   },
   {
     label: 'Moyen (LinkedIn / Blog)',
-    text: "J'utilise Lamu — un assistant IA ultra-rapide et axe confidentialite, construit avec Tauri et Rust. Seulement ~10MB, demarrage en moins de 100ms, compatible avec OpenAI, Anthropic, Gemini et tout fournisseur custom, et completement invisible dans Zoom et Google Meet. Il integre aussi vos bases de donnees MySQL/PostgreSQL, un email vocal avec approbation, un simulateur d'entretien avec scoring IA et un generateur de CV. Si vous privilegiez la confidentialite et la performance, c'est l'outil qu'il vous faut. lamuka.com",
+    text: "J'utilise Lamu — un assistant IA ultra-rapide et axe confidentialite, construit avec Tauri et Rust. Seulement ~10MB, demarrage en moins de 100ms, IA integree avec GPT-4, Claude, Gemini (ou vos propres cles API), et completement invisible dans Zoom et Google Meet. Il integre aussi vos bases de donnees MySQL/PostgreSQL, un email vocal avec approbation, un simulateur d'entretien avec scoring IA et un generateur de CV. Si vous privilegiez la confidentialite et la performance, c'est l'outil qu'il vous faut. lamuka.com",
   },
   {
     label: 'Long (Newsletter / Article)',
-    text: "Lamu est un assistant IA de bureau pas comme les autres. Construit avec Tauri et Rust — pas Electron — il fait 27x moins que les alternatives avec seulement ~10MB. Il fonctionne entierement en local avec stockage SQLite, envoie les requetes directement a votre fournisseur IA (OpenAI, Claude, Gemini, Grok ou tout endpoint custom), et l'overlay est completement indetectable dans Zoom, Google Meet, Teams et tous les logiciels de partage d'ecran. Il supporte l'entree vocale via OpenAI Whisper, ElevenLabs et 7 autres fournisseurs STT. En plus de l'assistance en reunion, Lamu offre des integrations DB (MySQL/PostgreSQL) avec requetes en langage naturel, un email vocal avec countdown d'approbation, un simulateur d'entretien avec scoring IA, un generateur de CV et lettre de motivation, une base de connaissances RAG et des statistiques d'utilisation. L'offre gratuite fonctionne avec vos propres cles API, et la licence Dev Pro a vie coute 120$. lamuka.com",
+    text: "Lamu est un assistant IA de bureau pas comme les autres. Construit avec Tauri et Rust — pas Electron — il fait 27x moins que les alternatives avec seulement ~10MB. Il fonctionne entierement en local avec stockage SQLite, utilise automatiquement les meilleurs modeles IA (GPT-4, Claude, Gemini et plus) ou vos propres cles API, et l'overlay est completement indetectable dans Zoom, Google Meet, Teams et tous les logiciels de partage d'ecran. Il supporte l'entree vocale via Whisper, ElevenLabs et 7 autres moteurs STT. En plus de l'assistance en reunion, Lamu offre des integrations DB (MySQL/PostgreSQL) avec requetes en langage naturel, un email vocal avec countdown d'approbation, un simulateur d'entretien avec scoring IA, un generateur de CV et lettre de motivation, une base de connaissances RAG et des statistiques d'utilisation. Le plan gratuit inclut toutes les fonctionnalites de base, et les plans Pro et Enterprise debloquent les fonctionnalites premium. lamuka.com",
   },
 ]
 
@@ -48,8 +48,8 @@ const stats = [
   { value: '~10MB', label: "Taille de l'app" },
   { value: '27x', label: "Plus leger qu'Electron" },
   { value: '<100ms', label: 'Temps de demarrage' },
-  { value: '9+', label: 'Fournisseurs IA' },
-  { value: '9+', label: 'Fournisseurs STT' },
+  { value: '120+', label: 'Modeles IA' },
+  { value: '9+', label: 'Moteurs STT' },
   { value: '100%', label: 'Local & Prive' },
 ]
 
@@ -113,10 +113,10 @@ export default function Promote() {
             {[
               { point: 'Construit avec Tauri + Rust', detail: "Pas Electron — c'est pourquoi il fait 10MB au lieu de 270MB." },
               { point: 'Completement invisible', detail: "L'overlay est exclu de la capture video sur toutes les plateformes." },
-              { point: "N'importe quel fournisseur IA", detail: 'Fonctionne avec OpenAI, Claude, Gemini, Grok, Mistral, Groq, Ollama ou un endpoint custom.' },
+              { point: 'IA multi-modeles', detail: 'IA integree avec routage intelligent sur 120+ modeles, ou connectez vos propres cles API.' },
               { point: 'Stockage 100% local', detail: 'Toutes les donnees de conversation restent sur l\'appareil dans SQLite. Zero telemetrie.' },
               { point: 'Integrations puissantes', detail: 'Bases de donnees MySQL/PostgreSQL, email vocal, simulateur d\'entretien, generateur de CV, base de connaissances RAG.' },
-              { point: 'Gratuit a utiliser', detail: 'Les fonctionnalites de base sont gratuites. Dev Pro est une licence a vie a 120$.' },
+              { point: 'Gratuit pour commencer', detail: 'Plan gratuit avec toutes les fonctionnalites de base. Plans Pro et Enterprise pour plus de messages.' },
             ].map((tp, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
                 style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '16px 18px' }}>

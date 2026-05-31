@@ -1,0 +1,473 @@
+/* ─── Lamu AI Extension — Content Script Styles ──────────────────────────── */
+
+#lamu-floating-panel,
+#lamu-kb-search {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 380px;
+  max-height: 500px;
+  background: #111118;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #fff;
+  overflow: hidden;
+  animation: lamu-slide-in 0.2s ease-out;
+}
+
+@keyframes lamu-slide-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.lamu-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(99, 102, 241, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.lamu-panel-logo {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.lamu-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  flex: 1;
+  color: #e2e8f0;
+}
+
+.lamu-panel-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.lamu-panel-close:hover { color: #fff; }
+
+.lamu-panel-body {
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.lamu-panel-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lamu-panel-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.lamu-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #6366f1;
+  color: #fff;
+}
+.lamu-btn:hover { background: #5558e6; }
+
+.lamu-btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.lamu-btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+.lamu-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.lamu-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.lamu-kb-results {
+  margin-top: 12px;
+}
+
+.lamu-kb-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.lamu-kb-item:hover {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.lamu-kb-item-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+}
+
+.lamu-kb-item-text {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.lamu-kb-item-score {
+  font-size: 10px;
+  color: #6366f1;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.lamu-kb-empty {
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* ─── Helpdesk AI Copilot Panel ──────────────────────────────────────────── */
+
+#lamu-helpdesk-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 360px;
+  max-height: calc(100vh - 24px);
+  background: #111118;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 2147483646;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #e2e8f0;
+  overflow: hidden;
+  animation: lamu-slide-in 0.25s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.lamu-hd-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.lamu-hd-title {
+  font-size: 13px;
+  font-weight: 800;
+  flex: 1;
+  color: #fff;
+}
+
+.lamu-hd-platform {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lamu-hd-minimize {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.lamu-hd-minimize:hover { color: #fff; }
+
+.lamu-hd-body {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lamu-hd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lamu-hd-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.lamu-hd-tones {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.lamu-hd-tone {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.lamu-hd-tone:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+}
+.lamu-hd-tone.active {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+.lamu-hd-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.lamu-hd-suggest {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.lamu-hd-suggest:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lamu-hd-suggest-icon {
+  font-size: 14px;
+}
+
+.lamu-hd-refresh {
+  padding: 8px 12px;
+  font-size: 16px;
+}
+
+.lamu-hd-ticket-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lamu-hd-ticket-info {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.lamu-hd-ticket-text {
+  font-size: 11px;
+  line-height: 1.5;
+  color: #94a3b8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: inherit;
+}
+.lamu-hd-ticket-text strong {
+  color: #cbd5e1;
+}
+
+.lamu-hd-no-ticket {
+  font-size: 12px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.lamu-hd-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+}
+
+.lamu-hd-reply-text {
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.lamu-hd-reply-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lamu-hd-result-actions {
+  display: flex;
+  gap: 6px;
+}
+.lamu-hd-result-actions .lamu-btn {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.lamu-hd-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  padding-top: 8px;
+}
+
+.lamu-hd-source-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.lamu-hd-source-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #a5b4fc;
+  margin-bottom: 2px;
+}
+
+.lamu-hd-source-snippet {
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.lamu-hd-source-score {
+  font-size: 10px;
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.lamu-hd-loading {
+  font-size: 12px;
+  color: #818cf8;
+  font-style: italic;
+}
+
+.lamu-hd-error {
+  font-size: 12px;
+  color: #f87171;
+}
+
+.lamu-hd-custom {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.lamu-hd-input {
+  flex: 1;
+  font-size: 12px;
+  padding: 8px 10px;
+  min-height: 36px;
+  resize: vertical;
+}
+
+.lamu-hd-custom-send {
+  padding: 8px 12px;
+  font-size: 12px;
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+/* Spinner animation */
+.lamu-hd-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: lamu-spin 0.6s linear infinite;
+}
+
+@keyframes lamu-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Insert feedback toast */
+.lamu-hd-feedback {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 18px;
+  background: #22c55e;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 2147483647;
+  animation: lamu-slide-in 0.2s ease-out;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}

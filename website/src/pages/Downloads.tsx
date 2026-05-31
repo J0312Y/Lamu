@@ -1,6 +1,37 @@
 import { motion } from 'framer-motion'
-import { Download, Apple, Monitor, Terminal } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { BorderBeam } from '../components/BorderBeam'
+
+function AppleLogo({ size = 24 }: { size?: number; color?: string }) {
+  return (
+    <img src="https://cdn.simpleicons.org/apple/ffffff" alt="Apple" width={size} height={size} style={{ objectFit: 'contain' }} />
+  )
+}
+
+function WindowsLogo({ size = 24, color = '#0078D4' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+    </svg>
+  )
+}
+
+function TuxLogo({ size = 24 }: { size?: number; color?: string }) {
+  return (
+    <img src="https://cdn.simpleicons.org/linux/FCC624" alt="Linux" width={size} height={size} style={{ objectFit: 'contain' }} />
+  )
+}
+
+function RamIcon({ size = 24, color = 'currentColor' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <path d="M6 6V4M10 6V4M14 6V4M18 6V4" />
+      <rect x="5" y="9" width="4" height="4" rx="0.5" />
+      <rect x="11" y="9" width="4" height="4" rx="0.5" />
+    </svg>
+  )
+}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24, filter: 'blur(8px)' },
@@ -13,7 +44,7 @@ const stagger = {
 
 const platforms = [
   {
-    icon: Apple,
+    icon: AppleLogo,
     name: 'macOS',
     desc: 'Apple Silicon & Intel Mac',
     formats: ['.dmg'],
@@ -23,7 +54,7 @@ const platforms = [
     href: 'mailto:support@lamuka.com?subject=Telecharger Lamu - macOS',
   },
   {
-    icon: Monitor,
+    icon: WindowsLogo,
     name: 'Windows',
     desc: 'Windows 10/11 x64',
     formats: ['.msi', '.exe'],
@@ -34,7 +65,7 @@ const platforms = [
     featured: true,
   },
   {
-    icon: Terminal,
+    icon: TuxLogo,
     name: 'Linux',
     desc: 'Debian, RHEL & AppImage',
     formats: ['.deb', '.rpm', '.AppImage'],
@@ -46,10 +77,10 @@ const platforms = [
 ]
 
 const requirements = [
-  { title: 'Node.js', value: 'v18 ou superieur', icon: '⬡' },
-  { title: 'Rust', value: 'Derniere version stable', icon: '🦀' },
-  { title: 'WebView2', value: 'Windows uniquement', icon: '🪟' },
-  { title: 'RAM', value: '~50MB utilisation', icon: '💾' },
+  { title: 'Windows 10+', value: 'x64, WebView2 inclus', icon: <WindowsLogo size={22} color="#22d3ee" /> },
+  { title: 'macOS 11+', value: 'Apple Silicon & Intel', icon: <AppleLogo size={22} color="#ffffff" /> },
+  { title: 'Linux', value: 'Ubuntu 20+, Fedora 36+', icon: <TuxLogo size={22} color="#fbbf24" /> },
+  { title: 'RAM', value: '~50MB utilisation', icon: <RamIcon size={22} color="#a78bfa" /> },
 ]
 
 export default function Downloads() {
@@ -77,7 +108,7 @@ export default function Downloads() {
             Disponible sur toutes les plateformes majeures. Seulement ~10MB.
           </motion.p>
           <motion.p variants={fadeUp} style={{ fontSize: 14, color: 'rgba(99,102,241,0.8)', fontWeight: 500 }}>
-            Version 0.1.9 — Derniere version
+            Version 0.2.0 — Derniere version
           </motion.p>
         </motion.div>
       </section>
@@ -145,7 +176,7 @@ export default function Downloads() {
             viewport={{ once: true }}
             style={{ fontSize: 22, fontWeight: 700, textAlign: 'center', marginBottom: 32 }}
           >
-            Configuration Requise
+            Systemes Compatibles
           </motion.h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
             {requirements.map((r, i) => (
@@ -157,7 +188,7 @@ export default function Downloads() {
                 transition={{ delay: i * 0.07 }}
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: 20, textAlign: 'center' }}
               >
-                <div style={{ fontSize: 24, marginBottom: 10 }}>{r.icon}</div>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>{r.icon}</div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{r.title}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{r.value}</div>
               </motion.div>

@@ -1,0 +1,10 @@
+Action																										Priorité
+Migrer FCM vers la nouvelle API HTTP v1 (https://fcm.googleapis.com/v1/projects/{project_id}/messages:send) avec OAuth2	Critique
+Corriger la clé corrompue dans Android.php:2273	Critique
+Ajouter le header Authorization: Basic <REST_API_KEY> aux appels OneSignal	Important
+Centraliser API_ACCESS_KEY dans config/constants.php au lieu de le redéfinir partout	Recommandé
+
+
+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
+
+cd backend && node server.js
