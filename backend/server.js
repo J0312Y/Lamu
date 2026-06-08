@@ -10926,6 +10926,171 @@ function getOnboardingSteps() {
   ];
 }
 
+// ─── CRM Sync Endpoints ──────────────────────────────────────────────────────
+
+// POST /api/crm/sync — sync meeting data to CRM (Salesforce / HubSpot)
+app.post('/api/crm/sync', requireAuth, async (req, res) => {
+  try {
+    const { provider, summary, actionItems, attendees, date, talkTime } = req.body;
+    if (!provider || !summary) return res.status(400).json({ error: 'provider and summary required' });
+
+    const tokens = await db.query('SELECT access_token FROM oauth_tokens WHERE provider = ?', [provider]);
+    if (!tokens.length) return res.status(400).json({ error: `${provider} not connected. Connect via OAuth first.` });
+    const token = tokens[0].access_token;
+
+    if (provider === 'salesforce') {
+      // Create a Task record in Salesforce
+      const sfResponse = await fetch(`${process.env.SALESFORCE_INSTANCE_URL || 'https://login.salesforce.com'}/services/data/v58.0/sobjects/Task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          Subject: `Meeting Notes — ${new Date(date || Date.now()).toLocaleDateString()}`,
+          Description: summary + (actionItems?.length ? '\n\n## Action Items\n' + actionItems.map(a => `- ${a.completed ? '[x]' : '[ ]'} ${a.text}${a.assignee ? ` (@${a.assignee})` : ''}`).join('\n') : ''),
+          Status: 'Completed',
+          ActivityDate: new Date(date || Date.now()).toISOString().split('T')[0],
+          Type: 'Meeting',
+        }),
+      });
+      const sfData = await sfResponse.json();
+      res.json({ ok: true, provider: 'salesforce', record: sfData });
+
+    } else if (provider === 'hubspot') {
+      // Create an Engagement (meeting) in HubSpot
+      const hsResponse = await fetch('https://api.hubapi.com/engagements/v1/engagements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          engagement: { active: true, type: 'MEETING', timestamp: new Date(date || Date.now()).getTime() },
+          metadata: {
+            title: `Meeting — ${new Date(date || Date.now()).toLocaleDateString()}`,
+            body: summary,
+            startTime: new Date(date || Date.now()).getTime(),
+            endTime: new Date(date || Date.now()).getTime() + (talkTime?.totalDurationMs || 3600000),
+          },
+        }),
+      });
+      const hsData = await hsResponse.json();
+      res.json({ ok: true, provider: 'hubspot', record: hsData });
+
+    } else {
+      res.status(400).json({ error: `Unsupported CRM provider: ${provider}` });
+    }
+  } catch (err) {
+    console.error('[crm/sync]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/crm/status — check which CRM integrations are connected
+app.get('/api/crm/status', requireAuth, async (req, res) => {
+  try {
+    const tokens = await db.query("SELECT provider FROM oauth_tokens WHERE provider IN ('salesforce', 'hubspot')");
+    const connected = tokens.map(t => t.provider);
+    res.json({ connected, salesforce: connected.includes('salesforce'), hubspot: connected.includes('hubspot') });
+  } catch {
+    res.json({ connected: [], salesforce: false, hubspot: false });
+  }
+});
+
+// ─── Webhook Automation Endpoints (Zapier-compatible) ───────────────────────
+
+// POST /api/webhooks/outgoing — register an outgoing webhook
+app.post('/api/webhooks/outgoing', requireAuth, async (req, res) => {
+  try {
+    const { url, events, name } = req.body;
+    if (!url || !events?.length) return res.status(400).json({ error: 'url and events[] required' });
+    const id = `wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    await db.query(`INSERT INTO outgoing_webhooks (id, name, url, events, is_active) VALUES (?, ?, ?, ?, 1)`,
+      [id, name || url, url, JSON.stringify(events)]);
+
+    res.json({ ok: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/webhooks/outgoing — list outgoing webhooks
+app.get('/api/webhooks/outgoing', requireAuth, async (req, res) => {
+  try {
+    const webhooks = await db.query('SELECT * FROM outgoing_webhooks ORDER BY created_at DESC');
+    res.json({ webhooks: webhooks.map(w => ({ ...w, events: JSON.parse(w.events || '[]') })) });
+  } catch (err) {
+    res.json({ webhooks: [] });
+  }
+});
+
+// DELETE /api/webhooks/outgoing/:id — delete a webhook
+app.delete('/api/webhooks/outgoing/:id', requireAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM outgoing_webhooks WHERE id = ?', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/webhooks/outgoing/test — test a webhook
+app.post('/api/webhooks/outgoing/test', requireAuth, async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'url required' });
+    const testPayload = { event: 'test', timestamp: new Date().toISOString(), data: { message: 'Lamu webhook test' } };
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Lamu-Event': 'test' },
+      body: JSON.stringify(testPayload),
+    });
+    res.json({ ok: r.ok, status: r.status });
+  } catch (err) {
+    res.json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/webhooks/trigger — trigger all matching webhooks for an event (called internally)
+app.post('/api/webhooks/trigger', requireAuth, async (req, res) => {
+  try {
+    const { event, payload } = req.body;
+    if (!event) return res.status(400).json({ error: 'event required' });
+    const webhooks = await db.query('SELECT * FROM outgoing_webhooks WHERE is_active = 1');
+    const matching = webhooks.filter(w => {
+      const events = JSON.parse(w.events || '[]');
+      return events.includes(event) || events.includes('*');
+    });
+    const results = await Promise.allSettled(matching.map(async (w) => {
+      const r = await fetch(w.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Lamu-Event': event },
+        body: JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload }),
+      });
+      // Update last triggered
+      await db.query('UPDATE outgoing_webhooks SET last_triggered_at = NOW(), trigger_count = trigger_count + 1 WHERE id = ?', [w.id]);
+      return { id: w.id, ok: r.ok, status: r.status };
+    }));
+    res.json({ triggered: results.length, results: results.map(r => r.status === 'fulfilled' ? r.value : { error: r.reason?.message }) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Outgoing webhooks table ────────────────────────────────────────────────
+
+async function ensureOutgoingWebhooksTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS outgoing_webhooks (
+      id VARCHAR(100) PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      url TEXT NOT NULL,
+      events JSON NOT NULL,
+      is_active TINYINT(1) DEFAULT 1,
+      trigger_count INT DEFAULT 0,
+      last_triggered_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_active (is_active)
+    )
+  `);
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 httpServer.listen(PORT, async () => {
@@ -10967,6 +11132,7 @@ httpServer.listen(PORT, async () => {
       ['auto_sync',               ensureAutoSyncTable],
       ['ai_actions_log',          ensureActionsTable],
       ['onboarding_progress',     ensureOnboardingTable],
+      ['outgoing_webhooks',       ensureOutgoingWebhooksTable],
     ];
     const saasResults = [];
     for (const [name, fn] of saasTableInits) {

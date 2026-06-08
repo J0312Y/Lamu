@@ -11,6 +11,9 @@ import {
   ChevronRightIcon,
   MicIcon,
   BriefcaseIcon,
+  SearchIcon,
+  Loader2Icon,
+  XIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +75,24 @@ export default function SessionsPage() {
   const [expandedMeeting, setExpandedMeeting] = useState<string | null>(null);
   const [expandedInterview, setExpandedInterview] = useState<string | null>(null);
   const [tab, setTab] = useState<"meetings" | "interviews">("meetings");
+
+  // Cross-meeting search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Array<{ document_name: string; content: string; similarity: number }>>([]);
+  const [searching, setSearching] = useState(false);
+
+  const searchMeetings = async () => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    setSearching(true);
+    try {
+      const results = await invoke<Array<{ document_name: string; content: string; similarity: number }>>(
+        "kb_search", { query: searchQuery, topK: 20 }
+      );
+      // Filter to only meeting documents
+      setSearchResults(results.filter((r) => r.document_name.startsWith("Meeting_")));
+    } catch { setSearchResults([]); }
+    finally { setSearching(false); }
+  };
 
   const loadMeetings = async () => {
     setLoadingMeetings(true);
@@ -145,6 +166,48 @@ export default function SessionsPage() {
                 Refresh
               </Button>
             </div>
+
+            {/* Cross-meeting search */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && searchMeetings()}
+                  placeholder="Rechercher dans toutes les réunions..."
+                  className="w-full pl-9 pr-8 py-2 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => { setSearchQuery(""); setSearchResults([]); }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <Button onClick={searchMeetings} disabled={searching || !searchQuery.trim()} className="gap-1.5">
+                {searching ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <SearchIcon className="w-3.5 h-3.5" />}
+                Search
+              </Button>
+            </div>
+
+            {/* Search results */}
+            {searchResults.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-muted-foreground">{searchResults.length} résultat(s) trouvé(s)</p>
+                {searchResults.map((r, i) => (
+                  <div key={i} className="rounded-lg border border-border p-3 bg-card">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">{r.document_name.replace("Meeting_", "").replace(".md", "").replace(/[-T]/g, " ")}</span>
+                      <Badge variant="outline" className="text-[10px]">{Math.round(r.similarity * 100)}% match</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-3">{r.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {meetings.length === 0 && !loadingMeetings && (
               <div className="text-center py-12 text-muted-foreground">

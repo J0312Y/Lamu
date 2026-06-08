@@ -3,3 +3,5 @@ export * from "./ai-providers.constants";
 export * from "./stt.constants";
 export * from "./shortcuts";
 export * from "./plan-features";
+export * from "./meetingTemplates";
+export * from "./sttLanguages";

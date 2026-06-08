@@ -272,6 +272,32 @@ export function useSystemAudio() {
   const [coachingGenerating, setCoachingGenerating] = useState(false);
   const [coachingVisible, setCoachingVisible] = useState(false);
 
+  // ── Action Items (extracted from meeting summary) ────────────────────────
+  const [actionItems, setActionItems] = useState<import("../pages/app/components/speech/ActionItemsPanel").ActionItem[]>([]);
+
+  // ── Sentiment Analysis ──────────────────────────────────────────────────
+  const [sentimentData, setSentimentData] = useState<import("../pages/app/components/speech/SentimentIndicator").SentimentData | null>(null);
+
+  // ── Talk Time Analytics ─────────────────────────────────────────────────
+  const [talkTimeData, setTalkTimeData] = useState<import("../pages/app/components/speech/TalkTimeAnalytics").TalkTimeData | null>(null);
+  const talkTimeRef = useRef<{ meMs: number; themMs: number; meSegments: number; themSegments: number; startTime: number }>({
+    meMs: 0, themMs: 0, meSegments: 0, themSegments: 0, startTime: 0,
+  });
+
+  // ── Soundbites (bookmarked transcript moments) ──────────────────────────
+  const [soundbites, setSoundbites] = useState<import("../pages/app/components/speech/SoundbitesPanel").Soundbite[]>([]);
+
+  // ── Meeting Template ────────────────────────────────────────────────────
+  const [meetingTemplate, setMeetingTemplateState] = useState<import("@/config/meetingTemplates").MeetingTemplate | null>(null);
+  const meetingTemplateRef = useRef<import("@/config/meetingTemplates").MeetingTemplate | null>(null);
+  const setMeetingTemplate = useCallback((t: import("@/config/meetingTemplates").MeetingTemplate | null) => {
+    meetingTemplateRef.current = t;
+    setMeetingTemplateState(t);
+  }, []);
+
+  // ── Agenda ──────────────────────────────────────────────────────────────
+  const [agendaItems, setAgendaItems] = useState<import("../pages/app/components/speech/AgendaBuilder").AgendaItem[]>([]);
+
   // ── Pending external action (LAMU_ACTION) ────────────────────────────────
   const [pendingAction, setPendingAction] = useState<import("../pages/app/components/speech/ActionConfirmModal").LamuAction | null>(null);
   const [pendingActionIntegrationName, setPendingActionIntegrationName] = useState<string>("");
@@ -718,6 +744,10 @@ export function useSystemAudio() {
               ...prev,
               { role: "me" as const, text: transcription.trim(), time: timeLabel },
             ]);
+            // Track talk time for "me" (mic = user speaking)
+            const micWordCount = transcription.trim().split(/\s+/).length;
+            const micEstimatedMs = Math.round((micWordCount / 150) * 60 * 1000);
+            updateTalkTime("me", micEstimatedMs);
           } else {
             // Outside meeting mode → normal pipeline (set as last transcription for AI)
             setLastTranscription(transcription);
@@ -1321,6 +1351,12 @@ export function useSystemAudio() {
             { role: "ai", text: fullResponse, time: timeLabel },
           ]);
 
+          // Track talk time for "them" (system audio = other speakers)
+          // Estimate duration from word count (~150 words/min average speech rate)
+          const wordCount = transcription.split(/\s+/).length;
+          const estimatedMs = Math.round((wordCount / 150) * 60 * 1000);
+          updateTalkTime("them", estimatedMs);
+
           setConversation((prev) => ({
             ...prev,
             messages: [
@@ -1420,11 +1456,12 @@ export function useSystemAudio() {
       .map((e) => `[${e.time}] ${roleLabel(e.role)}: ${e.text}`)
       .join("\n");
 
-    const prompt = `Tu es un assistant expert en prise de notes. Voici la transcription complète d'un meeting. Génère un résumé structuré en français avec :
-- **Points clés discutés**
-- **Décisions prises**
-- **Actions à faire** (avec responsables si mentionnés)
-- **Points ouverts / à suivre**
+    const template = meetingTemplateRef.current;
+    const templateInstructions = template
+      ? `Tu utilises le template "${template.name}". ${template.prompt}\nSections attendues : ${template.sections.join(", ")}`
+      : `Génère un résumé structuré en français avec :\n- **Points clés discutés**\n- **Décisions prises**\n- **Actions à faire** (avec responsables si mentionnés)\n- **Points ouverts / à suivre**`;
+
+    const prompt = `Tu es un assistant expert en prise de notes. Voici la transcription complète d'un meeting. ${templateInstructions}
 
 Transcription :
 ${transcriptText}`;
@@ -1464,8 +1501,172 @@ ${transcriptText}`;
       } catch (e) {
         console.error("Failed to save meeting summary to KB:", e);
       }
+
     }
   }, [allAiProviders, selectedAIProvider]);
+
+  // Auto-extract action items + sentiment when summary finishes generating
+  const prevSummaryRef = useRef("");
+  useEffect(() => {
+    if (meetingSummaryText && !meetingSummaryGenerating && meetingSummaryText !== prevSummaryRef.current) {
+      prevSummaryRef.current = meetingSummaryText;
+      // Extract action items from the summary
+      extractActionItems(meetingSummaryText);
+      // Analyze sentiment from the transcript
+      if (meetingTranscript.length > 0) analyzeSentiment(meetingTranscript);
+      // Trigger webhooks
+      triggerWebhooks("meeting_summary_generated", {
+        summary: meetingSummaryText,
+        date: new Date().toISOString(),
+        talkTime: talkTimeRef.current,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingSummaryText, meetingSummaryGenerating]);
+
+  // ── Action Items Extraction ─────────────────────────────────────────────
+  const extractActionItems = useCallback(async (summaryText: string) => {
+    if (!summaryText) return;
+    try {
+      const useLamuAPI = await shouldUseLamuAPI();
+      const provider = allAiProviders.find((p) => p.id === selectedAIProvider.provider);
+      let raw = "";
+      for await (const chunk of fetchAIResponse({
+        provider: useLamuAPI ? undefined : provider,
+        selectedProvider: selectedAIProvider,
+        systemPrompt: "Tu extrais des action items structurés. Réponds UNIQUEMENT en JSON valide, un tableau d'objets.",
+        history: [],
+        userMessage: `Extrais TOUTES les actions à faire de ce résumé de réunion. Retourne un tableau JSON :
+[{"text":"<action>","assignee":"<responsable ou null>","deadline":"<date ou null>","priority":"high|medium|low"}]
+
+Résumé :
+${summaryText}`,
+        imagesBase64: [],
+        useCase: "chat",
+      })) { raw += chunk; }
+
+      // Parse JSON from response
+      const jsonMatch = raw.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const items = parsed.map((item: any, i: number) => ({
+          id: `action_${Date.now()}_${i}`,
+          text: item.text || "",
+          assignee: item.assignee || undefined,
+          deadline: item.deadline || undefined,
+          priority: ["high", "medium", "low"].includes(item.priority) ? item.priority : "medium",
+          completed: false,
+        }));
+        setActionItems(items);
+      }
+    } catch { /* best-effort */ }
+  }, [allAiProviders, selectedAIProvider]);
+
+  const toggleActionItem = useCallback((id: string) => {
+    setActionItems((prev) => prev.map((i) => i.id === id ? { ...i, completed: !i.completed } : i));
+  }, []);
+
+  const copyAllActionItems = useCallback(() => {
+    const text = actionItems
+      .map((i) => `${i.completed ? "[x]" : "[ ]"} ${i.text}${i.assignee ? ` (@${i.assignee})` : ""}${i.deadline ? ` — ${i.deadline}` : ""} [${i.priority}]`)
+      .join("\n");
+    navigator.clipboard.writeText(text);
+  }, [actionItems]);
+
+  // ── Sentiment Analysis ──────────────────────────────────────────────────
+  const analyzeSentiment = useCallback(async (
+    transcript: { role: "them" | "ai" | "me"; text: string; time: string }[]
+  ) => {
+    if (transcript.length < 3) return; // Need some content to analyze
+    try {
+      const recentText = transcript.slice(-20).map((e) => `[${e.role}] ${e.text}`).join("\n");
+      const useLamuAPI = await shouldUseLamuAPI();
+      const provider = allAiProviders.find((p) => p.id === selectedAIProvider.provider);
+      let raw = "";
+      for await (const chunk of fetchAIResponse({
+        provider: useLamuAPI ? undefined : provider,
+        selectedProvider: selectedAIProvider,
+        systemPrompt: "Tu analyses le sentiment d'une conversation. Réponds UNIQUEMENT en JSON valide.",
+        history: [],
+        userMessage: `Analyse le sentiment de cette conversation. Retourne un objet JSON :
+{"overall":"positive|neutral|negative","score":<-1 à 1>,"trend":"improving|stable|declining","keywords":["mot1","mot2"]}
+
+Conversation :
+${recentText}`,
+        imagesBase64: [],
+        useCase: "chat",
+      })) { raw += chunk; }
+
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        setSentimentData({
+          overall: ["positive", "neutral", "negative"].includes(parsed.overall) ? parsed.overall : "neutral",
+          score: typeof parsed.score === "number" ? Math.max(-1, Math.min(1, parsed.score)) : 0,
+          trend: ["improving", "stable", "declining"].includes(parsed.trend) ? parsed.trend : "stable",
+          keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 5) : [],
+        });
+      }
+    } catch { /* best-effort */ }
+  }, [allAiProviders, selectedAIProvider]);
+
+  // ── Talk Time Tracking ──────────────────────────────────────────────────
+  const updateTalkTime = useCallback((speaker: "me" | "them", durationMs: number) => {
+    const ref = talkTimeRef.current;
+    if (ref.startTime === 0) ref.startTime = Date.now();
+    if (speaker === "me") { ref.meMs += durationMs; ref.meSegments++; }
+    else { ref.themMs += durationMs; ref.themSegments++; }
+
+    const totalMs = Date.now() - ref.startTime;
+    setTalkTimeData({
+      entries: [
+        { speaker: "me", durationMs: ref.meMs, segments: ref.meSegments },
+        { speaker: "them", durationMs: ref.themMs, segments: ref.themSegments },
+      ],
+      totalDurationMs: totalMs,
+      meetingStartTime: ref.startTime,
+    });
+  }, []);
+
+  // ── Soundbites ──────────────────────────────────────────────────────────
+  const addSoundbite = useCallback((text: string, speaker: "me" | "them" | "ai", timestamp: string) => {
+    setSoundbites((prev) => [...prev, {
+      id: `sb_${Date.now()}`,
+      text,
+      speaker,
+      timestamp,
+      createdAt: Date.now(),
+    }]);
+  }, []);
+
+  const removeSoundbite = useCallback((id: string) => {
+    setSoundbites((prev) => prev.filter((s) => s.id !== id));
+  }, []);
+
+  const exportSoundbites = useCallback(() => {
+    const text = soundbites
+      .map((sb) => `[${sb.timestamp}] ${sb.speaker === "me" ? "Moi" : sb.speaker === "them" ? "Participant" : "IA"}: ${sb.text}`)
+      .join("\n\n");
+    const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `soundbites_${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [soundbites]);
+
+  // ── Webhook trigger (for Zapier/automation) ─────────────────────────────
+  const triggerWebhooks = useCallback(async (eventType: string, payload: Record<string, any>) => {
+    try {
+      const webhooks = await invoke<Array<{ id: string; url: string; events: string[] }>>("kb_list_webhooks");
+      const matching = webhooks.filter((w) => w.events.includes(eventType) || w.events.includes("*"));
+      await Promise.all(matching.map((w) =>
+        invoke("kb_post_webhook", { webhookId: w.id, payload: JSON.stringify({ event: eventType, timestamp: new Date().toISOString(), ...payload }) })
+          .catch(() => { /* best-effort */ })
+      ));
+    } catch { /* webhooks not configured */ }
+  }, []);
 
   // ── Follow-up email generation from meeting summary ───────────────────────
   const generateFollowUpEmail = useCallback(async (summaryText: string) => {
@@ -2195,6 +2396,29 @@ ${transcriptText}`;
     // ── Knowledge base RAG ────────────────────────────────────────────────────
     kbEnabled,
     setKbEnabled,
+    // ── Action Items ─────────────────────────────────────────────────────────
+    actionItems,
+    toggleActionItem,
+    copyAllActionItems,
+    extractActionItems,
+    // ── Sentiment Analysis ───────────────────────────────────────────────────
+    sentimentData,
+    analyzeSentiment,
+    // ── Talk Time Analytics ──────────────────────────────────────────────────
+    talkTimeData,
+    // ── Soundbites ───────────────────────────────────────────────────────────
+    soundbites,
+    addSoundbite,
+    removeSoundbite,
+    exportSoundbites,
+    // ── Meeting Template ─────────────────────────────────────────────────────
+    meetingTemplate,
+    setMeetingTemplate,
+    // ── Agenda ────────────────────────────────────────────────────────────────
+    agendaItems,
+    setAgendaItems,
+    // ── Webhooks ─────────────────────────────────────────────────────────────
+    triggerWebhooks,
     // ── State Runtime ────────────────────────────────────────────────────────
     agentRuntime: runtime,
     // ── Human-in-the-Loop ────────────────────────────────────────────────────

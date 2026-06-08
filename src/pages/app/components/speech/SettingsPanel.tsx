@@ -53,22 +53,9 @@ const SENSITIVITY_PRESETS = {
 
 type SensitivityPreset = keyof typeof SENSITIVITY_PRESETS;
 
-const STT_LANGUAGES = [
-  { code: "auto", label: "Auto-detect" },
-  { code: "en", label: "English" },
-  { code: "fr", label: "Français" },
-  { code: "es", label: "Español" },
-  { code: "de", label: "Deutsch" },
-  { code: "pt", label: "Português" },
-  { code: "it", label: "Italiano" },
-  { code: "nl", label: "Nederlands" },
-  { code: "pl", label: "Polski" },
-  { code: "ru", label: "Русский" },
-  { code: "ja", label: "日本語" },
-  { code: "zh", label: "中文" },
-  { code: "ko", label: "한국어" },
-  { code: "ar", label: "العربية" },
-];
+// Import expanded language list (32 languages including auto-detect)
+import { STT_LANGUAGES as STT_LANGUAGES_CONFIG } from "@/config/sttLanguages";
+const STT_LANGUAGES = STT_LANGUAGES_CONFIG.map((l) => ({ code: l.code, label: `${l.flag} ${l.nativeName}` }));
 
 interface SettingsPanelProps {
   // VAD Config

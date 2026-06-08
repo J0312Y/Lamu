@@ -28,6 +28,9 @@ import {
   BotIcon,
   PlugIcon,
   LockIcon,
+  BookmarkIcon,
+  ListOrderedIcon,
+  LayoutListIcon,
 } from "lucide-react";
 import { exportTranscriptAsTxt, exportTranscriptAsSrt } from "@/lib/exportUtils";
 import { ASSISTANT_MODES, type AssistantMode } from "@/config";
@@ -51,6 +54,12 @@ import { SqlApprovalModal } from "./SqlApprovalModal";
 import { KnowledgeBasePanel } from "../knowledge/KnowledgeBasePanel";
 import { AgentPanel } from "./AgentPanel";
 import { IntegrationsPanel } from "./IntegrationsPanel";
+import { ActionItemsPanel } from "./ActionItemsPanel";
+import { SentimentIndicator } from "./SentimentIndicator";
+import { TalkTimeAnalytics } from "./TalkTimeAnalytics";
+import { SoundbitesPanel } from "./SoundbitesPanel";
+import { TemplateSelector } from "./TemplateSelector";
+import { AgendaBuilder } from "./AgendaBuilder";
 import { useSystemAudioType, useKnowledgeBase } from "@/hooks";
 import { useApp } from "@/contexts";
 import { GetLicense } from "@/components";
@@ -127,6 +136,20 @@ export const SystemAudio = (props: useSystemAudioType) => {
     generateCoachingTip,
     kbEnabled,
     setKbEnabled,
+    // New features
+    actionItems,
+    toggleActionItem,
+    copyAllActionItems,
+    sentimentData,
+    talkTimeData,
+    soundbites,
+    addSoundbite,
+    removeSoundbite,
+    exportSoundbites,
+    meetingTemplate,
+    setMeetingTemplate,
+    agendaItems,
+    setAgendaItems,
     // State Runtime + Human-in-the-Loop
     agentRuntime,
     requireValidation,
@@ -163,6 +186,12 @@ export const SystemAudio = (props: useSystemAudioType) => {
 
   // Playbook modal
   const [playbookOpen, setPlaybookOpen] = useState(false);
+
+  // Template selector toggle
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
+
+  // Agenda builder toggle
+  const [agendaOpen, setAgendaOpen] = useState(false);
 
   // Screenshot state
   const [screenshotImage, setScreenshotImage] = useState<string | null>(null);
@@ -517,6 +546,57 @@ export const SystemAudio = (props: useSystemAudioType) => {
                     </Button>
                   )}
 
+                  {/* Template Selector Button */}
+                  {!setupRequired && (
+                    <Button
+                      size="sm"
+                      variant={meetingTemplate ? "default" : "ghost"}
+                      onClick={() => setTemplateSelectorOpen((v) => !v)}
+                      className={cn(
+                        "h-6 text-[10px] gap-1 px-2",
+                        meetingTemplate && "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
+                      )}
+                      title={meetingTemplate ? `Template: ${meetingTemplate.name}` : "Choisir un template de notes"}
+                    >
+                      <LayoutListIcon className="w-3 h-3" />
+                      {meetingTemplate ? meetingTemplate.name.slice(0, 10) : "Template"}
+                    </Button>
+                  )}
+
+                  {/* Agenda Builder Button */}
+                  {!setupRequired && (
+                    <Button
+                      size="sm"
+                      variant={agendaOpen ? "default" : "ghost"}
+                      onClick={() => setAgendaOpen((v) => !v)}
+                      className={cn(
+                        "h-6 text-[10px] gap-1 px-2",
+                        agendaOpen && "bg-teal-600 hover:bg-teal-700 text-white border-teal-600"
+                      )}
+                      title="Agenda de la réunion"
+                    >
+                      <ListOrderedIcon className="w-3 h-3" />
+                      Agenda
+                    </Button>
+                  )}
+
+                  {/* Save Soundbite Button — save last transcript as soundbite */}
+                  {!setupRequired && lastTranscription && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        const time = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+                        addSoundbite(lastTranscription, "them", time);
+                      }}
+                      className="h-6 text-[10px] gap-1 px-2"
+                      title="Sauvegarder comme soundbite"
+                    >
+                      <BookmarkIcon className="w-3 h-3" />
+                      Clip
+                    </Button>
+                  )}
+
                   {/* Transcript Download Buttons */}
                   {!setupRequired && meetingTranscript.length > 0 && (
                     <>
@@ -777,6 +857,32 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       />
                     )}
 
+                    {/* Sentiment + Talk Time (compact, inline in meeting mode) */}
+                    {meetingModeActive && (
+                      <div className="flex items-center gap-2">
+                        <SentimentIndicator data={sentimentData} compact />
+                        <TalkTimeAnalytics data={talkTimeData} compact />
+                      </div>
+                    )}
+
+                    {/* Action Items Panel */}
+                    {actionItems.length > 0 && (
+                      <ActionItemsPanel
+                        items={actionItems}
+                        onToggle={toggleActionItem}
+                        onCopyAll={copyAllActionItems}
+                      />
+                    )}
+
+                    {/* Soundbites Panel */}
+                    {soundbites.length > 0 && (
+                      <SoundbitesPanel
+                        soundbites={soundbites}
+                        onRemove={removeSoundbite}
+                        onExport={exportSoundbites}
+                      />
+                    )}
+
                     {/* AI Response */}
                     <ResultsSection
                       lastTranscription={lastTranscription}
@@ -843,7 +949,37 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       onToggleKbEnabled={setKbEnabled}
                     />
 
-                    {/* Google Calendar Widget */}
+                    {/* Template Selector */}
+                    {templateSelectorOpen && (
+                      <TemplateSelector
+                        selectedTemplate={meetingTemplate}
+                        onSelect={setMeetingTemplate}
+                        onClose={() => setTemplateSelectorOpen(false)}
+                      />
+                    )}
+
+                    {/* Agenda Builder */}
+                    {agendaOpen && (
+                      <AgendaBuilder
+                        items={agendaItems}
+                        onUpdate={setAgendaItems}
+                        onLoadAsPlaybook={() => {
+                          const agendaText = agendaItems.map((a, i) => `${i + 1}. ${a.text} (${a.durationMin}min)`).join("\n");
+                          setPlaybookContext(`Agenda de la réunion :\n${agendaText}`);
+                        }}
+                        onClose={() => setAgendaOpen(false)}
+                      />
+                    )}
+
+                    {/* Meeting summary detailed panels (after summary is generated) */}
+                    {meetingSummaryText && !meetingSummaryGenerating && (
+                      <>
+                        <SentimentIndicator data={sentimentData} />
+                        <TalkTimeAnalytics data={talkTimeData} />
+                      </>
+                    )}
+
+                    {/* Google Calendar Widget + Pre-meeting Brief */}
                     <CalendarWidget
                       onLoadAsContext={(event) => {
                         const parts: string[] = [`Meeting: ${event.summary}`];
@@ -897,6 +1033,11 @@ export const SystemAudio = (props: useSystemAudioType) => {
         meetingDate={meetingSummaryDate}
         onClose={() => setMeetingSummaryOpen(false)}
         onGenerateFollowUp={generateFollowUpEmail}
+        actionItems={actionItems}
+        onToggleActionItem={toggleActionItem}
+        onCopyAllActionItems={copyAllActionItems}
+        sentimentData={sentimentData}
+        talkTimeData={talkTimeData}
       />
 
       {/* Playbook Modal */}
