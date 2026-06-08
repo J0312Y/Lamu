@@ -16,40 +16,53 @@ pub fn detect_meeting_apps() -> Result<Vec<String>, String> {
 
 #[cfg(target_os = "windows")]
 fn detect_windows() -> Result<Vec<String>, String> {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
 
-    let output = Command::new("tasklist")
-        .args(["/FO", "CSV", "/NH"])
+    // CREATE_NO_WINDOW prevents a console flash for each spawned process
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    // Use a single PowerShell call that only checks for specific process names.
+    // This is vastly lighter than `tasklist` which enumerates every process on
+    // the system and was causing system instability due to 15s polling.
+    const PROC_NAMES: &[(&str, &str)] = &[
+        ("zoom", "Zoom"),
+        ("cpthost", "Zoom"),
+        ("teams", "Teams"),
+        ("ms-teams", "Teams"),
+        ("obs64", "OBS"),
+        ("obs32", "OBS"),
+        ("obs", "OBS"),
+        ("discord", "Discord"),
+        ("slack", "Slack"),
+        ("webex", "Webex"),
+        ("gotomeeting", "GoToMeeting"),
+        ("ringcentral", "RingCentral"),
+        ("loom", "Loom"),
+        ("screenrec", "ScreenRec"),
+    ];
+
+    // Build a comma-separated list of process names for Get-Process
+    let names: Vec<&str> = PROC_NAMES.iter().map(|(p, _)| *p).collect();
+    let ps_script = format!(
+        "Get-Process -Name {} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name",
+        names.iter().map(|n| format!("'{}'", n)).collect::<Vec<_>>().join(",")
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &ps_script])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
-        .map_err(|e| format!("Failed to run tasklist: {}", e))?;
+        .map_err(|e| format!("Failed to run detection: {}", e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_lowercase();
 
-    const APPS: &[(&str, &str)] = &[
-        ("zoom.exe", "Zoom"),
-        ("cpthost.exe", "Zoom"),
-        ("teams.exe", "Teams"),
-        ("ms-teams.exe", "Teams"),
-        ("obs64.exe", "OBS"),
-        ("obs32.exe", "OBS"),
-        ("obs.exe", "OBS"),
-        ("discord.exe", "Discord"),
-        ("slack.exe", "Slack"),
-        ("webex.exe", "Webex"),
-        ("gotomeeting.exe", "GoToMeeting"),
-        ("ringcentral.exe", "RingCentral"),
-        ("loom.exe", "Loom"),
-        ("screenrec.exe", "ScreenRec"),
-        ("meet.exe", "Google Meet"),
-    ];
-
-    let mut found: Vec<String> = APPS
+    let mut found: Vec<String> = PROC_NAMES
         .iter()
-        .filter(|(proc, _)| stdout.contains(proc))
+        .filter(|(proc, _)| stdout.lines().any(|line| line.trim() == *proc))
         .map(|(_, name)| name.to_string())
         .collect();
 
-    // Deduplicate (e.g. Zoom has multiple processes)
     found.sort();
     found.dedup();
     Ok(found)

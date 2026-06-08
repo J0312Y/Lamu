@@ -2942,6 +2942,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
 <script>
 /* ══ Config ═══════════════════════════════════════════════════════════ */
 const BASE = '/admin/api';
+const API_BASE = BASE;
 let TOKEN = localStorage.getItem('lamu_admin_token') || '';
 let CHARTS = {};
 let currentPeriod = '30';
@@ -2967,6 +2968,7 @@ Chart.defaults.color = '#8892A4';
 
 /* ══ Auth ══════════════════════════════════════════════════════════════ */
 function authH() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` }; }
+const authHeaders = authH;
 
 async function api(path, opts = {}) {
   try {
@@ -3104,6 +3106,36 @@ function sortAudit(key) {
     currentAuditSort.dir = 'asc';
   }
   renderAuditTable();
+}
+
+function sortPayments(col) {
+  if (currentPaymentSort.key === col) {
+    currentPaymentSort.dir = currentPaymentSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    currentPaymentSort.key = col;
+    currentPaymentSort.dir = 'asc';
+  }
+  renderPaymentsTable();
+}
+
+function sortLicenses(col) {
+  if (currentLicenseSort.key === col) {
+    currentLicenseSort.dir = currentLicenseSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    currentLicenseSort.key = col;
+    currentLicenseSort.dir = 'asc';
+  }
+  renderLicensesTable();
+}
+
+function sortUsers(col) {
+  if (currentUserSort.key === col) {
+    currentUserSort.dir = currentUserSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    currentUserSort.key = col;
+    currentUserSort.dir = 'asc';
+  }
+  loadUsers();
 }
 
 function toggleSidebar() {
@@ -4076,9 +4108,9 @@ async function deleteLic(id) { if (!confirm('Delete this license?')) return; awa
 
 async function resendLicenseEmail(licenseKey) {
   if (!confirm(`Renvoyer la clé "${licenseKey}" par email au client ?`)) return;
-  const r = await fetch('http://localhost:3000/api/license/resend-email', {
+  const r = await fetch('/api/license/resend-email', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('lamu_api_key') || ''}` },
+    headers: authH(),
     body: JSON.stringify({ license_key: licenseKey }),
   }).then(r => r.json()).catch(() => ({ error: 'Erreur réseau' }));
   if (r?.ok) alert('✓ Email renvoyé avec succès');
@@ -4095,9 +4127,8 @@ const PAYMENT_STATUS_STYLE = {
 };
 
 async function loadPayments() {
-  const API_KEY = localStorage.getItem('lamu_api_key') || '';
-  const data = await fetch('http://localhost:3000/api/payments', {
-    headers: { 'Authorization': `Bearer ${API_KEY}` }
+  const data = await fetch('/api/payments', {
+    headers: authH()
   }).then(r => r.json()).catch(() => ({}));
 
   LAST_PAYMENTS_DATA = data?.payments || [];
@@ -4752,6 +4783,8 @@ function exportPayments() {
   });
   downloadCsv('lamu-payments.csv', rows);
 }
+const exportLicensesExcel = exportLicenses;
+const exportPaymentsExcel = exportPayments;
 function exportAuditCsv() {
   if (!LAST_AUDIT_DATA?.length) { alert('Aucune donnée d\'audit à exporter. Chargez la page Audit d\'abord.'); return; }
   const rows = [];
@@ -4900,13 +4933,7 @@ async function triggerHealthCheck() {
   else showToast('Health check failed', 'error');
 }
 
-function showToast(msg, type) {
-  const t = document.createElement('div');
-  t.style.cssText = 'position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:9999;background:' + (type === 'error' ? '#DC2626' : '#10B981') + ';color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.2)';
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
-}
+/* showToast is defined once at the end of the file — handles both 2-arg (msg, type) and 3-arg (title, message, type) calls */
 
 /* ══ Agent Runs ═══════════════════════════════════════════════════════ */
 
@@ -5297,7 +5324,7 @@ function openSlaModal() {
   document.getElementById('sla-res').value = 480;
   document.getElementById('sla-bh').value = '1';
   document.getElementById('sla-modal-title').textContent = 'Nouvelle politique SLA';
-  document.getElementById('sla-modal').classList.add('active');
+  document.getElementById('sla-modal').classList.add('open');
 }
 
 function editSlaPolicy(id, name, priority, fr, res, bh) {
@@ -5308,7 +5335,7 @@ function editSlaPolicy(id, name, priority, fr, res, bh) {
   document.getElementById('sla-res').value = res;
   document.getElementById('sla-bh').value = bh ? '1' : '0';
   document.getElementById('sla-modal-title').textContent = 'Modifier politique SLA';
-  document.getElementById('sla-modal').classList.add('active');
+  document.getElementById('sla-modal').classList.add('open');
 }
 
 async function saveSlaPolicy() {
@@ -5988,7 +6015,16 @@ async function saveDefaultLang() {
   showToast('Langues', 'Langue par défaut : ' + lang.toUpperCase(), 'success');
 }
 
-function showToast(title, message, type) {
+function showToast(titleOrMsg, messageOrType, typeArg) {
+  // Support both 2-arg (msg, type) and 3-arg (title, message, type) calling conventions
+  let title, message, type;
+  if (typeArg !== undefined) {
+    title = titleOrMsg; message = messageOrType; type = typeArg;
+  } else if (['info','warning','success','error'].includes(messageOrType)) {
+    title = titleOrMsg; message = ''; type = messageOrType;
+  } else {
+    title = titleOrMsg; message = messageOrType || ''; type = 'info';
+  }
   let container = document.getElementById('toast-container');
   if (!container) {
     container = document.createElement('div');
@@ -5999,7 +6035,9 @@ function showToast(title, message, type) {
   const colors = { info: '#3B82F6', warning: '#F59E0B', success: '#22C55E', error: '#EF4444' };
   const toast = document.createElement('div');
   toast.style.cssText = `pointer-events:auto;background:var(--white);border-left:4px solid ${colors[type]||colors.info};border-radius:10px;padding:12px 16px;box-shadow:0 4px 24px rgba(0,0,0,.12);max-width:340px;animation:slideIn .3s ease;font-size:13px`;
-  toast.innerHTML = `<div style="font-weight:700;margin-bottom:2px;color:var(--navy)">${title}</div><div style="color:var(--muted)">${message}</div>`;
+  toast.innerHTML = message
+    ? `<div style="font-weight:700;margin-bottom:2px;color:var(--navy)">${title}</div><div style="color:var(--muted)">${message}</div>`
+    : `<div style="font-weight:700;color:var(--navy)">${title}</div>`;
   container.appendChild(toast);
   setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 5000);
 }

@@ -2654,9 +2654,16 @@ function HelpdeskView() {
   const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
   const [agents, setAgents] = useState<any[]>([])
   const [tickets, setTickets] = useState<any[]>([])
-  const [tab, setTab] = useState<'agents' | 'tickets'>('agents')
+  const [tab, setTab] = useState<'agents' | 'tickets' | 'routing' | 'performance'>('agents')
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ name: '', description: '', system_prompt: '', auto_reply: true, confidence_threshold: '0.70', escalation_enabled: false })
+  const [form, setForm] = useState({ name: '', description: '', system_prompt: '', auto_reply: true, confidence_threshold: '0.70', escalation_enabled: false, department: '' })
+  // Routing rules state
+  const [routingRules, setRoutingRules] = useState<any[]>([])
+  const [showAddRule, setShowAddRule] = useState(false)
+  const [ruleForm, setRuleForm] = useState({ name: '', condition_type: 'channel', condition_value: '', agent_id: '', fallback_agent_id: '', priority: '0' })
+  const [routingTest, setRoutingTest] = useState({ message: '', channel: '', result: null as any })
+  // Performance state
+  const [performance, setPerformance] = useState<any[]>([])
   const [selectedTicket, setSelectedTicket] = useState<any>(null)
   const [ticketDetail, setTicketDetail] = useState<any>(null)
   const [aiSuggestion, setAiSuggestion] = useState('')
@@ -2673,12 +2680,30 @@ function HelpdeskView() {
 
   const loadAgents = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/agents`, { headers: webHdrs() }); const d = await r.json(); setAgents(d.agents || []) } catch {} }, [])
   const loadTickets = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/tickets`, { headers: webHdrs() }); const d = await r.json(); setTickets(d.tickets || []) } catch {} }, [])
-  useEffect(() => { loadAgents(); loadTickets() }, [loadAgents, loadTickets])
+  const loadRules = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/routing-rules`, { headers: webHdrs() }); const d = await r.json(); setRoutingRules(d.rules || []) } catch {} }, [])
+  const loadPerformance = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/agents/performance`, { headers: webHdrs() }); const d = await r.json(); setPerformance(d.agents || []) } catch {} }, [])
+  useEffect(() => { loadAgents(); loadTickets(); loadRules(); loadPerformance() }, [loadAgents, loadTickets, loadRules, loadPerformance])
 
   const addAgent = async () => {
     if (!form.name) return
     try { await apiFetch(`${API_BASE}/api/helpdesk/agents`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ ...form, confidence_threshold: parseFloat(form.confidence_threshold) }) }) } catch { return }
-    setShowAdd(false); setForm({ name: '', description: '', system_prompt: '', auto_reply: true, confidence_threshold: '0.70', escalation_enabled: false }); loadAgents()
+    setShowAdd(false); setForm({ name: '', description: '', system_prompt: '', auto_reply: true, confidence_threshold: '0.70', escalation_enabled: false, department: '' }); loadAgents()
+  }
+
+  // Routing rules actions
+  const addRule = async () => {
+    if (!ruleForm.name || !ruleForm.condition_value || !ruleForm.agent_id) return
+    try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ ...ruleForm, priority: parseInt(ruleForm.priority) || 0 }) }) } catch { return }
+    setShowAddRule(false); setRuleForm({ name: '', condition_type: 'channel', condition_value: '', agent_id: '', fallback_agent_id: '', priority: '0' }); loadRules()
+  }
+  const deleteRule = async (id: string) => { try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch {} loadRules() }
+  const toggleRule = async (id: string, active: boolean) => { try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/${id}`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ is_active: !active }) }) } catch {} loadRules() }
+  const testRouting = async () => {
+    if (!routingTest.message) return
+    try {
+      const r = await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/test`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ message: routingTest.message, channel: routingTest.channel || undefined }) })
+      const d = await r.json(); setRoutingTest(prev => ({ ...prev, result: d }))
+    } catch {}
   }
 
   const toggleAgent = async (id: string, active: boolean) => {
@@ -2781,10 +2806,13 @@ function HelpdeskView() {
       <div style={{ fontSize: 22, fontWeight: 800, color: th.text, marginBottom: 4 }}>Helpdesk IA</div>
       <div style={{ fontSize: 13, color: th.textSub, marginBottom: 20 }}>Agents IA qui répondent automatiquement aux messages clients avec votre base de connaissances</div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button onClick={() => setTab('agents')} style={tab === 'agents' ? btnPrimary : btnSecondary}>Agents</button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        <button onClick={() => setTab('agents')} style={tab === 'agents' ? btnPrimary : btnSecondary}>Agents ({agents.length})</button>
         <button onClick={() => setTab('tickets')} style={tab === 'tickets' ? btnPrimary : btnSecondary}>Tickets ({tickets.length})</button>
+        <button onClick={() => setTab('routing')} style={tab === 'routing' ? btnPrimary : btnSecondary}>Routage ({routingRules.length})</button>
+        <button onClick={() => { setTab('performance'); loadPerformance() }} style={tab === 'performance' ? btnPrimary : btnSecondary}>Performance</button>
         {tab === 'agents' && <button onClick={() => setShowAdd(!showAdd)} style={{ ...btnPrimary, marginLeft: 'auto' }}><Plus size={14} style={{ marginRight: 4 }} />Nouvel agent</button>}
+        {tab === 'routing' && <button onClick={() => setShowAddRule(!showAddRule)} style={{ ...btnPrimary, marginLeft: 'auto' }}><Plus size={14} style={{ marginRight: 4 }} />Nouvelle règle</button>}
       </div>
 
       {tab === 'agents' && <>
@@ -2850,6 +2878,7 @@ function HelpdeskView() {
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     {t.topic && <span style={badgeStyle('#818cf8')}>{t.topic}</span>}
                     <span style={badgeStyle(sentimentColor(t.sentiment))}>{t.sentiment}</span>
+                    {t.auto_resolved ? <span style={badgeStyle('#4ade80')}>Auto-résolu</span> : null}
                     {t.escalated ? <span style={badgeStyle('#f87171')}>Escalade</span> : null}
                     {t.sla_first_response_breached ? <span style={badgeStyle('#dc2626')}>SLA!</span> : null}
                     <span style={badgeStyle(t.status === 'open' ? '#fbbf24' : t.status === 'resolved' ? '#4ade80' : '#818cf8')}>{t.status}</span>
@@ -2933,6 +2962,128 @@ function HelpdeskView() {
           )}
         </div>
       </>)}
+
+      {/* ── Routing rules tab ── */}
+      {tab === 'routing' && (<>
+        {showAddRule && (
+          <div style={{ ...cardStyle, marginBottom: 16 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 10 }}>Nouvelle règle de routage</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <input value={ruleForm.name} onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))} placeholder="Nom de la règle" style={inputStyle} />
+              <CustomSelect value={ruleForm.condition_type} onChange={v => setRuleForm(f => ({ ...f, condition_type: v }))}
+                options={[
+                  { value: 'channel', label: 'Canal' }, { value: 'keyword', label: 'Mots-clés' },
+                  { value: 'language', label: 'Langue' }, { value: 'topic', label: 'Sujet' },
+                  { value: 'email_domain', label: 'Domaine email' }, { value: 'all', label: 'Tout (catch-all)' },
+                ]} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <input value={ruleForm.condition_value} onChange={e => setRuleForm(f => ({ ...f, condition_value: e.target.value }))}
+                placeholder={ruleForm.condition_type === 'channel' ? 'website, slack, email...' : ruleForm.condition_type === 'keyword' ? 'remboursement, bug, facturation' : ruleForm.condition_type === 'language' ? 'fr, en, es' : 'valeur...'} style={inputStyle} />
+              <input value={ruleForm.priority} onChange={e => setRuleForm(f => ({ ...f, priority: e.target.value }))} placeholder="Priorité (0-100)" type="number" style={inputStyle} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <CustomSelect value={ruleForm.agent_id} onChange={v => setRuleForm(f => ({ ...f, agent_id: v }))}
+                options={[{ value: '', label: 'Agent principal...' }, ...agents.map(a => ({ value: a.id, label: a.name }))]} placeholder="Agent principal" />
+              <CustomSelect value={ruleForm.fallback_agent_id} onChange={v => setRuleForm(f => ({ ...f, fallback_agent_id: v }))}
+                options={[{ value: '', label: 'Agent fallback (optionnel)' }, ...agents.map(a => ({ value: a.id, label: a.name }))]} placeholder="Agent fallback" />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}><button onClick={addRule} style={btnPrimary}>Créer</button><button onClick={() => setShowAddRule(false)} style={btnSecondary}>Annuler</button></div>
+          </div>
+        )}
+
+        {/* Routing test panel */}
+        <div style={{ ...cardStyle, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 8 }}>Tester le routage</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input value={routingTest.message} onChange={e => setRoutingTest(p => ({ ...p, message: e.target.value, result: null }))} placeholder="Message test..." style={{ ...inputStyle, flex: 1 }} />
+            <input value={routingTest.channel} onChange={e => setRoutingTest(p => ({ ...p, channel: e.target.value, result: null }))} placeholder="Canal (opt.)" style={{ ...inputStyle, width: 120 }} />
+            <button onClick={testRouting} style={btnPrimary}>Tester</button>
+          </div>
+          {routingTest.result && (
+            <div style={{ marginTop: 8, padding: 8, background: th.codeBg, borderRadius: 6, fontSize: 12 }}>
+              <span style={{ color: th.textSub }}>Agent : </span><span style={{ color: '#4ade80', fontWeight: 700 }}>{routingTest.result.agent_name || 'Aucun'}</span>
+              <span style={{ color: th.textMuted, marginLeft: 12 }}>Règle : {routingTest.result.matched_rule || 'aucune'}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Rules list */}
+        {routingRules.length === 0 ? (
+          <div style={{ color: th.textMuted, textAlign: 'center', padding: 32 }}>Aucune règle de routage. Les tickets iront au premier agent actif.</div>
+        ) : routingRules.map(rule => (
+          <div key={rule.id} style={{ ...cardStyle, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: th.text }}>{rule.name}</span>
+                <span style={badgeStyle(rule.is_active ? '#4ade80' : '#f87171')}>{rule.is_active ? 'Actif' : 'Inactif'}</span>
+                <span style={badgeStyle('#818cf8')}>{rule.condition_type}</span>
+              </div>
+              <div style={{ fontSize: 12, color: th.textSub, marginTop: 4 }}>
+                Si <strong style={{ color: th.text }}>{rule.condition_type}</strong> = "{rule.condition_value}" → <strong style={{ color: '#4ade80' }}>{rule.agent_name}</strong>
+                {rule.fallback_agent_name && <span> (fallback: {rule.fallback_agent_name})</span>}
+                <span style={{ color: th.textMuted, marginLeft: 8 }}>Priorité: {rule.priority} · {rule.matches_count} matchs</span>
+              </div>
+            </div>
+            <button onClick={() => toggleRule(rule.id, rule.is_active)} style={btnSecondary}>{rule.is_active ? 'Désactiver' : 'Activer'}</button>
+            <button onClick={() => deleteRule(rule.id)} style={{ ...btnSecondary, color: '#fca5a5' }}><Trash2 size={13} /></button>
+          </div>
+        ))}
+      </>)}
+
+      {/* ── Performance tab ── */}
+      {tab === 'performance' && (<>
+        <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Comparatif des agents IA</div>
+        {performance.length === 0 ? (
+          <div style={{ color: th.textMuted, textAlign: 'center', padding: 32 }}>Aucun agent configuré</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+            {performance.map((a: any) => (
+              <div key={a.id} style={cardStyle}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: th.text }}>{a.name}</div>
+                  <span style={badgeStyle(a.is_active ? '#4ade80' : '#f87171')}>{a.is_active ? 'Actif' : 'Inactif'}</span>
+                </div>
+                {a.department && <div style={{ fontSize: 12, color: '#818cf8', marginBottom: 6 }}>{a.department}</div>}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+                  {a.topics?.map((t: string) => <span key={t} style={badgeStyle('#6366f1')}>{t}</span>)}
+                  {a.languages?.map((l: string) => <span key={l} style={badgeStyle('#22c55e')}>{l}</span>)}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 12 }}>
+                  <div style={{ padding: '6px 0', borderBottom: `1px solid ${th.divider}` }}>
+                    <div style={{ color: th.textSub }}>Tickets traités</div>
+                    <div style={{ color: th.text, fontWeight: 700, fontSize: 18 }}>{a.tickets_handled}</div>
+                  </div>
+                  <div style={{ padding: '6px 0', borderBottom: `1px solid ${th.divider}` }}>
+                    <div style={{ color: th.textSub }}>Auto-résolus</div>
+                    <div style={{ color: '#4ade80', fontWeight: 700, fontSize: 18 }}>{a.auto_resolved_count}</div>
+                  </div>
+                  <div style={{ padding: '6px 0', borderBottom: `1px solid ${th.divider}` }}>
+                    <div style={{ color: th.textSub }}>Taux résolution</div>
+                    <div style={{ color: a.resolution_rate >= 70 ? '#4ade80' : a.resolution_rate >= 40 ? '#fbbf24' : '#f87171', fontWeight: 700, fontSize: 16 }}>{a.resolution_rate}%</div>
+                  </div>
+                  <div style={{ padding: '6px 0', borderBottom: `1px solid ${th.divider}` }}>
+                    <div style={{ color: th.textSub }}>Confiance moy.</div>
+                    <div style={{ color: th.text, fontWeight: 700, fontSize: 16 }}>{(a.avg_confidence * 100).toFixed(0)}%</div>
+                  </div>
+                  <div style={{ padding: '6px 0' }}>
+                    <div style={{ color: th.textSub }}>Tickets ouverts</div>
+                    <div style={{ color: '#fbbf24', fontWeight: 700 }}>{a.open_tickets}</div>
+                  </div>
+                  <div style={{ padding: '6px 0' }}>
+                    <div style={{ color: th.textSub }}>Escaladés</div>
+                    <div style={{ color: '#f87171', fontWeight: 700 }}>{a.escalated_tickets}</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 11, color: th.textMuted }}>
+                  {a.active_channels} canaux · {a.routing_rules} règles · {a.routing_matches} routages
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>)}
+
     </div></div>
   )
 }
@@ -2999,7 +3150,10 @@ function AnalyticsView() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiFetch(`${API_BASE}/api/analytics/overview`, { headers: webHdrs() }).then(r => r.json()).then(d => setData(d)).catch(() => {}).finally(() => setLoading(false))
+    Promise.all([
+      apiFetch(`${API_BASE}/api/analytics/overview`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({})),
+      apiFetch(`${API_BASE}/api/helpdesk/auto-resolution/stats`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({})),
+    ]).then(([overview, autoRes]) => setData({ ...overview, ...autoRes })).finally(() => setLoading(false))
   }, [])
 
   if (loading) return <div style={{ ...viewWrap, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><Spinner /></div>
@@ -3062,10 +3216,22 @@ function AnalyticsView() {
         </div>
 
         <div style={cardStyle}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Résolution automatique</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Résolution automatique IA</div>
           <div style={{ fontSize: 36, fontWeight: 800, color: '#4ade80' }}>{data.auto_resolved}</div>
-          <div style={{ fontSize: 12, color: th.textSub }}>tickets résolus automatiquement par l'IA</div>
+          <div style={{ fontSize: 12, color: th.textSub }}>tickets résolus automatiquement</div>
           {data.total_tickets > 0 && <div style={{ fontSize: 13, color: '#818cf8', marginTop: 8 }}>{Math.round(data.auto_resolved / data.total_tickets * 100)}% taux de résolution auto</div>}
+          {data.auto_resolution_success_rate != null && <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, padding: '6px 0', borderTop: `1px solid ${th.divider}` }}>
+            <span style={{ fontSize: 12, color: th.textSub }}>Taux de succès</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: data.auto_resolution_success_rate >= 80 ? '#4ade80' : data.auto_resolution_success_rate >= 50 ? '#fbbf24' : '#f87171' }}>{data.auto_resolution_success_rate}%</span>
+          </div>}
+          {data.avg_confidence != null && data.avg_confidence > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+            <span style={{ fontSize: 12, color: th.textSub }}>Confiance moy.</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: th.text }}>{(data.avg_confidence * 100).toFixed(0)}%</span>
+          </div>}
+          {data.reopened_after_auto != null && data.reopened_after_auto > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+            <span style={{ fontSize: 12, color: th.textSub }}>Réouvertures</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#f87171' }}>{data.reopened_after_auto}</span>
+          </div>}
         </div>
       </div>
     </div></div>

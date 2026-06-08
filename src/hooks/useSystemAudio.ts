@@ -209,10 +209,10 @@ export function useSystemAudio() {
 
   // ── Knowledge base RAG toggle ─────────────────────────────────────────────────
   const [kbEnabled, setKbEnabledState] = useState<boolean>(
-    () => safeLocalStorage.getItem("kb_enabled") === "true"
+    () => { const v = safeLocalStorage.getItem("kb_enabled"); return v === null ? true : v === "true"; }
   );
   const kbEnabledRef = useRef<boolean>(
-    safeLocalStorage.getItem("kb_enabled") === "true"
+    (() => { const v = safeLocalStorage.getItem("kb_enabled"); return v === null ? true : v === "true"; })()
   );
   // Keep ref in sync with state (mirrors autoSendEmailRef pattern)
   useEffect(() => { kbEnabledRef.current = kbEnabled; }, [kbEnabled]);
@@ -1015,15 +1015,14 @@ export function useSystemAudio() {
                     `[${i + 1}] From "${r.document_name}":\n${r.content}`
                 )
                 .join("\n\n");
-              promptWithContext = `${promptWithClipboard}\n\n--- Relevant knowledge base excerpts ---\n${kbContext}\n---`;
+              promptWithContext = `${promptWithPlaybook}\n\n--- Relevant knowledge base excerpts ---\n${kbContext}\n---`;
             }
           } catch {
             // KB search is best-effort — silently ignore errors
           }
         }
 
-        // Inject live data from integrations if query seems integration-related
-        const integrationKeywords = /issue|ticket|bug|task|pr|merge request|mr|commit|repo|project|sprint|jira|gitlab|github|notion|confluence|salesforce|shopify|feature|story|postgres|postgresql|mysql|database|sql|base de donn|requ[eê]te|table|query|schéma|schema|\bdb\b|base de|données|ma base|mon database|ma database/i;
+        // Inject live data from connected integrations
         try {
           const integrations = await invoke<Array<{ id: string; provider: string; name: string }>>("kb_list_integrations");
           const actionable = integrations.filter((i) =>
@@ -1034,8 +1033,8 @@ export function useSystemAudio() {
             const integList = actionable.map((i) => `- ${i.name} (${i.provider})`).join("\n");
             promptWithContext += `\n\n--- Intégrations connectées ---\n${integList}\n---`;
 
-            // Fetch live data if the query seems integration-related
-            if (integrationKeywords.test(transcription)) {
+            // Always fetch live data when integrations are connected
+            {
               const liveContextParts: string[] = [];
               const dbIntegrations = actionable.filter((i) => ["postgres", "mysql"].includes(i.provider));
 
@@ -1050,7 +1049,7 @@ export function useSystemAudio() {
                       liveContextParts.push(`--- Schéma base de données "${integ.name}" (${integ.provider}) ---\n${schema}`);
                     }
                   } catch (e) {
-                    invoke("debug_log", { msg: `[kb_database_get_schema] ${integ.name}: ${e}` }).catch(() => {});
+                    invoke("debug_log", { message: `[kb_database_get_schema] ${integ.name}: ${e}` }).catch(() => {});
                   }
                 })
               );
@@ -1065,7 +1064,7 @@ export function useSystemAudio() {
                     });
                     if (liveData && liveData.trim()) liveContextParts.push(liveData);
                   } catch (e) {
-                    invoke("debug_log", { msg: `[kb_integration_live_query] ${integ.name} (${integ.provider}): ${e}` }).catch(() => {});
+                    invoke("debug_log", { message: `[kb_integration_live_query] ${integ.name} (${integ.provider}): ${e}` }).catch(() => {});
                   }
                 })
               );
@@ -1096,6 +1095,31 @@ export function useSystemAudio() {
             }
           }
         } catch { /* best-effort */ }
+
+        // Inject upcoming calendar events as context (best-effort)
+        try {
+          const calendarEvents = await invoke<Array<{
+            summary: string;
+            start: string;
+            end: string;
+            description?: string;
+            attendees: string[];
+            location?: string;
+          }>>("kb_calendar_upcoming", { maxResults: 5 });
+          if (calendarEvents && calendarEvents.length > 0) {
+            const now = new Date();
+            const calContext = calendarEvents.map((ev) => {
+              const start = new Date(ev.start);
+              const diffMin = Math.round((start.getTime() - now.getTime()) / 60000);
+              const timeLabel = diffMin > 0 ? `in ${diffMin} min` : diffMin === 0 ? "now" : `${Math.abs(diffMin)} min ago`;
+              let line = `- ${ev.summary} (${timeLabel}, ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`;
+              if (ev.attendees.length > 0) line += ` — with: ${ev.attendees.slice(0, 5).join(", ")}`;
+              if (ev.location) line += ` — ${ev.location}`;
+              return line;
+            }).join("\n");
+            promptWithContext += `\n\n--- Upcoming calendar events ---\n${calContext}\n---`;
+          }
+        } catch { /* calendar not connected — ignore */ }
 
         // Only pass image if the current model/provider supports vision
         const canSendImage = imageBase64 && supportsImages &&

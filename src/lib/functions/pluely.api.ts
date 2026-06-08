@@ -5,9 +5,9 @@ import { STORAGE_KEYS } from "@/config";
 // Helper function to check if Lamu API should be used
 export async function shouldUseLamuAPI(): Promise<boolean> {
   try {
-    // Check if Lamu API is enabled in localStorage
-    const lamuApiEnabled =
-      safeLocalStorage.getItem(STORAGE_KEYS.LAMU_API_ENABLED) === "true";
+    // Check if Lamu API is enabled in localStorage (default to true for new users)
+    const stored = safeLocalStorage.getItem(STORAGE_KEYS.LAMU_API_ENABLED);
+    const lamuApiEnabled = stored === null ? true : stored === "true";
     if (!lamuApiEnabled) return false;
 
     // Allow during active trial (no license required)

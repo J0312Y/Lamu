@@ -219,12 +219,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return stored === null ? true : stored === "true";
   });
 
+  // Dev bypass — skip all license/trial gates during development
+  const isDevMode = import.meta.env.DEV;
+
   // Lamu API gate — only blocks Lamu API users (they pay Lamu for AI access)
-  const isBlocked = lamuApiEnabled && trialExpired && !hasActiveLicense;
+  const isBlocked = isDevMode ? false : lamuApiEnabled && trialExpired && !hasActiveLicense;
 
   // Premium features gate — blocks access to advanced features regardless of provider
   // Basic chat overlay remains free; everything else requires a license after trial
-  const isPremiumBlocked = trialExpired && !hasActiveLicense;
+  const isPremiumBlocked = isDevMode ? false : trialExpired && !hasActiveLicense;
 
   const getActiveLicenseStatus = async () => {
     const response: {

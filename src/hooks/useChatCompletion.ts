@@ -12,6 +12,7 @@ import {
   generateRequestId,
   getResponseSettings,
 } from "@/lib";
+import { safeLocalStorage } from "@/lib/storage/helper";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
@@ -239,6 +240,119 @@ export const useChatCompletion = (
 
         let fullResponse = "";
 
+        // ── Enrich context with KB, integrations, calendar (like overlay) ──
+        let enrichedSystemPrompt = systemPrompt || "";
+        const kbEnabled = (() => { const v = safeLocalStorage.getItem("kb_enabled"); return v === null ? true : v === "true"; })();
+
+        if (kbEnabled) {
+          // 1. Knowledge Base RAG search
+          try {
+            const kbResults = await invoke<Array<{
+              document_name: string;
+              content: string;
+              similarity: number;
+            }>>("kb_search", { query: input, topK: 5 });
+
+            const relevant = kbResults.filter((r) => r.similarity > 0.3);
+            if (relevant.length > 0) {
+              const kbContext = relevant
+                .map((r, i) => `[${i + 1}] From "${r.document_name}":\n${r.content}`)
+                .join("\n\n");
+              enrichedSystemPrompt += `\n\n--- Relevant knowledge base excerpts ---\n${kbContext}\n---`;
+            }
+          } catch { /* KB search is best-effort */ }
+
+          // 2. Connected integrations + live data
+          try {
+            const integrations = await invoke<Array<{ id: string; provider: string; name: string }>>("kb_list_integrations");
+            const actionable = integrations.filter((i) =>
+              ["gitlab", "github", "jira", "confluence", "notion", "salesforce", "shopify", "postgres", "mysql"].includes(i.provider)
+            );
+            if (actionable.length > 0) {
+              const integList = actionable.map((i) => `- ${i.name} (${i.provider})`).join("\n");
+              enrichedSystemPrompt += `\n\n--- Connected integrations ---\n${integList}\n---`;
+
+              const liveContextParts: string[] = [];
+              const dbIntegrations = actionable.filter((i) => ["postgres", "mysql"].includes(i.provider));
+
+              // Fetch DB schemas
+              await Promise.all(
+                dbIntegrations.slice(0, 3).map(async (integ) => {
+                  try {
+                    const schema = await invoke<string>("kb_database_get_schema", { integrationId: integ.id });
+                    if (schema && schema.trim()) {
+                      liveContextParts.push(`--- Database schema "${integ.name}" (${integ.provider}) ---\n${schema}`);
+                    }
+                  } catch { /* best-effort */ }
+                })
+              );
+
+              // Fetch live data from integrations
+              await Promise.all(
+                actionable.slice(0, 3).map(async (integ) => {
+                  try {
+                    const liveData = await invoke<string>("kb_integration_live_query", {
+                      integrationId: integ.id,
+                      queryHint: input,
+                    });
+                    if (liveData && liveData.trim()) liveContextParts.push(liveData);
+                  } catch { /* best-effort */ }
+                })
+              );
+
+              if (liveContextParts.length > 0) {
+                enrichedSystemPrompt += `\n\n--- Live data ---\n${liveContextParts.join("\n\n")}\n---`;
+              }
+
+              // SQL generation instructions for DB integrations
+              if (dbIntegrations.length > 0) {
+                const dbDetails = dbIntegrations.map((i) => `"${i.name}" (${i.provider})`).join(", ");
+                const isMySQL = dbIntegrations.some((i) => i.provider === "mysql");
+                const isPG = dbIntegrations.some((i) => i.provider === "postgres");
+                let sqlHints = `\n\n[DATABASE INSTRUCTIONS — MANDATORY]`;
+                sqlHints += `\nYou have DIRECT access to the following databases: ${dbDetails}.`;
+                sqlHints += `\nThe full schema with all tables and columns is provided above. You KNOW the database structure.`;
+                sqlHints += `\nYou can execute SQL queries — the system will automatically execute any query in a \`\`\`sql\`\`\` block.`;
+                sqlHints += `\nRULES:`;
+                sqlHints += `\n1. When the user asks for data, ANALYZE the provided schema to identify the correct table. Then generate the SQL query in a \`\`\`sql\`\`\` block.`;
+                sqlHints += `\n2. NEVER say "I cannot access the database" or "I cannot show real data" — you CAN via \`\`\`sql\`\`\` blocks.`;
+                sqlHints += `\n3. Only use tables and columns from the provided schema. Do not invent anything.`;
+                sqlHints += `\n4. NEVER generate queries on information_schema. You already have the full schema.`;
+                sqlHints += `\n5. For reports: generate SQL queries with aggregations (COUNT, SUM, AVG, GROUP BY). You can generate multiple \`\`\`sql\`\`\` blocks in one response.`;
+                sqlHints += `\n6. VERY IMPORTANT: NEVER invent fictional data or examples. Only generate SQL block(s) and a brief explanation. Real results will be displayed after execution.`;
+                if (isMySQL) sqlHints += `\n7. MySQL: use DATABASE() instead of the database name in WHERE clauses.`;
+                if (isPG) sqlHints += `\n7. PostgreSQL: default schema is 'public'.`;
+                enrichedSystemPrompt += sqlHints;
+              }
+            }
+          } catch { /* best-effort */ }
+
+          // 3. Calendar events
+          try {
+            const calendarEvents = await invoke<Array<{
+              summary: string;
+              start: string;
+              end: string;
+              description?: string;
+              attendees: string[];
+              location?: string;
+            }>>("kb_calendar_upcoming", { maxResults: 5 });
+            if (calendarEvents && calendarEvents.length > 0) {
+              const now = new Date();
+              const calContext = calendarEvents.map((ev) => {
+                const start = new Date(ev.start);
+                const diffMin = Math.round((start.getTime() - now.getTime()) / 60000);
+                const timeLabel = diffMin > 0 ? `in ${diffMin} min` : diffMin === 0 ? "now" : `${Math.abs(diffMin)} min ago`;
+                let line = `- ${ev.summary} (${timeLabel}, ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})`;
+                if (ev.attendees.length > 0) line += ` — with: ${ev.attendees.slice(0, 5).join(", ")}`;
+                if (ev.location) line += ` — ${ev.location}`;
+                return line;
+              }).join("\n");
+              enrichedSystemPrompt += `\n\n--- Upcoming calendar events ---\n${calContext}\n---`;
+            }
+          } catch { /* best-effort */ }
+        }
+
         // Only send images if the current model/provider supports vision
         const canSendImages =
           imagesBase64.length > 0 &&
@@ -263,7 +377,7 @@ export const useChatCompletion = (
           for await (const chunk of fetchAIResponse({
             provider: useLamuAPI ? undefined : provider,
             selectedProvider: selectedAIProvider,
-            systemPrompt: systemPrompt || undefined,
+            systemPrompt: enrichedSystemPrompt || undefined,
             history: messageHistory,
             userMessage: input,
             imagesBase64: canSendImages ? imagesBase64 : [],

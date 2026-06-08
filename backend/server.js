@@ -21,7 +21,7 @@ const httpServer = http.createServer(app);
 
 // ─── Socket.io — real-time notifications ─────────────────────────────────────
 const io = new SocketServer(httpServer, {
-  cors: { origin: '*', methods: ['GET', 'POST'] },
+  cors: { origin: process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()) : '*', methods: ['GET', 'POST'] },
   path: '/ws',
 });
 
@@ -438,6 +438,45 @@ async function createMailer() {
   });
 }
 
+// Send auto-resolution confirmation email to customer
+async function sendAutoResolutionEmail(toEmail, customerName, ticketId, aiReply, lang) {
+  const mailer = await createMailer();
+  if (!mailer) return;
+  const smtp = await getSmtpSettings();
+  const name = customerName || toEmail.split('@')[0];
+  const isFr = lang === 'fr';
+  const appEndpoint = process.env.APP_ENDPOINT || 'https://lamuka-tech.com';
+
+  const subject = isFr
+    ? `[${ticketId}] Votre demande a été traitée — Lamu Support`
+    : `[${ticketId}] Your request has been handled — Lamu Support`;
+
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,sans-serif">
+<div style="max-width:560px;margin:32px auto;background:#111;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:32px;color:#e5e5e5">
+  <h2 style="color:#fff;margin:0 0 16px">${isFr ? `Bonjour ${name}` : `Hi ${name}`}</h2>
+  <p style="line-height:1.6;margin:0 0 16px">${isFr
+    ? 'Nous avons traité votre demande automatiquement. Voici notre réponse :'
+    : 'We have automatically handled your request. Here is our response:'}</p>
+  <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:8px;padding:16px;margin:16px 0;line-height:1.6;color:#d1d5db">
+    ${aiReply.replace(/\n/g, '<br>')}
+  </div>
+  <p style="line-height:1.6;margin:16px 0">${isFr
+    ? 'Si cette réponse ne résout pas votre problème, répondez simplement à cet email et un agent humain prendra le relais.'
+    : 'If this does not resolve your issue, simply reply to this email and a human agent will take over.'}</p>
+  <div style="text-align:center;margin:24px 0">
+    <a href="mailto:${smtp.from || 'support@lamuka-tech.com'}?subject=Re: [${ticketId}]"
+       style="display:inline-block;padding:10px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
+      ${isFr ? "Ce n'est pas résolu" : "Not resolved — contact support"}
+    </a>
+  </div>
+  <p style="font-size:12px;color:rgba(255,255,255,0.3);text-align:center;margin-top:24px">
+    Ticket: ${ticketId} · Lamu Support
+  </p>
+</div></body></html>`;
+
+  await mailer.sendMail({ from: smtp.from, to: toEmail, subject, html, text: aiReply });
+}
+
 async function sendLicenseEmail({ to, name, licenseKey, planName, amount, currency, txId }) {
   const mailer = await createMailer();
   if (!mailer) { console.log('[email] SMTP non configuré — email skippé pour', to); return; }
@@ -460,8 +499,12 @@ async function sendLicenseEmail({ to, name, licenseKey, planName, amount, curren
 app.use(express.json({ limit: '10mb' }));
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '*').split(',').map(s => s.trim());
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes('*') || ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Webapp-Token');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -1110,6 +1153,7 @@ app.post('/api/kb/text', requireAuth, async (req, res) => {
 // DELETE /api/kb/:id
 app.delete('/api/kb/:id', requireAuth, async (req, res) => {
   try {
+    await db.query('DELETE FROM kb_chunks WHERE document_id = ?', [req.params.id]);
     const result = await db.query('DELETE FROM kb_documents WHERE id = ?', [req.params.id]);
     res.json({ removed: result.affectedRows });
   } catch (err) {
@@ -1466,26 +1510,84 @@ ${userGreeting}`;
   // Merge: Lamu identity + user custom system prompt + multi-lang
   let systemContent = system ? `${lamuIdentity}${langPrompt}\n\n## Additional instructions\n${system}` : `${lamuIdentity}${langPrompt}`;
 
-  // Inject KB context
+  // Inject KB context via semantic RAG search (not brute-force dump)
   try {
-    let kbDocs = []
-    if (Array.isArray(kbIds) && kbIds.length > 0) {
-      const placeholders = kbIds.map(() => '?').join(',')
-      kbDocs = await db.query(
-        `SELECT name, content FROM kb_documents WHERE id IN (${placeholders}) ORDER BY created_at DESC`,
-        kbIds
-      )
-    } else {
-      kbDocs = await db.query('SELECT name, content FROM kb_documents ORDER BY created_at DESC');
-    }
-    if (kbDocs.length > 0) {
-      const context = kbDocs.map(d => `### ${d.name}\n${d.content}`).join('\n\n---\n\n').slice(0, 24000);
-      const kbBlock = `\n\n## Knowledge Base\nUse the following documents to answer questions accurately:\n\n${context}`;
-      systemContent = systemContent + kbBlock;
+    const ragQuery = lastUserMsg?.content?.slice(0, 500) || '';
+
+    if (ragQuery) {
+      // Use semantic RAG search (same as /api/kb/search) for relevant chunks
+      let ragResults = [];
+      try {
+        ragResults = await ragSearch(ragQuery, 8);
+      } catch { /* RAG unavailable, fall back to targeted doc loading */ }
+
+      if (ragResults.length > 0) {
+        // Inject only the most relevant chunks (scored by cosine + BM25)
+        const context = ragResults
+          .map((r, i) => `[${i + 1}] From "${r.name}":\n${r.content || r.excerpt || ''}`)
+          .join('\n\n');
+        systemContent += `\n\n## Relevant Knowledge Base Excerpts\nUse these to answer accurately. Cite sources in [brackets].\n\n${context}`;
+      } else if (Array.isArray(kbIds) && kbIds.length > 0) {
+        // Fallback: load specific docs if kbIds provided
+        const placeholders = kbIds.map(() => '?').join(',');
+        const kbDocs = await db.query(
+          `SELECT name, content FROM kb_documents WHERE id IN (${placeholders}) ORDER BY created_at DESC`,
+          kbIds
+        );
+        if (kbDocs.length > 0) {
+          const context = kbDocs.map(d => `### ${d.name}\n${d.content}`).join('\n\n---\n\n').slice(0, 16000);
+          systemContent += `\n\n## Knowledge Base\nUse the following documents to answer questions accurately:\n\n${context}`;
+        }
+      } else {
+        // Final fallback: keyword search in docs
+        const needle = `%${ragQuery.split(/\s+/).slice(0, 5).join('%')}%`;
+        const kbDocs = await db.query(
+          `SELECT name, content FROM kb_documents WHERE name LIKE ? OR content LIKE ? ORDER BY created_at DESC LIMIT 5`,
+          [needle, needle]
+        );
+        if (kbDocs.length > 0) {
+          const context = kbDocs.map(d => `### ${d.name}\n${d.content.slice(0, 3000)}`).join('\n\n---\n\n');
+          systemContent += `\n\n## Knowledge Base\nUse the following documents to answer questions accurately:\n\n${context}`;
+        }
+      }
     }
   } catch (err) {
     console.error('[/api/chat] KB load error:', err.message);
   }
+
+  // Inject live integration data (connected sources) for contextual answers
+  try {
+    const integrations = await db.query('SELECT id, provider, name, config FROM integrations WHERE config IS NOT NULL');
+    if (integrations.length > 0) {
+      const integList = integrations.map(i => `- ${i.name} (${i.provider})`).join('\n');
+      systemContent += `\n\n## Connected Integrations\n${integList}`;
+      systemContent += `\nYou have access to data from these sources. When the user asks about data that could come from these integrations, provide answers based on the knowledge base content that was synced from them.`;
+    }
+  } catch { /* best-effort */ }
+
+  // Add AI Actions instructions — tell the AI it can execute tools
+  systemContent += `\n\n## AI Actions (Function Calling)
+You have tools available to EXECUTE actions on behalf of the user. When the user asks you to DO something (not just answer a question), use your tools:
+- query_stats: get business metrics (activity, licenses, trials, revenue, top models)
+- search_knowledge_base: search internal documents semantically
+- compile_report: create structured Markdown reports
+- send_email: draft and send emails (requires approval)
+- create_task: create tasks/action items (syncs to Notion if configured)
+- extract_action_items: parse meeting notes into structured tasks
+- github_*: interact with GitHub (create issues, PRs, list repos, etc.)
+- gitlab_*: interact with GitLab (issues, merge requests, pipelines)
+- jira_*: interact with Jira (create/update issues, search, transitions)
+- slack_*: interact with Slack (send messages, list channels)
+- notion_*: interact with Notion (create pages, query databases)
+- google_*: interact with Google (Drive, Calendar, Gmail)
+- stripe_*: interact with Stripe (customers, invoices, subscriptions)
+
+RULES:
+1. When the user asks a question that can be answered with a tool, USE the tool instead of guessing.
+2. When the user asks you to perform an action (send email, create ticket, etc.), USE the appropriate tool.
+3. Always confirm WHAT you will do before executing destructive actions.
+4. After executing a tool, summarize the result clearly to the user.
+5. You can chain multiple tools in one response (e.g., query stats → compile report → send email).`;
 
   const fullMessages = systemContent
     ? [{ role: 'system', content: systemContent }, ...messages]
@@ -1502,11 +1604,106 @@ ${userGreeting}`;
     let parsedExtras = {};
     try { parsedExtras = JSON.parse(ai.bodyExtras || '{}'); } catch {}
 
-    // Try primary provider, fall back if configured
+    const chatModel = model || getModelForUseCase(ai, useCase || 'chat');
+    const { getAllToolSchemas, APPROVAL_REQUIRED, executeTool } = require('./tools');
+    const chatTools = getAllToolSchemas().filter(t => t.function.name !== 'finish');
+
+    // Build integration context for tool execution (use server-stored OAuth tokens)
+    let integContext = {};
+    try {
+      const tokens = await db.query('SELECT provider, access_token FROM oauth_tokens');
+      for (const t of tokens) {
+        if (t.provider === 'github') integContext.github = { token: t.access_token };
+        if (t.provider === 'gitlab') integContext.gitlab = { token: t.access_token };
+        if (t.provider === 'slack')  integContext.slack  = { token: t.access_token };
+        if (t.provider === 'notion') integContext.notion = { apiKey: t.access_token };
+        if (t.provider === 'google') integContext.google = { accessToken: t.access_token };
+      }
+      // Jira / Stripe from settings
+      const jiraConf = await db.queryOne("SELECT value FROM settings WHERE `key`='jira_config'").catch(() => null);
+      if (jiraConf?.value) { try { integContext.jira = JSON.parse(jiraConf.value); } catch {} }
+      const stripeKey = await db.queryOne("SELECT value FROM settings WHERE `key`='stripe_api_key'").catch(() => null);
+      if (stripeKey?.value) integContext.stripe = { apiKey: stripeKey.value };
+    } catch { /* best-effort */ }
+
+    // ── Function calling loop (max 5 tool iterations) ──
+    const MAX_TOOL_ROUNDS = 5;
+    let loopMessages = [...fullMessages];
+    let toolRound = 0;
+
+    while (toolRound < MAX_TOOL_ROUNDS) {
+      // First, try non-streaming call with tools to see if AI wants to use a tool
+      let aiMsg;
+      try {
+        const toolRes = await fetch(ai.primaryUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
+          body: JSON.stringify({ model: chatModel, messages: loopMessages, tools: chatTools, tool_choice: 'auto', temperature: 0.3, max_tokens: 4096, ...parsedExtras }),
+        });
+        if (!toolRes.ok) break; // Fall through to streaming
+        const data = await toolRes.json();
+        aiMsg = data.choices?.[0]?.message;
+        if (!aiMsg) break;
+      } catch { break; }
+
+      // If no tool calls, the AI has a final text response — stream it
+      if (!aiMsg.tool_calls || aiMsg.tool_calls.length === 0) {
+        // AI responded with text content directly — send it as streaming deltas
+        if (aiMsg.content) {
+          // Send in small chunks to simulate streaming feel
+          const content = aiMsg.content;
+          const CHUNK_SIZE = 12;
+          for (let i = 0; i < content.length; i += CHUNK_SIZE) {
+            send({ delta: content.slice(i, i + CHUNK_SIZE) });
+          }
+        }
+        send({ done: true });
+        return res.end();
+      }
+
+      // Execute tool calls
+      loopMessages.push(aiMsg); // Add assistant message with tool_calls
+      send({ delta: '', tool_calls: aiMsg.tool_calls.map(tc => ({ name: tc.function.name, args: tc.function.arguments })) });
+
+      for (const toolCall of aiMsg.tool_calls) {
+        const fnName = toolCall.function.name;
+        let fnArgs = {};
+        try { fnArgs = JSON.parse(toolCall.function.arguments || '{}'); } catch {}
+
+        // Check if requires approval — for chat mode, skip send_email approval (it will just draft)
+        if (APPROVAL_REQUIRED.has(fnName)) {
+          // In chat mode, show what would be done but don't execute
+          const draftResult = { action: fnName, status: 'draft', args: fnArgs, message: `Action "${fnName}" prepared. Use the Agent panel to execute with approval.` };
+          loopMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(draftResult) });
+          send({ delta: `\n\n> ⚡ **Action prepared:** ${fnName}\n` });
+          continue;
+        }
+
+        // Execute the tool
+        send({ delta: `\n\n> 🔧 *${fnName}*...\n` });
+        let toolResult;
+        try {
+          toolResult = await executeTool(fnName, fnArgs, { getSmtp: getSmtpSettings, integrations: integContext });
+        } catch (toolErr) {
+          toolResult = { error: toolErr.message };
+        }
+
+        // Client-side tools (db_schema, db_query) — can't execute server-side for webapp
+        if (toolResult?.needs_client_execution) {
+          toolResult = { error: `Tool "${fnName}" requires a database connection from the desktop app. This action is not available in the web version.` };
+        }
+
+        loopMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(toolResult) });
+      }
+
+      toolRound++;
+    }
+
+    // Final streaming response (after tool loop or if tools not supported by provider)
     let aiRes = await fetch(ai.primaryUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
-      body: JSON.stringify({ model: model || getModelForUseCase(ai, useCase || 'chat'), messages: fullMessages, stream: true, ...parsedExtras }),
+      body: JSON.stringify({ model: chatModel, messages: loopMessages, stream: true, ...parsedExtras }),
     }).catch(() => null);
 
     if (!aiRes || !aiRes.ok) {
@@ -1516,7 +1713,7 @@ ${userGreeting}`;
         aiRes = await fetch(ai.fallbackUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.fallbackKey}` },
-          body: JSON.stringify({ model: model || getModelForUseCase(ai, useCase || 'chat'), messages: fullMessages, stream: true, ...parsedExtras }),
+          body: JSON.stringify({ model: chatModel, messages: loopMessages, stream: true, ...parsedExtras }),
         }).catch(() => null);
       }
     }
@@ -1632,6 +1829,8 @@ async function ensureActivityTables() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Add activity_type column if missing
+  try { await db.query("ALTER TABLE activity_log ADD COLUMN activity_type VARCHAR(50) DEFAULT 'api_call'"); } catch {}
 }
 
 async function ensureMonitoringTables() {
@@ -1690,6 +1889,27 @@ async function ensureLicenseTables() {
   // Add whatsapp_phone column if missing (for WhatsApp bot client identification)
   try { await db.query("ALTER TABLE licenses ADD COLUMN whatsapp_phone VARCHAR(30) NULL"); } catch {}
   try { await db.query("CREATE INDEX idx_wa_phone ON licenses (whatsapp_phone)"); } catch {}
+  // Add notes column if missing
+  try { await db.query("ALTER TABLE licenses ADD COLUMN notes TEXT NULL"); } catch {}
+
+  // Ensure trials table exists
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS trials (
+      instance_id VARCHAR(255) PRIMARY KEY,
+      user_name VARCHAR(255) NULL,
+      first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { await db.query('ALTER TABLE trials ADD COLUMN user_name VARCHAR(255) NULL'); } catch {}
+  try { await db.query('ALTER TABLE trials ADD COLUMN last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP'); } catch {}
+  try { await db.query('ALTER TABLE trials ADD COLUMN email VARCHAR(255) NULL'); } catch {}
+  try { await db.query('ALTER TABLE trials ADD COLUMN app_version VARCHAR(50) NULL'); } catch {}
+  try { await db.query('ALTER TABLE trials ADD COLUMN trial_expires_at DATETIME NULL'); } catch {}
+  try { await db.query('ALTER TABLE trials ADD COLUMN is_converted TINYINT(1) DEFAULT 0'); } catch {}
+  try { await db.query('ALTER TABLE trials ADD COLUMN converted_at DATETIME NULL'); } catch {}
+  try { await db.query('ALTER TABLE trials ADD COLUMN license_key VARCHAR(200) NULL'); } catch {}
 
   // Ensure plans table has all needed columns (safe ALTERs)
   const planCols = [
@@ -1781,6 +2001,13 @@ async function ensureHelpdeskTicketsTable() {
       INDEX idx_status (status)
     )
   `);
+  // Auto-resolution columns
+  try { await db.query("ALTER TABLE helpdesk_tickets ADD COLUMN auto_resolved TINYINT(1) DEFAULT 0"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_tickets ADD COLUMN resolution_confidence FLOAT DEFAULT 0"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_tickets ADD COLUMN reopened_count INT DEFAULT 0"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_tickets ADD COLUMN last_reopened_at TIMESTAMP NULL"); } catch {}
+  // Analytics column
+  try { await db.query("ALTER TABLE analytics_conversations ADD COLUMN resolution_confidence FLOAT DEFAULT 0"); } catch {}
 }
 
 async function ensureEscalationTable() {
@@ -1814,6 +2041,65 @@ async function ensureChannelsTable() {
       INDEX idx_agent (agent_id)
     )
   `);
+}
+
+// ── Multi-agent routing ──────────────────────────────────────────────────────
+
+async function ensureAgentRoutingTables() {
+  // Agent specializations — what topics/languages/skills each agent handles
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS agent_specializations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      agent_id VARCHAR(100) NOT NULL,
+      spec_type ENUM('topic','language','skill','department') NOT NULL,
+      spec_value VARCHAR(200) NOT NULL,
+      priority INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_agent (agent_id),
+      UNIQUE KEY uk_agent_spec (agent_id, spec_type, spec_value)
+    )
+  `);
+
+  // Routing rules — ordered rules that map conditions to agents
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS agent_routing_rules (
+      id VARCHAR(100) PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      condition_type ENUM('channel','topic','language','keyword','email_domain','all') NOT NULL,
+      condition_value VARCHAR(500) NOT NULL,
+      agent_id VARCHAR(100) NOT NULL,
+      fallback_agent_id VARCHAR(100) NULL,
+      priority INT DEFAULT 0,
+      is_active TINYINT(1) DEFAULT 1,
+      matches_count INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_priority (priority DESC),
+      INDEX idx_agent (agent_id)
+    )
+  `);
+
+  // Agent-team assignment — which human oversees which AI agent
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS agent_team_assignments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      agent_id VARCHAR(100) NOT NULL,
+      team_member_id VARCHAR(100) NOT NULL,
+      role ENUM('owner','supervisor','viewer') DEFAULT 'supervisor',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_agent_member (agent_id, team_member_id),
+      INDEX idx_agent (agent_id),
+      INDEX idx_member (team_member_id)
+    )
+  `);
+
+  // Add specialization columns to helpdesk_agents if missing
+  try { await db.query("ALTER TABLE helpdesk_agents ADD COLUMN department VARCHAR(100) NULL"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_agents ADD COLUMN languages VARCHAR(500) DEFAULT 'auto'"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_agents ADD COLUMN topics VARCHAR(1000) NULL"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_agents ADD COLUMN fallback_agent_id VARCHAR(100) NULL"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_agents ADD COLUMN tickets_handled INT DEFAULT 0"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_agents ADD COLUMN avg_confidence FLOAT DEFAULT 0"); } catch {}
+  try { await db.query("ALTER TABLE helpdesk_agents ADD COLUMN auto_resolved_count INT DEFAULT 0"); } catch {}
 }
 
 async function ensureAnalyticsTable() {
@@ -1864,6 +2150,13 @@ async function ensureSimulationTable() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+}
+
+async function ensureKbColumns() {
+  // Add chunk_count column to kb_documents if missing
+  try { await db.query("ALTER TABLE kb_documents ADD COLUMN chunk_count INT DEFAULT 0"); } catch {}
+  // Add embedding column to kb_chunks if missing
+  try { await db.query("ALTER TABLE kb_chunks ADD COLUMN embedding TEXT NULL"); } catch {}
 }
 
 async function ensureKbGapsTable() {
@@ -2224,7 +2517,7 @@ app.post('/api/webapp/send-otp', requireAuth, async (req, res) => {
     }
 
     // Generate 6-digit code
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(crypto.randomInt(100000, 999999));
 
     // Upsert OTP
     await db.query(
@@ -2978,8 +3271,8 @@ app.post('/api/trial/init', async (req, res) => {
          email        = IF(? IS NOT NULL AND ? != '', ?, email),
          app_version  = COALESCE(?, app_version)`,
       [instance_id, user_name || null, email || null, app_version || null, trialHours,
-       user_name, user_name, user_name || null,
-       email, email, email || null,
+       user_name || null, user_name || null, user_name || null,
+       email || null, email || null, email || null,
        app_version || null]
     ).catch(() => {
       // Fallback for old schema without new columns
@@ -2988,7 +3281,7 @@ app.post('/api/trial/init', async (req, res) => {
          VALUES (?, ?, NOW(), NOW())
          ON DUPLICATE KEY UPDATE last_seen_at = NOW(),
            user_name = IF(? IS NOT NULL AND ? != '', ?, user_name)`,
-        [instance_id, user_name || null, user_name, user_name, user_name || null]
+        [instance_id, user_name || null, user_name || null, user_name || null, user_name || null]
       );
     });
 
@@ -3942,7 +4235,7 @@ async function sendProviderAlert(providerName, providerUrl, result) {
         ${result.latency ? `<p><strong>Latency:</strong> ${result.latency}ms</p>` : ''}
         ${result.error ? `<p><strong>Error:</strong> ${result.error}</p>` : ''}
         <p style="color:#6B7280;font-size:12px">Detected at ${new Date().toISOString()}</p>
-        <p style="color:#6B7280;font-size:12px">Check your <a href="http://localhost:3001/admin">Admin Dashboard → Monitoring</a> for details.</p>
+        <p style="color:#6B7280;font-size:12px">Check your <a href="${(process.env.BACKEND_PUBLIC_URL || `http://localhost:${PORT}`) + '/admin'}">Admin Dashboard → Monitoring</a> for details.</p>
       </div>`;
 
     await transporter.sendMail({ from: smtp.from, to: adminEmail, subject, html });
@@ -5452,14 +5745,100 @@ app.put('/api/helpdesk/agents/:id', requireAuth, requireDb, async (req, res) => 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Smart agent routing engine ──────────────────────────────────────────────
+
+async function routeToAgent({ agent_id, channel, message, customer_email }) {
+  // 1. Explicit agent_id — use it directly
+  if (agent_id) {
+    const agent = await db.queryOne('SELECT * FROM helpdesk_agents WHERE id = ? AND is_active = 1', [agent_id]);
+    if (agent) return { agent, matched_rule: 'explicit_id' };
+  }
+
+  // 2. Check routing rules (ordered by priority DESC)
+  const rules = await db.query(
+    'SELECT * FROM agent_routing_rules WHERE is_active = 1 ORDER BY priority DESC'
+  ).catch(() => []);
+
+  const msgLower = (message || '').toLowerCase();
+  const emailDomain = customer_email ? customer_email.split('@')[1] : '';
+  const detectedLang = detectLanguage(message || '');
+
+  for (const rule of rules) {
+    let matches = false;
+
+    switch (rule.condition_type) {
+      case 'channel':
+        matches = (channel || 'webhook') === rule.condition_value;
+        break;
+      case 'keyword':
+        matches = rule.condition_value.split(',').some(kw => msgLower.includes(kw.trim().toLowerCase()));
+        break;
+      case 'language':
+        matches = detectedLang === rule.condition_value;
+        break;
+      case 'email_domain':
+        matches = emailDomain === rule.condition_value;
+        break;
+      case 'topic': {
+        // Quick topic detection via keywords
+        const topicKws = rule.condition_value.split(',').map(k => k.trim().toLowerCase());
+        matches = topicKws.some(kw => msgLower.includes(kw));
+        break;
+      }
+      case 'all':
+        matches = true;
+        break;
+    }
+
+    if (matches) {
+      const agent = await db.queryOne('SELECT * FROM helpdesk_agents WHERE id = ? AND is_active = 1', [rule.agent_id]);
+      if (agent) {
+        await db.query('UPDATE agent_routing_rules SET matches_count = matches_count + 1 WHERE id = ?', [rule.id]);
+        return { agent, matched_rule: rule.name, rule_id: rule.id };
+      }
+      // Primary agent inactive — try fallback
+      if (rule.fallback_agent_id) {
+        const fallback = await db.queryOne('SELECT * FROM helpdesk_agents WHERE id = ? AND is_active = 1', [rule.fallback_agent_id]);
+        if (fallback) {
+          await db.query('UPDATE agent_routing_rules SET matches_count = matches_count + 1 WHERE id = ?', [rule.id]);
+          return { agent: fallback, matched_rule: `${rule.name} (fallback)`, rule_id: rule.id };
+        }
+      }
+    }
+  }
+
+  // 3. Check agent_channels mapping
+  if (channel) {
+    const channelMapping = await db.queryOne(
+      'SELECT ac.agent_id, ha.* FROM agent_channels ac JOIN helpdesk_agents ha ON ha.id = ac.agent_id WHERE ac.channel_type = ? AND ac.is_active = 1 AND ha.is_active = 1 LIMIT 1',
+      [channel]
+    );
+    if (channelMapping) return { agent: channelMapping, matched_rule: 'channel_mapping' };
+  }
+
+  // 4. Check agent specializations — match by detected language
+  if (detectedLang && detectedLang !== 'en') {
+    const langAgent = await db.queryOne(
+      `SELECT ha.* FROM agent_specializations asp JOIN helpdesk_agents ha ON ha.id = asp.agent_id
+       WHERE asp.spec_type = 'language' AND asp.spec_value = ? AND ha.is_active = 1
+       ORDER BY asp.priority DESC LIMIT 1`,
+      [detectedLang]
+    );
+    if (langAgent) return { agent: langAgent, matched_rule: `language:${detectedLang}` };
+  }
+
+  // 5. Fallback — first active agent
+  const fallback = await db.queryOne('SELECT * FROM helpdesk_agents WHERE is_active = 1 ORDER BY created_at LIMIT 1');
+  return fallback ? { agent: fallback, matched_rule: 'default_fallback' } : { agent: null, matched_rule: null };
+}
+
 // Incoming message webhook — auto-reply with AI using KB
 app.post('/api/helpdesk/incoming', requireDb, async (req, res) => {
   const { agent_id, message, customer_name, customer_email, channel, external_id, ticket_id } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
   try {
-    const agent = agent_id
-      ? await db.queryOne('SELECT * FROM helpdesk_agents WHERE id = ? AND is_active = 1', [agent_id])
-      : await db.queryOne('SELECT * FROM helpdesk_agents WHERE is_active = 1 ORDER BY created_at LIMIT 1');
+    // Smart multi-agent routing
+    const { agent, matched_rule } = await routeToAgent({ agent_id, channel, message, customer_email });
     if (!agent) return res.status(404).json({ error: 'No active agent found' });
 
     // Find or create ticket
@@ -5475,15 +5854,44 @@ app.post('/api/helpdesk/incoming', requireDb, async (req, res) => {
       );
       // Auto-assign SLA based on default priority
       assignSlaToTicket(tId, 'medium').catch(() => {});
-      emitEvent('ticket:new', { ticket_id: tId, subject: message.slice(0, 200), channel: channel || 'webhook', customer_name, customer_email });
+      // Track agent routing
+      db.query('UPDATE helpdesk_agents SET tickets_handled = COALESCE(tickets_handled, 0) + 1 WHERE id = ?', [agent.id]).catch(() => {});
+      emitEvent('ticket:new', { ticket_id: tId, subject: message.slice(0, 200), channel: channel || 'webhook', customer_name, customer_email, agent_name: agent.name, routed_by: matched_rule });
       sendOpsEmail('new_ticket', { ticket_id: tId, subject: message.slice(0, 200), channel: channel || 'webhook', customer_email }).catch(() => {});
-      auditLog('system', 'ticket_created', 'ticket', tId, { channel: channel || 'webhook', customer_email }, null, 'system');
+      auditLog('system', 'ticket_created', 'ticket', tId, { channel: channel || 'webhook', customer_email, agent_id: agent.id, routed_by: matched_rule }, null, 'system');
     }
 
     // Load ticket messages
     const ticket = await db.queryOne('SELECT * FROM helpdesk_tickets WHERE id = ?', [tId]);
     const msgs = ticket.messages ? (typeof ticket.messages === 'string' ? JSON.parse(ticket.messages) : ticket.messages) : [];
     msgs.push({ role: 'user', content: message, ts: Date.now() });
+
+    // ── Re-open logic: if ticket was resolved/auto-resolved and customer replies again ──
+    if (ticket.status === 'resolved' || ticket.resolved) {
+      await db.query(
+        "UPDATE helpdesk_tickets SET status = 'open', resolved = 0, reopened_count = COALESCE(reopened_count, 0) + 1, last_reopened_at = NOW(), messages = ? WHERE id = ?",
+        [JSON.stringify(msgs), tId]
+      );
+      emitEvent('ticket:reopened', { ticket_id: tId, customer_name, customer_email, was_auto_resolved: !!ticket.auto_resolved });
+
+      // If it was auto-resolved, the auto-resolution was wrong — escalate to human
+      if (ticket.auto_resolved) {
+        await db.query("UPDATE helpdesk_tickets SET escalated = 1, escalated_reason = 'Customer replied after auto-resolution — needs human review', auto_resolved = 0 WHERE id = ?", [tId]);
+        emitEvent('ticket:escalated', { ticket_id: tId, reason: 'Customer replied after auto-resolution', customer_name, customer_email });
+        sendOpsEmail('ticket_escalated', { ticket_id: tId, reason: 'Customer not satisfied with auto-resolution — replied again', customer_email }).catch(() => {});
+
+        // Log as KB gap (the auto-resolution was insufficient)
+        const existingGap = await db.queryOne('SELECT id FROM kb_gaps WHERE query = ?', [ticket.subject?.slice(0, 500)]);
+        if (existingGap) {
+          await db.query('UPDATE kb_gaps SET frequency = frequency + 1 WHERE id = ?', [existingGap.id]);
+        } else {
+          await db.query('INSERT INTO kb_gaps (id, query, suggested_title, created_from) VALUES (?,?,?,?)',
+            [crypto.randomUUID(), ticket.subject?.slice(0, 500) || message.slice(0, 500), `Auto-resolution insufficient: ${(ticket.subject || message).slice(0, 100)}`, tId]);
+        }
+
+        return res.json({ ticket_id: tId, action: 'reopened_escalated', reason: 'Customer replied after auto-resolution' });
+      }
+    }
 
     // Check escalation rules
     const rules = await db.query('SELECT * FROM escalation_rules WHERE agent_id = ? AND is_active = 1 ORDER BY priority', [agent.id]);
@@ -5539,31 +5947,65 @@ app.post('/api/helpdesk/incoming', requireDb, async (req, res) => {
       return res.json({ ticket_id: tId, action: 'logged', error: 'AI not configured' });
     }
 
-    // Build context from KB
+    // Build context from KB using semantic search (not brute-force dump)
     let kbContext = '';
     try {
-      const kbDocs = await db.query('SELECT name, content FROM kb_documents ORDER BY created_at DESC');
-      if (kbDocs.length > 0) {
-        kbContext = '\n\n## Knowledge Base\n' + kbDocs.map(d => `### ${d.name}\n${d.content}`).join('\n\n---\n\n').slice(0, 16000);
+      let ragResults = [];
+      try { ragResults = await ragSearch(message, 6); } catch {}
+      if (ragResults.length > 0) {
+        kbContext = '\n\n## Relevant Knowledge Base Articles\n' + ragResults.map((r, i) => `[${i + 1}] ${r.name}:\n${r.content || r.excerpt || ''}`).join('\n\n---\n\n');
+      } else {
+        const kbDocs = await db.query('SELECT name, content FROM kb_documents ORDER BY created_at DESC LIMIT 10');
+        if (kbDocs.length > 0) {
+          kbContext = '\n\n## Knowledge Base\n' + kbDocs.map(d => `### ${d.name}\n${d.content}`).join('\n\n---\n\n').slice(0, 16000);
+        }
       }
     } catch { /* best effort */ }
 
     // Auto-detect language for multi-lang support
     const ticketLang = detectLanguage(message);
     const ticketLangPrompt = multiLangSystemPrompt(ticketLang);
-    const sysPrompt = (agent.system_prompt || 'You are a helpful customer support agent. Be friendly, concise, and helpful.') + ticketLangPrompt + kbContext;
+
+    // Enhanced system prompt with auto-resolution instructions
+    const autoResolveEnabled = agent.confidence_threshold > 0;
+    const sysPrompt = `${agent.system_prompt || 'You are a helpful customer support agent. Be friendly, concise, and helpful.'}${ticketLangPrompt}${kbContext}
+
+${autoResolveEnabled ? `
+## AUTO-RESOLUTION INSTRUCTIONS
+After providing your answer, you MUST assess your confidence that this fully resolves the customer's issue.
+On the VERY LAST LINE of your response, add a confidence tag in this exact format:
+[CONFIDENCE: 0.XX]
+where 0.XX is a number between 0.00 and 1.00.
+
+Scoring guide:
+- 0.90-1.00: The answer directly addresses the question with specific, verified information from the knowledge base. No ambiguity.
+- 0.70-0.89: Good answer with relevant info, but some details might need clarification.
+- 0.50-0.69: Partial answer — some relevant info but missing key details.
+- 0.00-0.49: Cannot confidently answer — no relevant KB content, or the question requires human judgment/access.
+
+IMPORTANT: Do NOT include the [CONFIDENCE: X.XX] tag in the visible reply to the customer. Place it on a separate final line.` : ''}`;
+
     const aiMsgs = [{ role: 'system', content: sysPrompt }, ...msgs.map(m => ({ role: m.role, content: m.content }))];
 
     const aiResp = await fetch(ai.primaryUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
-      body: JSON.stringify({ model: getModelForUseCase(ai, 'helpdesk'), messages: aiMsgs, max_tokens: 500, temperature: 0.3 })
+      body: JSON.stringify({ model: getModelForUseCase(ai, 'helpdesk'), messages: aiMsgs, max_tokens: 800, temperature: 0.3 })
     });
     if (!aiResp.ok) return res.json({ ticket_id: tId, action: 'logged', error: 'AI call failed' });
     const aiData = await aiResp.json();
-    const reply = aiData.choices?.[0]?.message?.content || '';
+    let rawReply = aiData.choices?.[0]?.message?.content || '';
 
-    msgs.push({ role: 'assistant', content: reply, ts: Date.now() });
+    // Extract confidence score from response
+    let confidence = 0;
+    const confidenceMatch = rawReply.match(/\[CONFIDENCE:\s*([\d.]+)\]\s*$/);
+    if (confidenceMatch) {
+      confidence = parseFloat(confidenceMatch[1]) || 0;
+      rawReply = rawReply.replace(/\[CONFIDENCE:\s*[\d.]+\]\s*$/, '').trim();
+    }
+    const reply = rawReply;
+
+    msgs.push({ role: 'assistant', content: reply, ts: Date.now(), confidence });
     await db.query('UPDATE helpdesk_tickets SET messages = ?, auto_replies_count = auto_replies_count + 1, sentiment = ?, sentiment_score = ? WHERE id = ?',
       [JSON.stringify(msgs), sentiment, sentScore, tId]);
 
@@ -5577,12 +6019,44 @@ app.post('/api/helpdesk/incoming', requireDb, async (req, res) => {
       await db.query('UPDATE helpdesk_tickets SET first_response_at = NOW() WHERE id = ?', [tId]);
     }
 
+    // ── Auto-resolution logic ────────────────────────────────────────────────
+    let autoResolved = false;
+    const threshold = agent.confidence_threshold || 0.70;
+
+    if (autoResolveEnabled && confidence >= threshold) {
+      // High confidence — auto-resolve the ticket
+      autoResolved = true;
+      await db.query(
+        "UPDATE helpdesk_tickets SET status = 'resolved', resolved = 1, resolved_at = NOW(), auto_resolved = 1, resolution_confidence = ? WHERE id = ?",
+        [confidence, tId]
+      );
+      // Update agent performance stats
+      db.query(
+        'UPDATE helpdesk_agents SET auto_resolved_count = COALESCE(auto_resolved_count, 0) + 1, avg_confidence = (COALESCE(avg_confidence, 0) * COALESCE(auto_resolved_count, 0) + ?) / (COALESCE(auto_resolved_count, 0) + 1) WHERE id = ?',
+        [confidence, agent.id]
+      ).catch(() => {});
+      emitEvent('ticket:auto_resolved', { ticket_id: tId, confidence, customer_name, customer_email, agent_name: agent.name, reply: reply.slice(0, 200) });
+
+      // Send resolution confirmation email to customer (if email available)
+      if (customer_email) {
+        sendAutoResolutionEmail(customer_email, customer_name, tId, reply, ticketLang).catch(e =>
+          console.error('[auto-resolve] email error:', e.message)
+        );
+      }
+    } else if (confidence < 0.4 && agent.escalation_enabled) {
+      // Very low confidence — auto-escalate
+      await db.query("UPDATE helpdesk_tickets SET escalated = 1, escalated_reason = ?, status = 'escalated' WHERE id = ?",
+        [`Low AI confidence (${confidence.toFixed(2)})`, tId]);
+      emitEvent('ticket:escalated', { ticket_id: tId, reason: `Low AI confidence (${confidence.toFixed(2)})`, customer_name, customer_email });
+      sendOpsEmail('ticket_escalated', { ticket_id: tId, reason: `Low AI confidence (${confidence.toFixed(2)})`, customer_email }).catch(() => {});
+    }
+
     // Log analytics
-    await db.query('INSERT INTO analytics_conversations (id, ticket_id, channel, sentiment, sentiment_score, topics, was_auto_resolved, message_count) VALUES (?,?,?,?,?,?,1,?)',
-      [crypto.randomUUID(), tId, channel || 'webhook', sentiment, sentScore, JSON.stringify(detectedTopics), msgs.length]);
+    await db.query('INSERT INTO analytics_conversations (id, ticket_id, channel, sentiment, sentiment_score, topics, was_auto_resolved, resolution_confidence, message_count) VALUES (?,?,?,?,?,?,?,?,?)',
+      [crypto.randomUUID(), tId, channel || 'webhook', sentiment, sentScore, JSON.stringify(detectedTopics), autoResolved ? 1 : 0, confidence, msgs.length]);
 
     // KB gap detection: if low confidence response, log as gap
-    if (reply.toLowerCase().includes("i don't have") || reply.toLowerCase().includes("je n'ai pas") || reply.toLowerCase().includes("i'm not sure") || reply.length < 50) {
+    if (confidence < 0.5 || reply.toLowerCase().includes("i don't have") || reply.toLowerCase().includes("je n'ai pas") || reply.toLowerCase().includes("i'm not sure") || reply.length < 50) {
       const existingGap = await db.queryOne('SELECT id FROM kb_gaps WHERE query = ?', [message.slice(0, 500)]);
       if (existingGap) {
         await db.query('UPDATE kb_gaps SET frequency = frequency + 1 WHERE id = ?', [existingGap.id]);
@@ -5592,8 +6066,8 @@ app.post('/api/helpdesk/incoming', requireDb, async (req, res) => {
       }
     }
 
-    emitEvent('ticket:replied', { ticket_id: tId, sentiment, reply: reply.slice(0, 200) });
-    res.json({ ticket_id: tId, action: 'auto_replied', reply, sentiment, topics: detectedTopics });
+    emitEvent('ticket:replied', { ticket_id: tId, sentiment, confidence, auto_resolved: autoResolved, reply: reply.slice(0, 200) });
+    res.json({ ticket_id: tId, action: autoResolved ? 'auto_resolved' : 'auto_replied', reply, sentiment, confidence, topics: detectedTopics, auto_resolved: autoResolved, agent_id: agent.id, agent_name: agent.name, routed_by: matched_rule });
   } catch (e) {
     console.error('[helpdesk/incoming]', e.message);
     res.status(500).json({ error: e.message });
@@ -5603,7 +6077,7 @@ app.post('/api/helpdesk/incoming', requireDb, async (req, res) => {
 app.get('/api/helpdesk/tickets', requireAuth, requireDb, async (req, res) => {
   const { status, agent_id, limit: lim } = req.query;
   try {
-    let sql = 'SELECT id, agent_id, channel, customer_name, customer_email, subject, status, sentiment, sentiment_score, auto_replies_count, escalated, topic, priority, assigned_to, first_response_at, sla_first_response_breached, sla_resolution_breached, created_at FROM helpdesk_tickets';
+    let sql = 'SELECT id, agent_id, channel, customer_name, customer_email, subject, status, sentiment, sentiment_score, auto_replies_count, escalated, topic, priority, assigned_to, first_response_at, sla_first_response_breached, sla_resolution_breached, auto_resolved, resolution_confidence, reopened_count, created_at FROM helpdesk_tickets';
     const params = [];
     const where = ['(archived IS NULL OR archived = 0)'];
     if (status) { where.push('status = ?'); params.push(status); }
@@ -5633,6 +6107,176 @@ app.put('/api/helpdesk/tickets/:id', requireAuth, requireDb, async (req, res) =>
       await db.query('UPDATE helpdesk_tickets SET status = ? WHERE id = ?', [status, req.params.id]);
     }
     res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MULTI-AGENT ROUTING MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Routing rules CRUD ───────────────────────────────────────────────────────
+
+app.get('/api/helpdesk/routing-rules', requireAuth, requireDb, async (req, res) => {
+  try {
+    const rules = await db.query(
+      `SELECT rr.*, ha.name as agent_name, ha2.name as fallback_agent_name
+       FROM agent_routing_rules rr
+       LEFT JOIN helpdesk_agents ha ON ha.id = rr.agent_id
+       LEFT JOIN helpdesk_agents ha2 ON ha2.id = rr.fallback_agent_id
+       ORDER BY rr.priority DESC, rr.created_at`
+    );
+    res.json({ rules });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/helpdesk/routing-rules', requireAuth, requireDb, async (req, res) => {
+  const { name, condition_type, condition_value, agent_id, fallback_agent_id, priority } = req.body || {};
+  if (!name || !condition_type || !condition_value || !agent_id) {
+    return res.status(400).json({ error: 'name, condition_type, condition_value, agent_id required' });
+  }
+  const id = crypto.randomUUID();
+  try {
+    await db.query(
+      'INSERT INTO agent_routing_rules (id, name, condition_type, condition_value, agent_id, fallback_agent_id, priority) VALUES (?,?,?,?,?,?,?)',
+      [id, name, condition_type, condition_value, agent_id, fallback_agent_id || null, priority || 0]
+    );
+    res.json({ id, name });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/helpdesk/routing-rules/:id', requireAuth, requireDb, async (req, res) => {
+  const { name, condition_type, condition_value, agent_id, fallback_agent_id, priority, is_active } = req.body || {};
+  try {
+    await db.query(
+      `UPDATE agent_routing_rules SET
+       name=COALESCE(?,name), condition_type=COALESCE(?,condition_type), condition_value=COALESCE(?,condition_value),
+       agent_id=COALESCE(?,agent_id), fallback_agent_id=COALESCE(?,fallback_agent_id),
+       priority=COALESCE(?,priority), is_active=COALESCE(?,is_active)
+       WHERE id=?`,
+      [name, condition_type, condition_value, agent_id, fallback_agent_id, priority, is_active != null ? (is_active ? 1 : 0) : null, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/helpdesk/routing-rules/:id', requireAuth, requireDb, async (req, res) => {
+  try { await db.query('DELETE FROM agent_routing_rules WHERE id = ?', [req.params.id]); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Agent specializations ────────────────────────────────────────────────────
+
+app.get('/api/helpdesk/agents/:id/specializations', requireAuth, requireDb, async (req, res) => {
+  try {
+    const specs = await db.query('SELECT * FROM agent_specializations WHERE agent_id = ? ORDER BY spec_type, priority DESC', [req.params.id]);
+    res.json({ specializations: specs });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/helpdesk/agents/:id/specializations', requireAuth, requireDb, async (req, res) => {
+  const { spec_type, spec_value, priority } = req.body || {};
+  if (!spec_type || !spec_value) return res.status(400).json({ error: 'spec_type and spec_value required' });
+  try {
+    await db.query(
+      'INSERT INTO agent_specializations (agent_id, spec_type, spec_value, priority) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE priority=VALUES(priority)',
+      [req.params.id, spec_type, spec_value, priority || 0]
+    );
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/helpdesk/agents/:id/specializations/:specId', requireAuth, requireDb, async (req, res) => {
+  try { await db.query('DELETE FROM agent_specializations WHERE id = ? AND agent_id = ?', [req.params.specId, req.params.id]); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Agent-team assignments ───────────────────────────────────────────────────
+
+app.get('/api/helpdesk/agents/:id/team', requireAuth, requireDb, async (req, res) => {
+  try {
+    const members = await db.query(
+      `SELECT ata.*, tm.name, tm.email, tm.role as team_role
+       FROM agent_team_assignments ata
+       JOIN team_members tm ON tm.id = ata.team_member_id
+       WHERE ata.agent_id = ?`,
+      [req.params.id]
+    );
+    res.json({ members });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/helpdesk/agents/:id/team', requireAuth, requireDb, async (req, res) => {
+  const { team_member_id, role } = req.body || {};
+  if (!team_member_id) return res.status(400).json({ error: 'team_member_id required' });
+  try {
+    await db.query(
+      'INSERT INTO agent_team_assignments (agent_id, team_member_id, role) VALUES (?,?,?) ON DUPLICATE KEY UPDATE role=VALUES(role)',
+      [req.params.id, team_member_id, role || 'supervisor']
+    );
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/helpdesk/agents/:id/team/:memberId', requireAuth, requireDb, async (req, res) => {
+  try { await db.query('DELETE FROM agent_team_assignments WHERE agent_id = ? AND team_member_id = ?', [req.params.id, req.params.memberId]); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Agent performance overview (all agents comparison) ───────────────────────
+
+app.get('/api/helpdesk/agents/performance', requireAuth, requireDb, async (req, res) => {
+  try {
+    const agents = await db.query(
+      `SELECT ha.id, ha.name, ha.department, ha.is_active, ha.auto_reply,
+              COALESCE(ha.tickets_handled, 0) as tickets_handled,
+              COALESCE(ha.auto_resolved_count, 0) as auto_resolved_count,
+              COALESCE(ha.avg_confidence, 0) as avg_confidence,
+              (SELECT COUNT(*) FROM helpdesk_tickets t WHERE t.agent_id = ha.id AND t.status = 'open') as open_tickets,
+              (SELECT COUNT(*) FROM helpdesk_tickets t WHERE t.agent_id = ha.id AND t.escalated = 1) as escalated_tickets,
+              (SELECT COUNT(*) FROM agent_channels ac WHERE ac.agent_id = ha.id AND ac.is_active = 1) as active_channels,
+              (SELECT GROUP_CONCAT(DISTINCT asp.spec_value) FROM agent_specializations asp WHERE asp.agent_id = ha.id AND asp.spec_type = 'topic') as topics,
+              (SELECT GROUP_CONCAT(DISTINCT asp.spec_value) FROM agent_specializations asp WHERE asp.agent_id = ha.id AND asp.spec_type = 'language') as languages,
+              (SELECT GROUP_CONCAT(DISTINCT asp.spec_value) FROM agent_specializations asp WHERE asp.agent_id = ha.id AND asp.spec_type = 'department') as departments
+       FROM helpdesk_agents ha
+       ORDER BY ha.created_at`
+    );
+
+    // Routing rules summary
+    const rules = await db.query(
+      `SELECT rr.agent_id, COUNT(*) as rule_count, SUM(rr.matches_count) as total_matches
+       FROM agent_routing_rules rr WHERE rr.is_active = 1
+       GROUP BY rr.agent_id`
+    );
+    const ruleMap = {};
+    for (const r of rules) ruleMap[r.agent_id] = { rule_count: r.rule_count, total_matches: r.total_matches };
+
+    const enriched = agents.map(a => ({
+      ...a,
+      topics: a.topics ? a.topics.split(',') : [],
+      languages: a.languages ? a.languages.split(',') : [],
+      departments: a.departments ? a.departments.split(',') : [],
+      routing_rules: ruleMap[a.id]?.rule_count || 0,
+      routing_matches: ruleMap[a.id]?.total_matches || 0,
+      resolution_rate: a.tickets_handled > 0 ? parseFloat(((a.auto_resolved_count / a.tickets_handled) * 100).toFixed(1)) : 0,
+    }));
+
+    res.json({ agents: enriched });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Test routing — preview which agent would handle a message ────────────────
+
+app.post('/api/helpdesk/routing-rules/test', requireAuth, requireDb, async (req, res) => {
+  const { message, channel, customer_email } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await routeToAgent({ agent_id: null, channel, message, customer_email });
+    res.json({
+      agent_id: result.agent?.id || null,
+      agent_name: result.agent?.name || null,
+      matched_rule: result.matched_rule,
+      rule_id: result.rule_id || null,
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6720,6 +7364,80 @@ app.put('/api/sla/policies/:id', requireAuth, requireDb, async (req, res) => {
 app.delete('/api/sla/policies/:id', requireAuth, requireDb, async (req, res) => {
   try { await db.query('DELETE FROM sla_policies WHERE id = ?', [req.params.id]); res.json({ success: true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTO-RESOLUTION STATS & MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.get('/api/helpdesk/auto-resolution/stats', requireAuth, requireDb, async (req, res) => {
+  try {
+    const total = await db.queryOne('SELECT COUNT(*) as c FROM helpdesk_tickets');
+    const autoResolved = await db.queryOne('SELECT COUNT(*) as c FROM helpdesk_tickets WHERE auto_resolved = 1');
+    const reopened = await db.queryOne("SELECT COUNT(*) as c FROM helpdesk_tickets WHERE reopened_count > 0");
+    const avgConfidence = await db.queryOne('SELECT AVG(resolution_confidence) as avg_conf FROM helpdesk_tickets WHERE auto_resolved = 1');
+    const escalatedLowConf = await db.queryOne("SELECT COUNT(*) as c FROM helpdesk_tickets WHERE escalated = 1 AND escalated_reason LIKE '%confidence%'");
+
+    // Auto-resolution rate
+    const totalTickets = total?.c || 0;
+    const autoResolvedCount = autoResolved?.c || 0;
+    const autoResolutionRate = totalTickets > 0 ? parseFloat(((autoResolvedCount / totalTickets) * 100).toFixed(1)) : 0;
+
+    // Success rate (auto-resolved and NOT reopened)
+    const reopenedAfterAuto = await db.queryOne('SELECT COUNT(*) as c FROM helpdesk_tickets WHERE auto_resolved = 1 AND reopened_count > 0');
+    const successfulAutoResolutions = autoResolvedCount - (reopenedAfterAuto?.c || 0);
+    const autoResSuccessRate = autoResolvedCount > 0 ? parseFloat(((successfulAutoResolutions / autoResolvedCount) * 100).toFixed(1)) : 0;
+
+    // Average response time for auto-resolved tickets
+    const avgAutoTime = await db.queryOne(
+      "SELECT AVG(TIMESTAMPDIFF(SECOND, created_at, first_response_at)) as avg_sec FROM helpdesk_tickets WHERE auto_resolved = 1 AND first_response_at IS NOT NULL"
+    );
+
+    // Daily auto-resolution trend (last 30 days)
+    const daily = await db.query(
+      `SELECT DATE(created_at) as day, COUNT(*) as total, SUM(auto_resolved) as auto_resolved
+       FROM helpdesk_tickets WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+       GROUP BY DATE(created_at) ORDER BY day`
+    );
+
+    // Top topics auto-resolved
+    const topTopics = await db.query(
+      "SELECT topic, COUNT(*) as count FROM helpdesk_tickets WHERE auto_resolved = 1 AND topic IS NOT NULL GROUP BY topic ORDER BY count DESC LIMIT 10"
+    );
+
+    res.json({
+      total_tickets: totalTickets,
+      auto_resolved: autoResolvedCount,
+      auto_resolution_rate: autoResolutionRate,
+      auto_resolution_success_rate: autoResSuccessRate,
+      reopened_after_auto: reopenedAfterAuto?.c || 0,
+      escalated_low_confidence: escalatedLowConf?.c || 0,
+      avg_confidence: avgConfidence?.avg_conf ? parseFloat(Number(avgConfidence.avg_conf).toFixed(3)) : 0,
+      avg_auto_response_seconds: avgAutoTime?.avg_sec ? parseFloat(Number(avgAutoTime.avg_sec).toFixed(1)) : null,
+      daily_trend: daily,
+      top_auto_resolved_topics: topTopics,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Manually confirm auto-resolution was correct (positive feedback)
+app.post('/api/helpdesk/tickets/:id/confirm-resolution', requireAuth, requireDb, async (req, res) => {
+  try {
+    await db.query("UPDATE helpdesk_tickets SET status = 'closed' WHERE id = ? AND auto_resolved = 1", [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Manually reject auto-resolution (negative feedback — escalate)
+app.post('/api/helpdesk/tickets/:id/reject-resolution', requireAuth, requireDb, async (req, res) => {
+  try {
+    await db.query(
+      "UPDATE helpdesk_tickets SET status = 'open', resolved = 0, auto_resolved = 0, escalated = 1, escalated_reason = 'Admin rejected auto-resolution' WHERE id = ?",
+      [req.params.id]
+    );
+    emitEvent('ticket:escalated', { ticket_id: req.params.id, reason: 'Admin rejected auto-resolution' });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Assign SLA to a ticket based on priority
@@ -10222,11 +10940,13 @@ httpServer.listen(PORT, async () => {
     try { await ensurePaymentTable(); } catch (e) { console.error('[payment table]', e.message); }
     try { await importActivityJson(); } catch (e) { console.error('[activity import]', e.message); }
     try { await ensureMonitoringTables(); } catch (e) { console.error('[monitoring tables]', e.message); }
+    try { await ensureKbColumns(); } catch (e) { console.error('[kb columns]', e.message); }
     const saasTableInits = [
       ['helpdesk_agents',         ensureHelpdeskAgentsTable],
       ['helpdesk_tickets',        ensureHelpdeskTicketsTable],
       ['escalation_rules',        ensureEscalationTable],
       ['agent_channels',          ensureChannelsTable],
+      ['agent_routing',           ensureAgentRoutingTables],
       ['analytics_conversations', ensureAnalyticsTable],
       ['team_members',            ensureTeamTable],
       ['simulation_tests',        ensureSimulationTable],

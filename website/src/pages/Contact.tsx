@@ -3,7 +3,7 @@ import { Mail, MessageSquare, Clock, KeyRound, Send, CheckCircle, X } from 'luci
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 
-const API = 'http://localhost:3000'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 type Topic = { key: string; icon: React.ElementType; title: string; desc: string; form: boolean; href?: string; internal?: boolean }
 

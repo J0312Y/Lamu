@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation, Link } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Navbar } from './components/Navbar'
 import { Footer } from './components/Footer'
@@ -18,6 +18,18 @@ import Recover from './pages/Recover'
 import Contact from './pages/Contact'
 import Legal from './pages/Legal'
 import SharedConversation from './pages/SharedConversation'
+
+function NotFound() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1.5rem', padding: '2rem' }}>
+      <h1 style={{ fontSize: '4rem', fontWeight: 700, margin: 0 }}>404</h1>
+      <p style={{ fontSize: '1.25rem', color: '#999', margin: 0 }}>Page introuvable</p>
+      <Link to="/" style={{ color: '#3b82f6', textDecoration: 'underline', fontSize: '1rem' }}>
+        Retour a l'accueil
+      </Link>
+    </div>
+  )
+}
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -43,6 +55,7 @@ function MarketingLayout() {
           <Route path="/recover" element={<Recover />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/legal" element={<Legal />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       <Footer />
