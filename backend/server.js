@@ -584,6 +584,11 @@ async function sendLicenseEmail({ to, name, licenseKey, planName, amount, curren
 
 app.use(express.json({ limit: '10mb' }));
 
+// ─── Images générées (outil generate_image) servies en statique ───────────────
+const GENERATED_IMAGES_DIR = path.join(__dirname, 'generated-images');
+try { fs.mkdirSync(GENERATED_IMAGES_DIR, { recursive: true }); } catch {}
+app.use('/generated-images', express.static(GENERATED_IMAGES_DIR));
+
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || '*').split(',').map(s => s.trim());
 app.use((req, res, next) => {
@@ -2089,7 +2094,12 @@ I'll provide a clear summary with sources.
         send({ delta: `\n\n> 🔧 *${fnName}*...\n` });
         let toolResult;
         try {
-          toolResult = await executeTool(fnName, fnArgs, { getSmtp: getSmtpSettings, integrations: integContext });
+          toolResult = await executeTool(fnName, fnArgs, {
+            getSmtp: getSmtpSettings,
+            integrations: integContext,
+            aiConfig: ai,
+            baseUrl: `${req.protocol}://${req.headers.host}`,
+          });
         } catch (toolErr) {
           toolResult = { error: toolErr.message };
         }
