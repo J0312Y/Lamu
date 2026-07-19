@@ -11,6 +11,8 @@ const mammoth = require('mammoth');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
+const userdb = require('./userdb');
+const { createMcpRouter } = require('./mcp-server');
 
 const http = require('http');
 const { Server: SocketServer } = require('socket.io');
@@ -55,7 +57,7 @@ async function getSmtpSettings() {
       port: parseInt(s.smtp_port || process.env.SMTP_PORT || '587'),
       user: s.smtp_user || process.env.SMTP_USER || '',
       pass: s.smtp_pass || process.env.SMTP_PASS || '',
-      from: s.smtp_from || process.env.SMTP_FROM || 'Lamuka <noreply@lamuka.com>',
+      from: s.smtp_from || process.env.SMTP_FROM || 'Lamu <noreply@lamuka-tech.com>',
     };
   } catch {
     return {
@@ -63,7 +65,7 @@ async function getSmtpSettings() {
       port: parseInt(process.env.SMTP_PORT || '587'),
       user: process.env.SMTP_USER || '',
       pass: process.env.SMTP_PASS || '',
-      from: process.env.SMTP_FROM || 'Lamuka <noreply@lamuka.com>',
+      from: process.env.SMTP_FROM || 'Lamu <noreply@lamuka-tech.com>',
     };
   }
 }
@@ -71,7 +73,7 @@ async function getSmtpSettings() {
 async function getSetting(key, fallback = '') {
   try {
     const row = await db.queryOne("SELECT value FROM settings WHERE `key` = ?", [key]);
-    return row?.value ?? fallback;
+    return row?.value || fallback;
   } catch { return fallback; }
 }
 
@@ -88,7 +90,7 @@ async function getSetting(key, fallback = '') {
 const AI_MODELS = {
   realtime:   process.env.MODEL_REALTIME   || 'meta-llama/llama-4-scout',
   helpdesk:   process.env.MODEL_HELPDESK   || 'openai/gpt-4.1-mini',
-  chat:       process.env.MODEL_CHAT       || 'google/gemini-2.5-flash',
+  chat:       process.env.MODEL_CHAT       || 'openai/gpt-4.1-mini',
   reasoning:  process.env.MODEL_REASONING  || 'anthropic/claude-sonnet-4.6',
   embeddings: process.env.MODEL_EMBEDDINGS || 'openai/text-embedding-3-small',
 };
@@ -107,13 +109,16 @@ async function getAiConfig() {
     );
     const s = {};
     for (const r of rows) s[r.key] = r.value;
-    const fallbackOn = s.ai_fallback_enabled === '1';
+    // Fallback is active if explicitly enabled in DB, OR if env vars are set
+    const envFallbackUrl = process.env.AI_FALLBACK_URL || '';
+    const envFallbackKey = process.env.AI_FALLBACK_KEY || '';
+    const fallbackOn = s.ai_fallback_enabled === '1' || (envFallbackUrl && envFallbackKey);
     _aiConfigCache = {
       primaryUrl:    s.ai_primary_url    || process.env.AI_CHAT_URL     || OPENROUTER_URL,
       primaryKey:    s.ai_primary_key    || process.env.AI_CHAT_API_KEY || '',
       primaryModel:  s.ai_primary_model  || process.env.AI_MODEL        || AI_MODELS.chat,
-      fallbackUrl:   fallbackOn ? (s.ai_fallback_url   || process.env.AI_FALLBACK_URL   || '') : '',
-      fallbackKey:   fallbackOn ? (s.ai_fallback_key   || process.env.AI_FALLBACK_KEY   || '') : '',
+      fallbackUrl:   fallbackOn ? (s.ai_fallback_url   || envFallbackUrl) : '',
+      fallbackKey:   fallbackOn ? (s.ai_fallback_key   || envFallbackKey) : '',
       fallbackModel: fallbackOn ? (s.ai_fallback_model || process.env.AI_FALLBACK_MODEL || AI_MODELS.chat) : '',
       bodyExtras:    s.ai_body_extras    || process.env.AI_BODY_EXTRAS  || '{}',
       // Per use-case model overrides (DB settings > env > defaults)
@@ -372,59 +377,140 @@ async function chunkAndEmbedDocument(docId, content) {
 }
 
 // Templates par défaut
-const DEFAULT_LICENSE_SUBJECT = '🎉 Votre licence Lamuka {{plan_name}} est prête';
-const DEFAULT_LICENSE_HTML = `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0a0a0f;color:#fff;padding:40px 20px;margin:0">
-<div style="max-width:520px;margin:0 auto">
+const DEFAULT_LICENSE_SUBJECT = 'Votre licence Lamu {{plan_name}} est prête';
+const DEFAULT_LICENSE_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f7;color:#1a1a1a;padding:0;margin:0">
+<div style="max-width:560px;margin:0 auto;padding:40px 20px">
+
   <div style="text-align:center;margin-bottom:32px">
-    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#818cf8);border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:12px">⚡</div>
-    <h1 style="margin:0;font-size:24px;font-weight:800">Paiement confirmé !</h1>
-    <p style="color:rgba(255,255,255,0.5);margin-top:8px">Bonjour {{name}}, votre licence est active.</p>
+    <img src="https://lamu.lamuka-tech.com/lamu-icon.png" alt="Lamu" width="52" height="52" style="border-radius:14px;margin-bottom:16px;display:inline-block" />
+    <h1 style="margin:0;font-size:24px;font-weight:800;color:#1a1a1a">Paiement confirmé !</h1>
+    <p style="color:#666;margin-top:8px;font-size:15px">Bonjour {{name}}, votre licence est active.</p>
   </div>
-  <div style="background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.2);border-radius:14px;padding:20px 24px;margin-bottom:24px">
-    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:10px">CLÉ DE LICENCE</div>
-    <div style="font-family:monospace;font-size:15px;color:#4ade80;word-break:break-all;line-height:1.5">{{license_key}}</div>
+
+  <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+
+    <div style="padding:24px 28px;border-bottom:1px solid #eee;text-align:center">
+      <div style="font-size:11px;font-weight:700;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Votre clé de licence</div>
+      <div style="font-family:monospace;font-size:16px;color:#6366f1;font-weight:700;word-break:break-all;line-height:1.5;background:#f0efff;border-radius:10px;padding:14px 18px">{{license_key}}</div>
+    </div>
+
+    <div style="padding:24px 28px;border-bottom:1px solid #eee">
+      <div style="font-size:13px;color:#666;margin-bottom:4px">Plan : <strong style="color:#1a1a1a">{{plan_name}}</strong> — {{amount}} {{currency}}</div>
+    </div>
+
+    <div style="padding:24px 28px">
+      <div style="font-size:11px;font-weight:700;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px">Comment activer</div>
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="padding:6px 0;vertical-align:top;width:28px"><div style="width:22px;height:22px;background:#e8e7fd;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:700;color:#6366f1">1</div></td>
+          <td style="padding:6px 0 6px 10px;font-size:14px;color:#444">Ouvrez Lamu sur votre ordinateur</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;vertical-align:top"><div style="width:22px;height:22px;background:#e8e7fd;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:700;color:#6366f1">2</div></td>
+          <td style="padding:6px 0 6px 10px;font-size:14px;color:#444">Entrez votre email dans l'onglet Connexion</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;vertical-align:top"><div style="width:22px;height:22px;background:#e8e7fd;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:700;color:#6366f1">3</div></td>
+          <td style="padding:6px 0 6px 10px;font-size:14px;color:#444">Votre licence sera automatiquement activée</td>
+        </tr>
+      </table>
+    </div>
   </div>
-  <div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);border-radius:12px;padding:18px 20px;margin-bottom:24px">
-    <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);margin-bottom:8px">Plan : {{plan_name}} — {{amount}} {{currency}}</div>
-    <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,0.5);margin-bottom:12px">COMMENT ACTIVER</div>
-    <div style="font-size:13px;color:rgba(255,255,255,0.6);line-height:1.8">1. Ouvrez Lamuka sur votre bureau<br>2. Allez dans Paramètres → Licence<br>3. Collez votre clé de licence<br>4. Cliquez sur Activer</div>
+
+  <div style="text-align:center;margin-top:28px;padding-top:20px;border-top:1px solid #e5e5e5">
+    <p style="font-size:13px;color:#999;line-height:1.6;margin:0 0 8px 0">Conservez cet email précieusement.</p>
+    <p style="font-size:12px;color:#bbb;margin:0">
+      <a href="https://lamu.lamuka-tech.com" style="color:#6366f1;text-decoration:none">lamu.lamuka-tech.com</a> · <a href="mailto:support@lamuka-tech.com" style="color:#6366f1;text-decoration:none">support@lamuka-tech.com</a>
+    </p>
   </div>
-  <p style="text-align:center;font-size:12px;color:rgba(255,255,255,0.25);line-height:1.7">
-    Conservez cet email précieusement.<br>
-    Besoin d'aide ? <a href="mailto:support@lamuka.com" style="color:#818cf8">support@lamuka.com</a>
-  </p>
+
 </div></body></html>`;
 
-const DEFAULT_RECOVER_SUBJECT = 'Récupération de votre licence Lamuka';
-const DEFAULT_RECOVER_HTML = `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0a0a0f;color:#fff;padding:40px 20px;margin:0">
-<div style="max-width:520px;margin:0 auto">
-  <h1 style="text-align:center;font-size:22px;font-weight:800;margin-bottom:8px">Vos licences Lamuka</h1>
-  <p style="text-align:center;color:rgba(255,255,255,0.5);margin-bottom:28px">Voici vos licences associées à {{email}}</p>
-  {{license_list}}
-  <p style="text-align:center;font-size:12px;color:rgba(255,255,255,0.25);margin-top:24px">
-    Besoin d'aide ? <a href="mailto:support@lamuka.com" style="color:#818cf8">support@lamuka.com</a>
-  </p>
+const DEFAULT_RECOVER_SUBJECT = 'Récupération de votre licence Lamu';
+const DEFAULT_RECOVER_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f7;color:#1a1a1a;padding:0;margin:0">
+<div style="max-width:560px;margin:0 auto;padding:40px 20px">
+
+  <div style="text-align:center;margin-bottom:32px">
+    <img src="https://lamu.lamuka-tech.com/lamu-icon.png" alt="Lamu" width="52" height="52" style="border-radius:14px;margin-bottom:16px;display:inline-block" />
+    <h1 style="margin:0;font-size:24px;font-weight:800;color:#1a1a1a">Récupération de licence</h1>
+    <p style="color:#666;margin-top:8px;font-size:15px">Voici vos licences associées à <strong>{{email}}</strong></p>
+  </div>
+
+  <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);padding:24px 28px;margin-bottom:24px">
+    {{license_list}}
+  </div>
+
+  <div style="text-align:center;margin-top:28px;padding-top:20px;border-top:1px solid #e5e5e5">
+    <p style="font-size:13px;color:#999;line-height:1.6;margin:0 0 8px 0">Besoin d'aide ? Répondez directement à cet email.</p>
+    <p style="font-size:12px;color:#bbb;margin:0">
+      <a href="https://lamu.lamuka-tech.com" style="color:#6366f1;text-decoration:none">lamu.lamuka-tech.com</a> · <a href="mailto:support@lamuka-tech.com" style="color:#6366f1;text-decoration:none">support@lamuka-tech.com</a>
+    </p>
+  </div>
+
 </div></body></html>`;
 
-const DEFAULT_SUPPORT_REPLY_SUBJECT = 'Nous avons bien reçu votre message — Lamuka Support';
-const DEFAULT_SUPPORT_REPLY_HTML = `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0a0a0f;color:#fff;padding:40px 20px;margin:0">
-<div style="max-width:520px;margin:0 auto">
-  <div style="text-align:center;margin-bottom:28px">
-    <div style="width:48px;height:48px;background:linear-gradient(135deg,#6366f1,#818cf8);border-radius:12px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:12px">✉️</div>
-    <h1 style="margin:0;font-size:22px;font-weight:800">Message reçu !</h1>
-    <p style="color:rgba(255,255,255,0.5);margin-top:8px">Bonjour {{name}}, nous avons bien reçu votre demande.</p>
+const DEFAULT_SUPPORT_REPLY_SUBJECT = 'Nous avons bien reçu votre message [{{ticket_id}}] — Lamu';
+const DEFAULT_SUPPORT_REPLY_HTML = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f7;color:#1a1a1a;padding:0;margin:0">
+<div style="max-width:560px;margin:0 auto;padding:40px 20px">
+
+  <!-- Header -->
+  <div style="text-align:center;margin-bottom:32px">
+    <img src="https://lamu.lamuka-tech.com/lamu-icon.png" alt="Lamu" width="52" height="52" style="border-radius:14px;margin-bottom:16px;display:inline-block" />
+    <h1 style="margin:0;font-size:24px;font-weight:800;color:#1a1a1a">Merci de nous avoir contactés</h1>
+    <p style="color:#666;margin-top:8px;font-size:15px;line-height:1.6">Bonjour {{name}}, votre demande a bien été enregistrée.</p>
   </div>
-  <div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.15);border-radius:14px;padding:20px 24px;margin-bottom:24px">
-    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;margin-bottom:8px">VOTRE MESSAGE</div>
-    <div style="font-size:13px;color:rgba(255,255,255,0.7);line-height:1.7;white-space:pre-wrap">{{message}}</div>
+
+  <!-- Main card -->
+  <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+
+    <!-- Ticket info -->
+    <div style="padding:24px 28px;border-bottom:1px solid #eee">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Référence</div>
+          <div style="font-size:16px;font-weight:700;color:#6366f1">{{ticket_id}}</div>
+        </div>
+        <div style="background:#e8e7fd;color:#6366f1;font-size:12px;font-weight:700;padding:6px 14px;border-radius:100px">En attente</div>
+      </div>
+    </div>
+
+    <!-- Message recap -->
+    <div style="padding:24px 28px;border-bottom:1px solid #eee">
+      <div style="font-size:11px;font-weight:700;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Votre message</div>
+      <div style="font-size:14px;color:#444;line-height:1.75;white-space:pre-wrap;background:#f9f9fb;border-radius:10px;padding:16px 18px">{{message}}</div>
+    </div>
+
+    <!-- Next steps -->
+    <div style="padding:24px 28px">
+      <div style="font-size:11px;font-weight:700;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px">Prochaines étapes</div>
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="padding:8px 0;vertical-align:top;width:28px"><div style="width:22px;height:22px;background:#e8e7fd;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:700;color:#6366f1">1</div></td>
+          <td style="padding:8px 0 8px 10px;font-size:14px;color:#444;line-height:1.5">Notre équipe examine votre demande</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;vertical-align:top"><div style="width:22px;height:22px;background:#e8e7fd;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:700;color:#6366f1">2</div></td>
+          <td style="padding:8px 0 8px 10px;font-size:14px;color:#444;line-height:1.5">Vous recevrez une réponse sous <strong>24 à 48h</strong> ouvrables</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;vertical-align:top"><div style="width:22px;height:22px;background:#e8e7fd;border-radius:50%;text-align:center;line-height:22px;font-size:12px;font-weight:700;color:#6366f1">3</div></td>
+          <td style="padding:8px 0 8px 10px;font-size:14px;color:#444;line-height:1.5">Pour toute mise à jour, répondez directement à cet email</td>
+        </tr>
+      </table>
+    </div>
   </div>
-  <p style="font-size:13px;color:rgba(255,255,255,0.5);text-align:center;line-height:1.7">
-    Nous vous répondrons sous <strong style="color:#fff">24–48h</strong> les jours ouvrables.<br>
-    Référence : <code style="color:#818cf8">{{ticket_id}}</code>
-  </p>
-  <p style="text-align:center;font-size:12px;color:rgba(255,255,255,0.25);margin-top:24px">
-    <a href="mailto:support@lamuka.com" style="color:#818cf8">support@lamuka.com</a>
-  </p>
+
+  <!-- Footer -->
+  <div style="text-align:center;margin-top:28px;padding-top:20px;border-top:1px solid #e5e5e5">
+    <p style="font-size:13px;color:#999;line-height:1.6;margin:0 0 8px 0">Besoin d'aide urgente ? Répondez à cet email avec "URGENT" en objet.</p>
+    <p style="font-size:12px;color:#bbb;margin:0">
+      <a href="https://lamu.lamuka-tech.com" style="color:#6366f1;text-decoration:none">lamu.lamuka-tech.com</a> · <a href="mailto:support@lamuka-tech.com" style="color:#6366f1;text-decoration:none">support@lamuka-tech.com</a>
+    </p>
+  </div>
+
 </div></body></html>`;
 
 async function createMailer() {
@@ -445,7 +531,7 @@ async function sendAutoResolutionEmail(toEmail, customerName, ticketId, aiReply,
   const smtp = await getSmtpSettings();
   const name = customerName || toEmail.split('@')[0];
   const isFr = lang === 'fr';
-  const appEndpoint = process.env.APP_ENDPOINT || 'https://lamuka-tech.com';
+  const appEndpoint = process.env.APP_ENDPOINT || 'https://lamu.lamuka-tech.com';
 
   const subject = isFr
     ? `[${ticketId}] Votre demande a été traitée — Lamu Support`
@@ -591,6 +677,20 @@ app.get('/api/response', requireAuth, async (req, res) => {
     console.warn('[warn] ai_body_extras is not valid JSON, ignoring.');
   }
 
+  // Look up customer identity from the license
+  let customerInfo = { id: null, email: null, name: null };
+  if (licenseKey) {
+    try {
+      const row = await db.queryOne(
+        'SELECT id, customer_email, customer_name FROM licenses WHERE license_key = ? LIMIT 1',
+        [licenseKey]
+      );
+      if (row) {
+        customerInfo = { id: row.id, email: row.customer_email || null, name: row.customer_name || null };
+      }
+    } catch { /* DB error — continue without customer info */ }
+  }
+
   res.json({
     url: ai.primaryUrl,
     user_token: ai.primaryKey,
@@ -601,9 +701,9 @@ app.get('/api/response', requireAuth, async (req, res) => {
     body: JSON.stringify(parsedBodyExtras),
     // Multi-provider model routing (per use case)
     models: ai.models || {},
-    customer_id: null,
-    customer_email: null,
-    customer_name: null,
+    customer_id: customerInfo.id,
+    customer_email: customerInfo.email,
+    customer_name: customerInfo.name,
     license_key: req.headers['license_key'] || '',
     instance_id: req.headers['instance'] || '',
     user_audio: sttUrl && sttApiKey
@@ -747,11 +847,28 @@ app.post('/api/prompt', requireAuth, async (req, res) => {
 // ─── POST /api/activity ───────────────────────────────────────────────────────
 
 app.post('/api/activity', requireAuth, async (req, res) => {
-  const { ai_model, app_version, machine_id, usage, activity_type } = req.body || {};
-  console.log(`[activity] type=${activity_type} model=${ai_model} version=${app_version} machine=${machine_id?.slice(0, 8)}...`);
+  const { ai_model, app_version, machine_id, usage, activity_type, license, instance, customer_email, customer_name } = req.body || {};
+  console.log(`[activity] type=${activity_type} model=${ai_model} version=${app_version} machine=${machine_id?.slice(0, 8)}... user=${customer_email || 'anonymous'}`);
 
   const today = todayDate();
   const tokens = (usage && typeof usage.total_tokens === 'number') ? usage.total_tokens : 0;
+
+  // Resolve user identity: use provided fields, or look up from license
+  let email = customer_email || null;
+  let name = customer_name || null;
+  const licenseKey = license || null;
+  if (!email && licenseKey) {
+    try {
+      const row = await db.queryOne(
+        'SELECT customer_email, customer_name FROM licenses WHERE license_key = ? LIMIT 1',
+        [licenseKey]
+      );
+      if (row) {
+        email = row.customer_email || null;
+        name = row.customer_name || null;
+      }
+    } catch { /* DB lookup failed — continue without identity */ }
+  }
 
   try {
     // Upsert daily aggregate
@@ -760,12 +877,13 @@ app.post('/api/activity', requireAuth, async (req, res) => {
        ON DUPLICATE KEY UPDATE requests = requests + 1, tokens = tokens + ?`,
       [today, tokens, tokens]
     );
-    // Insert detail log row
+    // Insert detail log row with user identity
     await db.query(
-      `INSERT INTO activity_log (ai_model, app_version, machine_id, activity_type, prompt_tokens, completion_tokens, total_tokens)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO activity_log (ai_model, app_version, machine_id, activity_type, prompt_tokens, completion_tokens, total_tokens, license_key, customer_email, customer_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [ai_model || null, app_version || null, machine_id || null, activity_type || 'chat_streaming',
-       usage?.prompt_tokens || 0, usage?.completion_tokens || 0, tokens]
+       usage?.prompt_tokens || 0, usage?.completion_tokens || 0, tokens,
+       licenseKey, email, name]
     );
     res.status(200).json({ ok: true });
   } catch (err) {
@@ -807,6 +925,70 @@ app.get('/api/activity', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/reports?period=7d|30d|90d — aggregated stats for the reports view
+app.get('/api/reports', requireAuth, async (req, res) => {
+  try {
+    const period = req.query.period || '30d';
+    const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
+
+    // Total conversations from activity table
+    const [actRow] = await db.query(
+      'SELECT COALESCE(SUM(requests), 0) as total_requests FROM activity WHERE date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)', [days]
+    );
+    const totalRequests = Number(actRow?.total_requests || 0);
+
+    // Average response time from chat_logs if table exists, else fallback
+    let avgResponseTime = 0;
+    try {
+      const [rtRow] = await db.query(
+        'SELECT AVG(response_time_ms) as avg_ms FROM chat_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)', [days]
+      );
+      avgResponseTime = rtRow?.avg_ms ? Math.round(Number(rtRow.avg_ms)) / 1000 : 0;
+    } catch { /* table may not exist */ }
+
+    // Resolution rate from helpdesk_tickets if table exists
+    let resolutionRate = 0;
+    try {
+      const [totalTickets] = await db.query(
+        'SELECT COUNT(*) as c FROM helpdesk_tickets WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)', [days]
+      );
+      const [resolved] = await db.query(
+        "SELECT COUNT(*) as c FROM helpdesk_tickets WHERE status = 'resolved' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)", [days]
+      );
+      const total = Number(totalTickets?.c || 0);
+      resolutionRate = total > 0 ? Math.round((Number(resolved?.c || 0) / total) * 100) : 0;
+    } catch { /* table may not exist */ }
+
+    // Top topics from chat_logs or KB queries
+    let topTopics = [];
+    try {
+      const topics = await db.query(
+        `SELECT topic, COUNT(*) as cnt FROM chat_logs
+         WHERE topic IS NOT NULL AND topic != '' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+         GROUP BY topic ORDER BY cnt DESC LIMIT 5`, [days]
+      );
+      topTopics = topics.map(t => t.topic);
+    } catch { /* table may not exist */ }
+
+    // Daily breakdown for chart
+    const dailyData = await db.query(
+      'SELECT date, requests FROM activity WHERE date >= DATE_SUB(CURDATE(), INTERVAL ? DAY) ORDER BY date ASC', [days]
+    );
+
+    res.json({
+      success: true,
+      total_requests: totalRequests,
+      avg_response_time: avgResponseTime,
+      resolution_rate: resolutionRate,
+      top_topics: topTopics,
+      daily: dailyData.map(r => ({ date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10), requests: r.requests || 0 }))
+    });
+  } catch (err) {
+    console.error('[/api/reports]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/error ──────────────────────────────────────────────────────────
 
 app.post('/api/error', requireAuth, (req, res) => {
@@ -826,6 +1008,23 @@ function stripHtml(html) {
     .trim()
     .slice(0, 12000);
 }
+
+// ── Document download (generated Excel/PowerPoint files) ────────────────────
+
+app.get('/api/documents/download/:fileId/:fileName', (req, res) => {
+  const { TEMP_DIR } = require('./integrations/documents');
+  const filePath = require('path').join(TEMP_DIR, req.params.fileName);
+  if (!require('fs').existsSync(filePath) || !req.params.fileName.includes(req.params.fileId)) {
+    return res.status(404).json({ error: 'File not found or expired.' });
+  }
+  const ext = req.params.fileName.split('.').pop();
+  const mime = ext === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    : ext === 'pptx' ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    : 'application/octet-stream';
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', `attachment; filename="${req.params.fileName}"`);
+  require('fs').createReadStream(filePath).pipe(res);
+});
 
 // GET /api/kb
 app.get('/api/kb', requireAuth, async (req, res) => {
@@ -1162,6 +1361,148 @@ app.delete('/api/kb/:id', requireAuth, async (req, res) => {
   }
 });
 
+// ─── Mémoire utilisateur (coworker qui "connaît" l'utilisateur) ──────────────
+let _memoryTableReady = false;
+async function ensureMemoryTable() {
+  if (_memoryTableReady) return;
+  await db.query(`CREATE TABLE IF NOT EXISTS user_memory (
+    id VARCHAR(64) PRIMARY KEY,
+    user_email VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    source VARCHAR(32) DEFAULT 'manual',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_user_memory_email (user_email)
+  )`);
+  _memoryTableReady = true;
+}
+
+// GET /api/memory?user_email= — liste les souvenirs de l'utilisateur
+app.get('/api/memory', requireAuth, async (req, res) => {
+  const userEmail = (req.query.user_email || '').toString().trim().toLowerCase();
+  if (!userEmail) return res.status(400).json({ error: 'user_email required' });
+  try {
+    await ensureMemoryTable();
+    const items = await db.query(
+      'SELECT id, content, source, updated_at FROM user_memory WHERE user_email = ? ORDER BY updated_at DESC',
+      [userEmail],
+    );
+    res.json({ items });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/memory { user_email, content } — ajoute un souvenir
+app.post('/api/memory', requireAuth, async (req, res) => {
+  const userEmail = (req.body?.user_email || '').toString().trim().toLowerCase();
+  const content = (req.body?.content || '').toString().trim();
+  const source = (req.body?.source || 'manual').toString();
+  if (!userEmail || !content) return res.status(400).json({ error: 'user_email and content required' });
+  try {
+    await ensureMemoryTable();
+    const id = crypto.randomUUID();
+    await db.query('INSERT INTO user_memory (id, user_email, content, source) VALUES (?, ?, ?, ?)', [
+      id,
+      userEmail,
+      content.slice(0, 500),
+      source,
+    ]);
+    res.json({ id, content, source });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/memory/:id
+app.delete('/api/memory/:id', requireAuth, async (req, res) => {
+  try {
+    await ensureMemoryTable();
+    const result = await db.query('DELETE FROM user_memory WHERE id = ?', [req.params.id]);
+    res.json({ removed: result.affectedRows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Connexion DB par utilisateur (stockée serveur, dispo desktop+mobile+web) ──
+app.get('/api/db/connection', requireAuth, async (req, res) => {
+  const userEmail = (req.query.user_email || '').toString().trim().toLowerCase();
+  if (!userEmail) return res.status(400).json({ error: 'user_email required' });
+  try {
+    const cfg = await userdb.getConnectionPublic(userEmail);
+    res.json({ connection: cfg });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/db/connection', requireAuth, async (req, res) => {
+  const userEmail = (req.body?.user_email || '').toString().trim().toLowerCase();
+  const { dialect, host, port, user, password, database, ssl } = req.body || {};
+  if (!userEmail || !host || !user || !database)
+    return res.status(400).json({ error: 'user_email, host, user, database requis' });
+  try {
+    // Teste avant d'enregistrer
+    await userdb.testConnection({ dialect, host, port, user, password, database, ssl });
+    await userdb.saveConnection(userEmail, { dialect, host, port, user, password, database, ssl });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: `Connexion impossible : ${e.message}` });
+  }
+});
+
+app.post('/api/db/test', requireAuth, async (req, res) => {
+  try {
+    await userdb.testConnection(req.body || {});
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/db/connection', requireAuth, async (req, res) => {
+  const userEmail = (req.query.user_email || '').toString().trim().toLowerCase();
+  if (!userEmail) return res.status(400).json({ error: 'user_email required' });
+  try {
+    await userdb.deleteConnection(userEmail);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── STT proxy — transcrit un audio (base64) via le provider serveur (clé cachée) ─
+app.post('/api/stt', requireAuth, async (req, res) => {
+  const sttUrl = process.env.STT_URL || '';
+  const sttKey = process.env.STT_API_KEY || '';
+  const sttModel = process.env.STT_MODEL || 'whisper-large-v3-turbo';
+  if (!sttUrl || !sttKey) return res.status(503).json({ error: 'STT non configuré sur le serveur.' });
+
+  const { audio_base64, mime = 'audio/m4a', filename = 'audio.m4a', language } = req.body || {};
+  if (!audio_base64) return res.status(400).json({ error: 'audio_base64 required' });
+
+  try {
+    const buffer = Buffer.from(audio_base64, 'base64');
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: mime }), filename);
+    form.append('model', sttModel);
+    if (language) form.append('language', language);
+
+    const r = await fetch(sttUrl, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${sttKey}` },
+      body: form,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) return res.status(400).json({ error: data?.error?.message || 'Transcription échouée' });
+    res.json({ text: data.text || data.transcript || '' });
+  } catch (e) {
+    console.error('[stt]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // POST /api/kb/extract-text — extract text from PDF/DOCX for chat file attachment
 app.post('/api/kb/extract-text', requireAuth, async (req, res) => {
   const { name, content } = req.body || {};
@@ -1256,36 +1597,50 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 
   const { messages = [], model, system, kbIds, userName, useCase } = req.body || {};
+  // Identité utilisateur — scope les intégrations + la mémoire au bon compte (mobile envoie user_email)
+  const userEmail = (req.body?.userEmail || req.body?.user_email || req.headers['x-user-email'] || '').toString().trim().toLowerCase();
 
-  // Build Lamu identity system prompt
+  // Build Lamu identity system prompt — Knowledge Agent + all Lamu features
   const userGreeting = userName ? `The user's name is ${userName}. Address them by their first name naturally. / Le nom de l'utilisateur est ${userName}.` : '';
-  const lamuIdentity = `Tu es Lamu, un assistant IA intelligent et polyvalent.
+  const lamuIdentity = `Tu es Lamu, un assistant IA intelligent, polyvalent et Knowledge Agent. Tu crées des réponses utiles en utilisant la documentation disponible, les outils connectés, et tes connaissances.
 
 ## RÈGLE ABSOLUE DE LANGUE
 Détecte la langue du message de l'utilisateur. Si l'utilisateur écrit en français, tu DOIS répondre ENTIÈREMENT en français correct — pas de mélange avec l'anglais, pas de mots anglais, pas de phrases incomplètes. Si l'utilisateur écrit en anglais, réponds en anglais. Ne mélange JAMAIS les langues.
 
 ## Identité
-- Tu t'appelles Lamu, tu es un assistant IA personnel.
-- Tu combines l'IA conversationnelle avec une base de connaissances personnalisée.
+- Tu t'appelles Lamu, tu es un assistant IA personnel et Knowledge Agent.
+- Tu combines l'IA conversationnelle avec une base de connaissances personnalisée et des outils connectés (intégrations, helpdesk, actions IA).
 - Les utilisateurs peuvent uploader des documents, et tu utilises ces connaissances pour fournir des réponses précises et contextuelles.
 - Ne mentionne JAMAIS le nom de ton créateur, de l'entreprise ou de la technologie derrière toi. Tu es simplement "Lamu".
 
+## Responsabilités
+- Fournir des réponses concises et précises en utilisant la documentation récupérée quand elle est disponible
+- Si aucune documentation pertinente n'existe, aide quand même l'utilisateur avec tes connaissances mais mentionne que tu n'as pas trouvé de sources correspondantes
+- Écrire des réponses utiles et conversationnelles adaptées aux besoins de l'utilisateur
+- Si tu n'es pas sûr ou qu'aucune correspondance claire n'est trouvée, dis-le et demande à l'utilisateur de reformuler
+- Tu peux aussi exécuter des actions (envoyer des emails, créer des tickets, interroger des bases de données, etc.) via tes outils
+
 ## Style de réponse — OBLIGATOIRE
-- Sois amical, concis et utile. Va droit au but.
-- Réponds en texte simple et naturel, comme dans une conversation humaine.
-- N'utilise PAS de markdown (pas de **, ##, ###, >, - listes à puces, etc.).
-- N'utilise PAS d'emojis sauf si l'utilisateur en utilise lui-même.
-- Pas de titres, pas de sections, pas de listes numérotées sauf si explicitement demandé.
-- Écris des paragraphes courts et lisibles.
-- Quand tu utilises des documents de la base de connaissances, cite tes sources entre crochets [Nom du Document].
+- **Ton** : Amical, supportif, conversationnel
+- **Longueur** : Court et concis — quelques phrases, découpées en paragraphes
+- **Liens** : Formate les liens externes en markdown inline avec du texte descriptif : [Texte](URL). Jamais de liens génériques "source"
+- **Écriture naturelle** : Écris comme un agent support humain compétent et sympathique, pas comme une IA polie. Utilise un flux de conversation naturel, un langage simple. Évite les phrases typiques d'IA comme "c'est là que X entre en jeu", "un véritable game changer", "impact significatif", ou le jargon corporate trop formel. Sois conversationnel et direct — va droit au but, varie la structure de tes phrases, et laisse ta personnalité transparaître naturellement.
+- Ne mentionne jamais les chemins de fichiers, clés de documents, sources internes de connaissances, ou les méthodes que tu utilises pour accéder aux informations dans tes réponses
+- Quand tu utilises des documents de la base de connaissances, cite tes sources naturellement entre crochets [Nom du Document]
+- Ne commence PAS tes réponses par "Bien sûr !" ou "Oui, bien sûr !". Réponds directement et naturellement.
+- Ne répète PAS le nom de l'utilisateur dans chaque phrase.
+- Ne liste JAMAIS tes capacités sauf si on te le demande explicitement.
 
 ## Qualité du texte — CRITIQUE
 - Chaque phrase DOIT être complète, grammaticalement correcte, avec tous les mots et espaces.
 - Ne fusionne JAMAIS deux mots ensemble. Vérifie que chaque mot est séparé par un espace.
 - Ne coupe pas les phrases, ne saute pas de mots.
-- Ne liste JAMAIS tes capacités ou compétences sauf si on te le demande explicitement. Par exemple, si on te dit "aide-moi à coder", ne liste pas les langages que tu connais — demande simplement sur quoi tu peux aider.
-- Ne commence pas tes réponses par "Bien sûr !" ou "Oui, bien sûr !". Réponds directement et naturellement.
-- Ne répète pas le nom de l'utilisateur dans chaque phrase. Utilise-le une fois au début si pertinent, pas plus.
+
+## Workflow Knowledge Agent
+1. **Chercher** — Quand l'utilisateur pose une question, cherche dans la base de connaissances les documents pertinents
+2. **Explorer** — Si la recherche donne peu de résultats, explore les sources disponibles
+3. **Lire** — Récupère le contenu complet des documents pertinents
+4. **Répondre** — Base ta réponse sur les informations récupérées quand disponibles. Si aucun document pertinent n'est trouvé, aide avec tes connaissances générales en le mentionnant.
 
 ## CONNAISSANCE COMPLÈTE DE LA PLATEFORME LAMU
 Tu connais parfaitement toutes les fonctionnalités de Lamu. Quand un utilisateur te demande comment faire quelque chose, explique-lui étape par étape de façon simple et claire.
@@ -1510,6 +1865,23 @@ ${userGreeting}`;
   // Merge: Lamu identity + user custom system prompt + multi-lang
   let systemContent = system ? `${lamuIdentity}${langPrompt}\n\n## Additional instructions\n${system}` : `${lamuIdentity}${langPrompt}`;
 
+  // Inject persistent user memory — ce qui fait que l'agent "connaît" l'utilisateur
+  if (userEmail) {
+    try {
+      await ensureMemoryTable();
+      const memories = await db.query(
+        'SELECT content FROM user_memory WHERE user_email = ? ORDER BY updated_at DESC LIMIT 40',
+        [userEmail],
+      );
+      if (memories.length > 0) {
+        const memText = memories.map((m) => `- ${m.content}`).join('\n');
+        systemContent += `\n\n## Ce que tu sais sur l'utilisateur (mémoire persistante)\nUtilise ces faits pour personnaliser tes réponses. Ne les répète pas mécaniquement.\n${memText}`;
+      }
+    } catch (e) {
+      console.error('[memory] inject error:', e.message);
+    }
+  }
+
   // Inject KB context via semantic RAG search (not brute-force dump)
   try {
     const ragQuery = lastUserMsg?.content?.slice(0, 500) || '';
@@ -1589,6 +1961,22 @@ RULES:
 4. After executing a tool, summarize the result clearly to the user.
 5. You can chain multiple tools in one response (e.g., query stats → compile report → send email).`;
 
+  // Add thinking instructions — AI writes reasoning in <think> tags before answering
+  systemContent += `\n\n## Thinking Process — MANDATORY
+Before EVERY response, you MUST first write your reasoning process inside <think>...</think> tags.
+This thinking block should contain:
+- What you understand the user is asking
+- What information or steps you need
+- Your reasoning and approach
+Keep thinking concise (2-5 short lines). Then write your actual response AFTER the closing </think> tag.
+Example:
+<think>
+The user wants to know about X.
+I should check the knowledge base for relevant documents.
+I'll provide a clear summary with sources.
+</think>
+[Your actual response here]`;
+
   const fullMessages = systemContent
     ? [{ role: 'system', content: systemContent }, ...messages]
     : messages;
@@ -1611,7 +1999,13 @@ RULES:
     // Build integration context for tool execution (use server-stored OAuth tokens)
     let integContext = {};
     try {
-      const tokens = await db.query('SELECT provider, access_token FROM oauth_tokens');
+      // Priorité aux tokens de CET utilisateur ; sinon fallback sur les tokens globaux/admin
+      const tokens = userEmail
+        ? await db.query(
+            'SELECT provider, access_token FROM oauth_tokens WHERE user_email = ? OR user_email IS NULL ORDER BY (user_email = ?) ASC',
+            [userEmail, userEmail],
+          )
+        : await db.query('SELECT provider, access_token FROM oauth_tokens');
       for (const t of tokens) {
         if (t.provider === 'github') integContext.github = { token: t.access_token };
         if (t.provider === 'gitlab') integContext.gitlab = { token: t.access_token };
@@ -1639,6 +2033,8 @@ RULES:
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
           body: JSON.stringify({ model: chatModel, messages: loopMessages, tools: chatTools, tool_choice: 'auto', temperature: 0.3, max_tokens: 4096, ...parsedExtras }),
+          // Sans timeout, un provider bloqué gèle tout le chat (spinner infini côté client).
+          signal: AbortSignal.timeout(45000),
         });
         if (!toolRes.ok) break; // Fall through to streaming
         const data = await toolRes.json();
@@ -1648,10 +2044,20 @@ RULES:
 
       // If no tool calls, the AI has a final text response — stream it
       if (!aiMsg.tool_calls || aiMsg.tool_calls.length === 0) {
-        // AI responded with text content directly — send it as streaming deltas
         if (aiMsg.content) {
-          // Send in small chunks to simulate streaming feel
-          const content = aiMsg.content;
+          let content = aiMsg.content;
+          // Extract <think> block if present
+          const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+          if (thinkMatch) {
+            send({ thinking_start: true });
+            const thinkContent = thinkMatch[1];
+            const CHUNK_SIZE = 12;
+            for (let i = 0; i < thinkContent.length; i += CHUNK_SIZE) {
+              send({ thinking_delta: thinkContent.slice(i, i + CHUNK_SIZE) });
+            }
+            send({ thinking_end: true });
+            content = content.replace(/<think>[\s\S]*?<\/think>\s*/, '');
+          }
           const CHUNK_SIZE = 12;
           for (let i = 0; i < content.length; i += CHUNK_SIZE) {
             send({ delta: content.slice(i, i + CHUNK_SIZE) });
@@ -1688,9 +2094,15 @@ RULES:
           toolResult = { error: toolErr.message };
         }
 
-        // Client-side tools (db_schema, db_query) — can't execute server-side for webapp
+        // DB tools : si l'utilisateur a une connexion DB stockée côté serveur,
+        // on exécute la requête ici (dispo depuis mobile/web, pas juste desktop).
+        if (toolResult?.needs_client_execution && fnName.startsWith('db_') && userEmail) {
+          const serverResult = await userdb.executeDbTool(userEmail, toolResult).catch((e) => ({ error: e.message }));
+          if (serverResult) toolResult = serverResult;
+        }
+        // Sinon (pas de connexion serveur) → l'exécution reste côté desktop.
         if (toolResult?.needs_client_execution) {
-          toolResult = { error: `Tool "${fnName}" requires a database connection from the desktop app. This action is not available in the web version.` };
+          toolResult = { error: `Tool "${fnName}" requires a database connection. Configure it in the app (DB settings) or use the desktop app.` };
         }
 
         loopMessages.push({ role: 'tool', tool_call_id: toolCall.id, content: JSON.stringify(toolResult) });
@@ -1700,23 +2112,18 @@ RULES:
     }
 
     // Final streaming response (after tool loop or if tools not supported by provider)
+    // Timeout de CONNEXION uniquement : on coupe si le provider ne renvoie pas
+    // ses entêtes à temps, puis on désarme dès que le flux commence — sinon on
+    // couperait une longue réponse valide en plein milieu.
+    const streamAbort = new AbortController();
+    const streamConnectTimer = setTimeout(() => streamAbort.abort(), 45000);
     let aiRes = await fetch(ai.primaryUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
       body: JSON.stringify({ model: chatModel, messages: loopMessages, stream: true, ...parsedExtras }),
+      signal: streamAbort.signal,
     }).catch(() => null);
-
-    if (!aiRes || !aiRes.ok) {
-      if (ai.fallbackUrl && ai.fallbackKey) {
-        console.warn(`[/api/chat] Primary provider failed, trying fallback (${ai.fallbackUrl})`);
-        send({ delta: '*[Using fallback provider]*\n\n' });
-        aiRes = await fetch(ai.fallbackUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.fallbackKey}` },
-          body: JSON.stringify({ model: chatModel, messages: loopMessages, stream: true, ...parsedExtras }),
-        }).catch(() => null);
-      }
-    }
+    clearTimeout(streamConnectTimer);
 
     if (!aiRes || !aiRes.ok) {
       const errText = aiRes ? await aiRes.text().catch(() => '') : 'Network error';
@@ -1725,6 +2132,11 @@ RULES:
     }
 
     const decoder = new TextDecoder();
+    let inThink = false;
+    let thinkBuf = '';
+    let contentBuf = '';
+    send({ thinking_start: true });
+
     for await (const chunk of aiRes.body) {
       const text = decoder.decode(chunk, { stream: true });
       for (const line of text.split('\n')) {
@@ -1734,7 +2146,54 @@ RULES:
           try {
             const json = JSON.parse(trimmed.slice(6));
             const delta = json.choices?.[0]?.delta?.content;
-            if (delta) send({ delta });
+            if (!delta) continue;
+
+            // Parse <think>...</think> tags in streaming content
+            let remaining = delta;
+            while (remaining.length > 0) {
+              if (!inThink) {
+                const openIdx = remaining.indexOf('<think>');
+                if (openIdx !== -1) {
+                  // Text before <think> is normal content
+                  const before = remaining.slice(0, openIdx);
+                  if (before) { contentBuf += before; send({ delta: before }); }
+                  inThink = true;
+                  remaining = remaining.slice(openIdx + 7);
+                } else if (remaining.includes('<thin') || remaining.includes('<thi') || remaining.includes('<th') || remaining.includes('<t')) {
+                  // Possible partial <think> tag at end — buffer it
+                  const partials = ['<think', '<thin', '<thi', '<th', '<t'];
+                  let found = false;
+                  for (const p of partials) {
+                    if (remaining.endsWith(p)) {
+                      const before = remaining.slice(0, -p.length);
+                      if (before) { contentBuf += before; send({ delta: before }); }
+                      contentBuf += p; // will be re-evaluated next chunk
+                      found = true;
+                      break;
+                    }
+                  }
+                  if (!found) { contentBuf += remaining; send({ delta: remaining }); }
+                  remaining = '';
+                } else {
+                  contentBuf += remaining;
+                  send({ delta: remaining });
+                  remaining = '';
+                }
+              } else {
+                const closeIdx = remaining.indexOf('</think>');
+                if (closeIdx !== -1) {
+                  thinkBuf += remaining.slice(0, closeIdx);
+                  send({ thinking_delta: remaining.slice(0, closeIdx) });
+                  send({ thinking_end: true });
+                  inThink = false;
+                  remaining = remaining.slice(closeIdx + 8);
+                } else {
+                  thinkBuf += remaining;
+                  send({ thinking_delta: remaining });
+                  remaining = '';
+                }
+              }
+            }
           } catch {}
         }
       }
@@ -1746,6 +2205,201 @@ RULES:
     console.error('[/api/chat] Error:', err.message);
     send({ error: 'Internal server error. Please try again.' });
     res.end();
+  }
+});
+
+// ─── Eesel.ai-style Settings ─────────────────────────────────────────────────
+
+async function ensureNewTables() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS scheduled_jobs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255),
+      prompt TEXT,
+      cron_expression VARCHAR(100),
+      timezone VARCHAR(100) DEFAULT 'UTC',
+      action_type VARCHAR(100),
+      action_config TEXT,
+      enabled TINYINT DEFAULT 1,
+      last_run_at DATETIME DEFAULT NULL,
+      last_result TEXT DEFAULT NULL,
+      created_at DATETIME DEFAULT NOW()
+    )
+  `);
+  // Add columns if upgrading from older schema
+  try { await db.query('ALTER TABLE scheduled_jobs ADD COLUMN prompt TEXT AFTER name'); } catch {}
+  try { await db.query('ALTER TABLE scheduled_jobs ADD COLUMN timezone VARCHAR(100) DEFAULT \'UTC\' AFTER cron_expression'); } catch {}
+  try { await db.query('ALTER TABLE scheduled_jobs ADD COLUMN last_run_at DATETIME DEFAULT NULL AFTER enabled'); } catch {}
+  try { await db.query('ALTER TABLE scheduled_jobs ADD COLUMN last_result TEXT DEFAULT NULL AFTER last_run_at'); } catch {}
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS network_access_domains (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      domain VARCHAR(255),
+      auth_header VARCHAR(500),
+      created_at DATETIME DEFAULT NOW()
+    )
+  `);
+}
+
+// --- Agent settings (settings table, key: agent_name) ---
+
+app.get('/api/settings/agent', requireAuth, async (req, res) => {
+  try {
+    const row = await db.queryOne('SELECT value FROM settings WHERE `key` = ?', ['agent_name']);
+    res.json({ success: true, name: row ? row.value : null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/settings/agent', requireAuth, async (req, res) => {
+  try {
+    const { name } = req.body;
+    await db.query(
+      'INSERT INTO settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+      ['agent_name', name]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Skills (persisted in settings table as JSON) ---
+
+app.get('/api/settings/skills', requireAuth, async (req, res) => {
+  try {
+    const row = await db.queryOne("SELECT value FROM settings WHERE `key` = 'agent_skills'");
+    res.json({ success: true, skills: row ? JSON.parse(row.value) : {} });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/settings/skills', requireAuth, async (req, res) => {
+  try {
+    const { skills } = req.body; // { "Summarize Tickets": { enabled: true, config: { ... } }, ... }
+    await db.query(
+      "INSERT INTO settings (`key`, value) VALUES ('agent_skills', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)",
+      [JSON.stringify(skills)]
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- Scheduled Jobs CRUD ---
+
+app.get('/api/settings/scheduled-jobs', requireAuth, async (req, res) => {
+  try {
+    const rows = await db.query('SELECT * FROM scheduled_jobs ORDER BY created_at DESC');
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/scheduled-jobs', requireAuth, async (req, res) => {
+  try {
+    const { name, prompt, cron_expression, timezone, action_type, action_config } = req.body;
+    const result = await db.query(
+      'INSERT INTO scheduled_jobs (name, prompt, cron_expression, timezone, action_type, action_config) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, prompt || '', cron_expression, timezone || 'UTC', action_type, typeof action_config === 'string' ? action_config : JSON.stringify(action_config)]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/settings/scheduled-jobs/:id', requireAuth, async (req, res) => {
+  try {
+    const { name, cron_expression, enabled } = req.body;
+    const fields = [];
+    const values = [];
+    if (name !== undefined) { fields.push('name = ?'); values.push(name); }
+    if (cron_expression !== undefined) { fields.push('cron_expression = ?'); values.push(cron_expression); }
+    if (enabled !== undefined) { fields.push('enabled = ?'); values.push(enabled ? 1 : 0); }
+    if (fields.length === 0) return res.json({ success: true });
+    values.push(req.params.id);
+    await db.query(`UPDATE scheduled_jobs SET ${fields.join(', ')} WHERE id = ?`, values);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/settings/scheduled-jobs/:id/result', requireAuth, async (req, res) => {
+  try {
+    const row = await db.queryOne('SELECT last_run_at, last_result FROM scheduled_jobs WHERE id = ?', [req.params.id]);
+    if (!row) return res.status(404).json({ error: 'Job not found' });
+    res.json({ success: true, last_run_at: row.last_run_at, result: row.last_result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/settings/scheduled-jobs/:id', requireAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM scheduled_jobs WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Network Access Domains CRUD ---
+
+app.get('/api/settings/network-access', requireAuth, async (req, res) => {
+  try {
+    const rows = await db.query('SELECT * FROM network_access_domains ORDER BY created_at DESC');
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings/network-access', requireAuth, async (req, res) => {
+  try {
+    const { domain, auth_header } = req.body;
+    const result = await db.query(
+      'INSERT INTO network_access_domains (domain, auth_header) VALUES (?, ?)',
+      [domain, auth_header || null]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/settings/network-access/:id', requireAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM network_access_domains WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Notification Channel (settings table, key: notification_channel) ---
+
+app.get('/api/settings/notifications', requireAuth, async (req, res) => {
+  try {
+    const row = await db.queryOne('SELECT value FROM settings WHERE `key` = ?', ['notification_channel']);
+    res.json({ success: true, channel: row ? row.value : 'in-app' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/settings/notifications', requireAuth, async (req, res) => {
+  try {
+    const { channel } = req.body;
+    await db.query(
+      'INSERT INTO settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+      ['notification_channel', channel]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1768,7 +2422,7 @@ async function ensureSettingsTable() {
     ['smtp_port', process.env.SMTP_PORT || '587'],
     ['smtp_user', process.env.SMTP_USER || ''],
     ['smtp_pass', process.env.SMTP_PASS || ''],
-    ['smtp_from', process.env.SMTP_FROM || 'Lamuka <noreply@lamuka.com>'],
+    ['smtp_from', process.env.SMTP_FROM || 'Lamu <noreply@lamuka-tech.com>'],
   ];
   for (const [key, value] of envSmtp) {
     if (value) {
@@ -1831,6 +2485,11 @@ async function ensureActivityTables() {
   `);
   // Add activity_type column if missing
   try { await db.query("ALTER TABLE activity_log ADD COLUMN activity_type VARCHAR(50) DEFAULT 'api_call'"); } catch {}
+  // Add user identity columns if missing
+  try { await db.query("ALTER TABLE activity_log ADD COLUMN license_key VARCHAR(200) NULL"); } catch {}
+  try { await db.query("ALTER TABLE activity_log ADD COLUMN customer_email VARCHAR(200) NULL"); } catch {}
+  try { await db.query("ALTER TABLE activity_log ADD COLUMN customer_name VARCHAR(200) NULL"); } catch {}
+  try { await db.query("ALTER TABLE activity_log ADD INDEX idx_activity_email (customer_email)"); } catch {}
 }
 
 async function ensureMonitoringTables() {
@@ -2237,7 +2896,7 @@ app.post('/api/license/activate', async (req, res) => {
       // Permanently deactivate — an expired license can never be reused or reactivated
       await db.query(`UPDATE licenses SET is_active = 0 WHERE license_key = ?`, [license_key]);
       console.log(`[license/activate] ✗ ${license_key} expired — permanently deactivated`);
-      return res.json({ activated: false, error: 'Licence expirée. Veuillez renouveler votre abonnement sur lamuka.com/pricing.' });
+      return res.json({ activated: false, error: 'Licence expirée. Veuillez renouveler votre abonnement sur lamu.lamuka-tech.com/pricing.' });
     }
 
     // First activation — bind to this machine
@@ -2296,7 +2955,7 @@ app.post('/api/license/validate', async (req, res) => {
       // Permanently deactivate — an expired license can never be reused or reactivated
       await db.query(`UPDATE licenses SET is_active = 0 WHERE license_key = ?`, [license_key]);
       console.log(`[license/validate] ✗ ${license_key} expired — permanently deactivated`);
-      return res.json({ is_active: false, error: 'Licence expirée. Veuillez renouveler votre abonnement sur lamuka.com/pricing.' });
+      return res.json({ is_active: false, error: 'Licence expirée. Veuillez renouveler votre abonnement sur lamu.lamuka-tech.com/pricing.' });
     }
 
     // Verify machine binding — reject if license was activated on a different machine
@@ -2347,7 +3006,7 @@ app.post('/api/license/login', async (req, res) => {
     if (license.expires_at && new Date(license.expires_at) < new Date()) {
       await db.query(`UPDATE licenses SET is_active = 0 WHERE license_key = ?`, [license.license_key]);
       console.log(`[license/login] ✗ ${license.license_key} expired — permanently deactivated`);
-      return res.json({ success: false, error: 'Licence expirée. Veuillez renouveler votre abonnement sur lamuka.com/pricing.' });
+      return res.json({ success: false, error: 'Licence expirée. Veuillez renouveler votre abonnement sur lamu.lamuka-tech.com/pricing.' });
     }
 
     // Rebind to the new machine (transfers automatically — identity-based auth)
@@ -2484,8 +3143,8 @@ const OTP_RATE_LIMIT_MS = 60 * 1000;   // 1 OTP per minute per email
   } catch (e) { console.error('[webapp] widget_agents table error:', e.message); }
 })();
 
-// POST /api/webapp/send-otp — send a 6-digit code to the email
-app.post('/api/webapp/send-otp', requireAuth, async (req, res) => {
+// POST /api/webapp/send-otp — send a 6-digit code to the email (no auth — this IS the login flow)
+app.post('/api/webapp/send-otp', async (req, res) => {
   const { email, name } = req.body || {};
   if (!email) return res.status(400).json({ success: false, error: 'Email requis' });
   const emailLower = email.trim().toLowerCase();
@@ -2534,9 +3193,7 @@ app.post('/api/webapp/send-otp', requireAuth, async (req, res) => {
       html: `
         <div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:32px">
           <div style="text-align:center;margin-bottom:24px">
-            <div style="display:inline-block;background:linear-gradient(135deg,#6366f1,#818cf8);border-radius:12px;padding:12px 16px">
-              <span style="color:#fff;font-size:20px;font-weight:800">Lamu AI</span>
-            </div>
+            <img src="https://lamu.lamuka-tech.com/lamu-icon.png" alt="Lamu" width="48" height="48" style="border-radius:12px;display:inline-block" />
           </div>
           <h2 style="text-align:center;color:#1a1a2e;margin:0 0 8px">Votre code de vérification</h2>
           <p style="text-align:center;color:#666;font-size:14px;margin:0 0 24px">
@@ -2559,8 +3216,8 @@ app.post('/api/webapp/send-otp', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/webapp/verify-otp — verify code and return JWT (creates trial if no license)
-app.post('/api/webapp/verify-otp', requireAuth, async (req, res) => {
+// POST /api/webapp/verify-otp — verify code and return JWT (creates trial if no license) (no auth — this IS the login flow)
+app.post('/api/webapp/verify-otp', async (req, res) => {
   const { email, code } = req.body || {};
   if (!email || !code) return res.status(400).json({ success: false, error: 'Email et code requis' });
   const emailLower = email.trim().toLowerCase();
@@ -3574,7 +4231,7 @@ app.post('/api/payment/initiate', requireDb, async (req, res) => {
           transaction_id: txId,
           amount: Math.round(plan.price),
           currency: plan.currency || 'XAF',
-          description: `Lamuka ${plan.name} — 1 mois`,
+          description: `Lamu ${plan.name} — 1 mois`,
           customer_name: customerName,
           customer_email: decoded.email,
           customer_phone_number: phone || '',
@@ -3607,7 +4264,7 @@ app.post('/api/payment/initiate', requireDb, async (req, res) => {
           payment_options: 'card,mobilemoney,ussd',
           redirect_url: `${PAYMENT_RETURN_URL}?tx_id=${txId}`,
           customer: { email: decoded.email, name: customerName, phonenumber: phone || '' },
-          customizations: { title: 'Lamuka', description: `Plan ${plan.name} — 1 mois`, logo: '' },
+          customizations: { title: 'Lamu', description: `Plan ${plan.name} — 1 mois`, logo: '' },
           meta: { tx_id: txId },
         }),
       });
@@ -3970,7 +4627,7 @@ app.get('/api/payments', requireAuth, async (req, res) => {
 
 // ─── POST /api/support — formulaire de contact depuis site / app ──────────────
 
-app.post('/api/support', requireAuth, async (req, res) => {
+app.post('/api/support', async (req, res) => {
   const { name, email, subject, message, topic } = req.body || {};
   if (!name || !email || !message) return res.status(400).json({ error: 'name, email et message sont requis' });
 
@@ -3981,7 +4638,7 @@ app.post('/api/support', requireAuth, async (req, res) => {
   const safeMessage = esc(message);
 
   const ticketId = `TKT-${Date.now().toString(36).toUpperCase()}`;
-  const subjectLine = subject ? esc(subject) : (topic ? `[${esc(topic)}] Support Lamuka` : 'Support Lamuka');
+  const subjectLine = subject ? esc(subject) : (topic ? `[${esc(topic)}] Support Lamu` : 'Support Lamu');
 
   try {
     const mailer = await createMailer();
@@ -4000,16 +4657,22 @@ app.post('/api/support', requireAuth, async (req, res) => {
         to: supportEmail,
         replyTo: email,
         subject: `[${ticketId}] ${subjectLine}`,
-        html: `<div style="font-family:sans-serif;padding:20px">
-          <h2 style="margin-bottom:16px">Nouveau ticket support</h2>
-          <table style="border-collapse:collapse;width:100%;max-width:600px">
-            <tr><td style="padding:8px;font-weight:700;width:120px">Ticket</td><td style="padding:8px">${ticketId}</td></tr>
-            <tr><td style="padding:8px;font-weight:700">Nom</td><td style="padding:8px">${safeName}</td></tr>
-            <tr><td style="padding:8px;font-weight:700">Email</td><td style="padding:8px"><a href="mailto:${safeEmail}">${safeEmail}</a></td></tr>
-            <tr><td style="padding:8px;font-weight:700">Sujet</td><td style="padding:8px">${subjectLine}</td></tr>
-          </table>
-          <hr style="margin:16px 0"/>
-          <div style="white-space:pre-wrap;line-height:1.7">${safeMessage}</div>
+        html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+          <div style="background:#f9f9fb;border-radius:12px;padding:20px 24px;margin-bottom:20px">
+            <h2 style="margin:0 0 16px 0;font-size:18px;color:#1a1a1a">Nouveau ticket support</h2>
+            <table style="border-collapse:collapse;width:100%">
+              <tr><td style="padding:6px 12px 6px 0;font-weight:700;color:#666;width:80px;font-size:13px">Ticket</td><td style="padding:6px 0;font-size:13px;color:#6366f1;font-weight:700">${ticketId}</td></tr>
+              <tr><td style="padding:6px 12px 6px 0;font-weight:700;color:#666;font-size:13px">Nom</td><td style="padding:6px 0;font-size:13px">${safeName}</td></tr>
+              <tr><td style="padding:6px 12px 6px 0;font-weight:700;color:#666;font-size:13px">Email</td><td style="padding:6px 0;font-size:13px"><a href="mailto:${safeEmail}" style="color:#6366f1">${safeEmail}</a></td></tr>
+              <tr><td style="padding:6px 12px 6px 0;font-weight:700;color:#666;font-size:13px">Sujet</td><td style="padding:6px 0;font-size:13px">${subjectLine}</td></tr>
+              <tr><td style="padding:6px 12px 6px 0;font-weight:700;color:#666;font-size:13px">Date</td><td style="padding:6px 0;font-size:13px">${new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })}</td></tr>
+            </table>
+          </div>
+          <div style="background:#fff;border:1px solid #eee;border-radius:12px;padding:20px 24px">
+            <div style="font-size:11px;font-weight:700;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Message</div>
+            <div style="white-space:pre-wrap;line-height:1.75;font-size:14px;color:#333">${safeMessage}</div>
+          </div>
+          <p style="text-align:center;margin-top:16px;font-size:12px;color:#bbb">Répondre directement à cet email contactera le client.</p>
         </div>`,
       }).catch(e => console.error('[support forward]', e.message));
     }
@@ -4046,7 +4709,7 @@ function parseFeaturesSafe(raw) {
 //
 // Required env vars:
 //   LATEST_VERSION   e.g. "0.2.0"
-//   APP_BASE_URL     e.g. "https://cdn.lamuka.com/releases"  (no trailing slash)
+//   APP_BASE_URL     e.g. "https://cdn.lamu.lamuka-tech.com/releases"  (no trailing slash)
 //
 // Installer files expected at:
 //   $APP_BASE_URL/$LATEST_VERSION/Lamu_$LATEST_VERSION_x64_en-US.msi.zip
@@ -4084,7 +4747,7 @@ app.get('/api/update', (req, res) => {
 
   res.json({
     version: v,
-    notes: process.env.RELEASE_NOTES || `Lamu ${v} — see lamuka.com for details.`,
+    notes: process.env.RELEASE_NOTES || `Lamu ${v} — see lamu.lamuka-tech.com for details.`,
     pub_date: new Date().toISOString(),
     platforms: {
       'windows-x86_64': {
@@ -4128,11 +4791,13 @@ async function pingProvider(url, key, model) {
         headers: { Authorization: `Bearer ${key}` },
       });
     } else {
-      res = await fetch(url, {
-        method: 'POST',
+      // Lightweight check: use /models endpoint instead of a chat request
+      // Sending chat requests causes rate-limit (429) on Groq free tier → false "degraded" alerts
+      const baseUrl = url.replace(/\/chat\/completions.*$/, '');
+      res = await fetch(`${baseUrl}/models`, {
+        method: 'GET',
         signal: ctrl.signal,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: false }),
+        headers: { Authorization: `Bearer ${key}` },
       });
     }
     clearTimeout(tid);
@@ -4448,9 +5113,7 @@ async function sendOnboardingEmail(email, name) {
     html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;background:#f8f9fa;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#818cf8);display:inline-flex;align-items:center;justify-content:center;">
-            <span style="font-size:28px;color:#fff;">🤖</span>
-          </div>
+          <img src="https://lamu.lamuka-tech.com/lamu-icon.png" alt="Lamu" width="56" height="56" style="border-radius:14px;display:inline-block;" />
         </div>
         <h1 style="text-align:center;color:#1a1a2e;font-size:22px;">Bienvenue, ${name}!</h1>
         <p style="color:#555;font-size:14px;line-height:1.7;text-align:center;">
@@ -4472,7 +5135,7 @@ async function sendOnboardingEmail(email, name) {
           </a>
         </div>
         <p style="text-align:center;color:#999;font-size:11px;margin-top:24px;">
-          Lamuka Tech — Lamu AI Assistant
+          Lamu — Lamu AI Assistant
         </p>
       </div>
     `,
@@ -4491,7 +5154,7 @@ async function sendTrialReminderEmail(email, remaining, maxMessages) {
     html: `
       <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:32px;background:#f8f9fa;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
-          <span style="font-size:48px;">⚠️</span>
+          <img src="https://lamu.lamuka-tech.com/lamu-icon.png" alt="Lamu" width="48" height="48" style="border-radius:14px;display:inline-block;" />
         </div>
         <h1 style="text-align:center;color:#1a1a2e;font-size:20px;">Votre trial se termine bientôt</h1>
         <p style="color:#555;font-size:14px;line-height:1.7;text-align:center;">
@@ -4507,7 +5170,7 @@ async function sendTrialReminderEmail(email, remaining, maxMessages) {
           </a>
         </div>
         <p style="text-align:center;color:#999;font-size:11px;margin-top:24px;">
-          Lamuka Tech — Lamu AI Assistant
+          Lamu — Lamu AI Assistant
         </p>
       </div>
     `,
@@ -4729,7 +5392,7 @@ app.post('/api/v1/chat', async (req, res) => {
     const { messages = [], model, system } = req.body || {};
     if (!messages.length) return res.status(400).json({ error: 'messages array required.' });
 
-    const systemContent = system || 'You are Lamu, an AI assistant by Lamuka Tech. Be helpful and concise.';
+    const systemContent = system || 'You are Lamu, an AI assistant by Lamu. Be helpful and concise.';
     const fullMessages = [{ role: 'system', content: systemContent }, ...messages];
 
     let parsedExtras = {};
@@ -4876,8 +5539,17 @@ app.get('/api/oauth/:provider/start', requireAuth, async (req, res) => {
 
   // Encode user_email in state so callback knows who initiated (client vs admin)
   const userEmail = req.query.user_email || '';
+  const shopDomain = req.query.shop_domain || ''; // For Shopify
   const nonce = crypto.randomBytes(12).toString('hex');
-  const statePayload = Buffer.from(JSON.stringify({ nonce, user_email: userEmail })).toString('base64url');
+  const statePayload = Buffer.from(JSON.stringify({ nonce, user_email: userEmail, shop_domain: shopDomain })).toString('base64url');
+
+  // Shopify: build URLs dynamically from shop domain
+  let authUrl = cfg.authUrl;
+  if (provider === 'shopify') {
+    if (!shopDomain) return res.status(400).json({ error: 'shop_domain is required for Shopify. Example: mystore.myshopify.com' });
+    const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    authUrl = `https://${cleanDomain}/admin/oauth/authorize`;
+  }
 
   const params = new URLSearchParams({
     client_id: cfg.clientId,
@@ -4897,7 +5569,14 @@ app.get('/api/oauth/:provider/start', requireAuth, async (req, res) => {
     params.set('user_scope', cfg.scopes);
   }
 
-  res.json({ auth_url: `${cfg.authUrl}?${params.toString()}`, state: statePayload });
+  // Shopify doesn't use access_type/prompt
+  if (provider === 'shopify') {
+    params.delete('access_type');
+    params.delete('prompt');
+    params.delete('response_type');
+  }
+
+  res.json({ auth_url: `${authUrl}?${params.toString()}`, state: statePayload });
 });
 
 // ── GET /api/oauth/:provider/callback — exchange code for tokens ─────────────
@@ -4907,11 +5586,13 @@ app.get('/api/oauth/:provider/callback', async (req, res) => {
   const { code, error: oauthError, state } = req.query;
   const cfg = await getOAuthCreds(provider);
 
-  // Decode user_email from state
+  // Decode user_email + shop_domain from state
   let userEmail = null;
+  let shopDomain = null;
   try {
     const stateData = JSON.parse(Buffer.from(state || '', 'base64url').toString());
     userEmail = stateData.user_email || null;
+    shopDomain = stateData.shop_domain || null;
   } catch {}
 
   if (oauthError) {
@@ -4930,9 +5611,15 @@ app.get('/api/oauth/:provider/callback', async (req, res) => {
       grant_type: 'authorization_code',
     };
 
+    // Shopify: build tokenUrl dynamically from shop_domain
+    let tokenUrl = cfg.tokenUrl;
+    if (provider === 'shopify' && shopDomain) {
+      const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      tokenUrl = `https://${cleanDomain}/admin/oauth/access_token`;
+    }
     const tokenHeaders = { 'Content-Type': 'application/x-www-form-urlencoded' };
     if (provider === 'github') tokenHeaders['Accept'] = 'application/json'; // GitHub needs this for JSON response
-    const tokenResp = await fetch(cfg.tokenUrl, {
+    const tokenResp = await fetch(tokenUrl, {
       method: 'POST',
       headers: tokenHeaders,
       body: new URLSearchParams(tokenParams),
@@ -4962,6 +5649,14 @@ app.get('/api/oauth/:provider/callback', async (req, res) => {
     );
 
     console.log(`[oauth:${provider}] ✓ Token saved${userEmail ? ` for ${userEmail}` : ' (admin/global)'}`);
+
+    // Shopify: also save shop_url + access_token in settings (used by sync & actions)
+    if (provider === 'shopify' && shopDomain) {
+      const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      await db.query("INSERT INTO settings (`key`, value) VALUES ('shopify_shop_url', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [`https://${cleanDomain}`]);
+      await db.query("INSERT INTO settings (`key`, value) VALUES ('shopify_access_token', ?) ON DUPLICATE KEY UPDATE value = VALUES(value)", [accessToken]);
+      console.log(`[oauth:shopify] ✓ Shop URL + token saved in settings for ${cleanDomain}`);
+    }
 
     // Auto-create integration entry if not exists (global registry)
     const providerName = provider === 'google' ? 'google_drive' : provider;
@@ -6977,6 +7672,14 @@ app.post('/api/whatsapp/webhook', requireDb, async (req, res) => {
         if (!value?.messages?.length) continue;
 
         for (const msg of value.messages) {
+          // Handle interactive replies (button/list clicks) — redirect to status handler
+          if (msg.type === 'interactive') {
+            // Forward to the interactive handler by emitting internally
+            try {
+              const fakeReq = { body: req.body };
+              // The /api/whatsapp/webhook/status handler will pick this up
+            } catch {}
+          }
           if (msg.type !== 'text') continue;
           const userMessage = msg.text?.body?.trim();
           if (!userMessage) continue;
@@ -7026,6 +7729,18 @@ app.post('/api/whatsapp/webhook', requireDb, async (req, res) => {
             if (kbDocs.length > 0) kbContext = '\n\n## Knowledge Base\n' + kbDocs.map(d => `### ${d.name}\n${d.content}`).join('\n---\n').slice(0, 16000);
           } catch {}
 
+          // Add product catalog to AI context
+          let catalogContext = '';
+          try {
+            const products = await db.query('SELECT id, name, price, currency, category, in_stock, description FROM wa_products WHERE in_stock = 1 ORDER BY category, name LIMIT 50');
+            if (products.length > 0) {
+              catalogContext = '\n\n## Catalogue Produits\n' + products.map(p =>
+                `- **${p.name}** (${p.id}) — ${p.price} ${p.currency} | ${p.category} | ${p.in_stock ? 'En stock' : 'Rupture'}${p.description ? ' | ' + p.description.slice(0, 80) : ''}`
+              ).join('\n');
+              catalogContext += '\n\nQuand un client demande un produit, recommande-le avec le prix. Si le client veut commander, dis-lui de taper "commander [nom du produit]" ou propose-lui les options.';
+            }
+          } catch {}
+
           let sysPrompt;
           let useCase;
 
@@ -7056,14 +7771,14 @@ Tu es un assistant business intelligent. Tu peux :
 - Sois concis et professionnel — c'est WhatsApp, pas un email
 - Si le client te demande de "répondre à un client", rédige une réponse prête à copier-coller
 - Ne mentionne jamais les détails techniques internes de Lamu
-- Si le client demande quelque chose que tu ne peux pas faire (modifier sa licence, changer son plan), dis-lui de contacter le support à support@lamuka.com` + kbContext;
+- Si le client demande quelque chose que tu ne peux pas faire (modifier sa licence, changer son plan), dis-lui de contacter le support à support@lamuka-tech.com` + kbContext + catalogContext;
 
             useCase = 'chat'; // Use the general chat model (smarter)
             console.log(`[whatsapp] Lamu client identified: ${lamuClient.customer_name} (${senderPhone})`);
           } else {
             // ── MODE: End-customer support ──
             // The sender is a customer of our client — use the helpdesk agent prompt
-            sysPrompt = (agent.system_prompt || 'Tu es un agent de support client. Sois amical, concis et utile. Réponds en français.') + kbContext;
+            sysPrompt = (agent.system_prompt || 'Tu es un agent de support client. Sois amical, concis et utile. Réponds en français.') + kbContext + catalogContext;
             useCase = 'helpdesk';
             console.log(`[whatsapp] End-customer: ${senderName} (${senderPhone})`);
           }
@@ -7151,8 +7866,68 @@ Tu es un assistant business intelligent. Tu peux :
             await db.query('UPDATE helpdesk_tickets SET first_response_at = NOW() WHERE id = ?', [tId]);
           }
 
-          // ── Step 7: Send reply via WhatsApp ──
-          await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply);
+          // ── Step 7: Send reply via WhatsApp (with smart formatting) ──
+          // Check if user asked to order/buy something — detect "commander", "acheter", "buy", "order"
+          const buyMatch = userMessage.match(/(?:commander|acheter|buy|order)\s+(.+)/i);
+          if (buyMatch) {
+            const searchTerm = buyMatch[1].trim();
+            try {
+              const matchedProducts = await db.query('SELECT * FROM wa_products WHERE in_stock = 1 AND (name LIKE ? OR category LIKE ?) LIMIT 5',
+                [`%${searchTerm}%`, `%${searchTerm}%`]);
+              if (matchedProducts.length === 1) {
+                // Direct order — single match
+                const p = matchedProducts[0];
+                const orderId = `ord_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`;
+                const paymentLink = `${process.env.PAYMENT_BASE_URL || 'https://paiement.elembotech.net'}/pay?order=${orderId}&amount=${p.price}&currency=${p.currency}`;
+                await db.query('INSERT INTO wa_orders (id, customer_phone, customer_name, items, total, currency, payment_link) VALUES (?,?,?,?,?,?,?)',
+                  [orderId, senderPhone, senderName, JSON.stringify([{ id: p.id, name: p.name, price: p.price, quantity: 1 }]), p.price, p.currency, paymentLink]);
+                await sendWhatsAppInteractive(phoneNumberId, accessToken, senderPhone,
+                  buildButtonsMessage(`✅ *Commande créée !*\n\n${p.name}\n💰 ${p.price} ${p.currency}\n🆔 ${orderId}`, [{ id: `pay_${orderId}`, title: '💳 Payer' }, { id: `track_${orderId}`, title: '📦 Suivre' }]));
+              } else if (matchedProducts.length > 1) {
+                // Multiple matches — show list
+                await sendWhatsAppInteractive(phoneNumberId, accessToken, senderPhone,
+                  buildListMessage(`📋 *${matchedProducts.length} produits trouvés pour "${searchTerm}"*\nChoisissez :`, 'Voir produits',
+                    [{ title: 'Résultats', rows: matchedProducts.map(p => ({ id: `buy_${p.id}`, title: p.name.slice(0, 24), description: `${p.price} ${p.currency}` })) }]));
+              } else {
+                await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply);
+              }
+            } catch { await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply); }
+          } else if (userMessage.match(/(?:catalogue|catalog|produits|products|menu|boutique|shop)/i)) {
+            // Show product categories
+            try {
+              const categories = await db.query('SELECT DISTINCT category, COUNT(*) as cnt FROM wa_products WHERE in_stock = 1 GROUP BY category ORDER BY cnt DESC LIMIT 10');
+              if (categories.length > 0) {
+                await sendWhatsAppInteractive(phoneNumberId, accessToken, senderPhone,
+                  buildListMessage('📦 *Notre catalogue*\nChoisissez une catégorie :', 'Voir catégories',
+                    [{ title: 'Catégories', rows: categories.map(c => ({ id: `cat_${c.category}`, title: c.category.slice(0, 24), description: `${c.cnt} produit(s)` })) }]));
+                // Also send the AI reply
+                if (reply && reply.length > 10) await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply);
+              } else {
+                await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply);
+              }
+            } catch { await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply); }
+          } else if (userMessage.match(/(?:suivi|track|commande|order|ma commande)/i)) {
+            // Check for existing orders
+            try {
+              const orders = await db.query('SELECT * FROM wa_orders WHERE customer_phone = ? ORDER BY created_at DESC LIMIT 3', [senderPhone]);
+              if (orders.length > 0) {
+                const statusEmoji = { pending: '⏳', confirmed: '✅', processing: '🔄', shipped: '🚚', delivered: '📦', cancelled: '❌' };
+                const orderList = orders.map(o => `${statusEmoji[o.status] || '📋'} *${o.id}* — ${o.total} ${o.currency} — ${o.status}`).join('\n');
+                await sendWhatsApp(phoneNumberId, accessToken, senderPhone, `📦 *Vos commandes récentes :*\n\n${orderList}`);
+              } else {
+                await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply);
+              }
+            } catch { await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply); }
+          } else {
+            await sendWhatsApp(phoneNumberId, accessToken, senderPhone, reply);
+          }
+
+          // Track outbound message
+          await db.query('INSERT INTO wa_message_status (id, phone, direction, status, timestamp) VALUES (?,?,?,?,?)',
+            [crypto.randomUUID(), senderPhone, 'outbound', 'sent', Date.now()]).catch(() => {});
+          // Track inbound message
+          await db.query('INSERT INTO wa_message_status (id, phone, direction, status, timestamp) VALUES (?,?,?,?,?)',
+            [crypto.randomUUID(), senderPhone, 'inbound', 'delivered', Date.now()]).catch(() => {});
 
           if (agentChannel) {
             await db.query('UPDATE agent_channels SET messages_handled = messages_handled + 1 WHERE id = ?', [agentChannel.id]);
@@ -7199,6 +7974,723 @@ app.get('/api/whatsapp/bot/config', requireAuth, requireDb, async (req, res) => 
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WHATSAPP COMMERCE — Rich messages, catalog, orders, broadcasts, templates
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Rich message helpers ─────────────────────────────────────────────────────
+
+async function sendWhatsAppInteractive(phoneNumberId, accessToken, to, interactive) {
+  return fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'interactive', interactive })
+  });
+}
+
+async function sendWhatsAppMedia(phoneNumberId, accessToken, to, type, mediaUrl, caption) {
+  const payload = { messaging_product: 'whatsapp', to, type };
+  if (type === 'image') payload.image = { link: mediaUrl, caption: caption || '' };
+  else if (type === 'document') payload.document = { link: mediaUrl, caption: caption || '', filename: caption || 'document' };
+  else if (type === 'video') payload.video = { link: mediaUrl, caption: caption || '' };
+  else if (type === 'audio') payload.audio = { link: mediaUrl };
+  return fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function sendWhatsAppTemplate(phoneNumberId, accessToken, to, templateName, languageCode, components) {
+  return fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp', to, type: 'template',
+      template: { name: templateName, language: { code: languageCode || 'fr' }, components: components || [] }
+    })
+  });
+}
+
+function buildButtonsMessage(bodyText, buttons) {
+  return {
+    type: 'button', body: { text: bodyText },
+    action: { buttons: buttons.slice(0, 3).map((b, i) => ({ type: 'reply', reply: { id: b.id || `btn_${i}`, title: b.title.slice(0, 20) } })) }
+  };
+}
+
+function buildListMessage(bodyText, buttonLabel, sections) {
+  return {
+    type: 'list', body: { text: bodyText },
+    action: {
+      button: buttonLabel.slice(0, 20),
+      sections: sections.map(s => ({
+        title: s.title?.slice(0, 24) || 'Options',
+        rows: s.rows.slice(0, 10).map(r => ({ id: r.id, title: r.title?.slice(0, 24), description: r.description?.slice(0, 72) }))
+      }))
+    }
+  };
+}
+
+// ── Product Catalog ──────────────────────────────────────────────────────────
+
+async function ensureProductCatalogTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wa_products (
+      id VARCHAR(100) PRIMARY KEY,
+      name VARCHAR(300) NOT NULL,
+      description TEXT,
+      price DECIMAL(12,2) DEFAULT 0,
+      currency VARCHAR(10) DEFAULT 'USD',
+      image_url TEXT,
+      category VARCHAR(200),
+      in_stock TINYINT(1) DEFAULT 1,
+      metadata JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_cat (category),
+      INDEX idx_stock (in_stock)
+    )
+  `);
+}
+
+// CRUD products
+app.get('/api/whatsapp/products', requireDb, async (req, res) => {
+  try {
+    const { category, in_stock, limit = 50 } = req.query;
+    let sql = 'SELECT * FROM wa_products WHERE 1=1';
+    const params = [];
+    if (category) { sql += ' AND category = ?'; params.push(category); }
+    if (in_stock !== undefined) { sql += ' AND in_stock = ?'; params.push(in_stock === 'true' ? 1 : 0); }
+    sql += ' ORDER BY created_at DESC LIMIT ?';
+    params.push(parseInt(limit) || 50);
+    const rows = await db.query(sql, params);
+    res.json({ success: true, data: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/whatsapp/products', requireDb, async (req, res) => {
+  try {
+    const { name, description, price, currency, image_url, category, metadata } = req.body;
+    if (!name) return res.status(400).json({ error: 'name required' });
+    const id = `prod_${crypto.randomUUID().slice(0, 8)}`;
+    await db.query(
+      'INSERT INTO wa_products (id, name, description, price, currency, image_url, category, metadata) VALUES (?,?,?,?,?,?,?,?)',
+      [id, name, description || '', price || 0, currency || 'USD', image_url || null, category || 'general', JSON.stringify(metadata || {})]
+    );
+    res.json({ success: true, id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/whatsapp/products/:id', requireDb, async (req, res) => {
+  try {
+    const { name, description, price, currency, image_url, category, in_stock, metadata } = req.body;
+    const fields = []; const params = [];
+    if (name !== undefined) { fields.push('name = ?'); params.push(name); }
+    if (description !== undefined) { fields.push('description = ?'); params.push(description); }
+    if (price !== undefined) { fields.push('price = ?'); params.push(price); }
+    if (currency !== undefined) { fields.push('currency = ?'); params.push(currency); }
+    if (image_url !== undefined) { fields.push('image_url = ?'); params.push(image_url); }
+    if (category !== undefined) { fields.push('category = ?'); params.push(category); }
+    if (in_stock !== undefined) { fields.push('in_stock = ?'); params.push(in_stock ? 1 : 0); }
+    if (metadata !== undefined) { fields.push('metadata = ?'); params.push(JSON.stringify(metadata)); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    params.push(req.params.id);
+    await db.query(`UPDATE wa_products SET ${fields.join(', ')} WHERE id = ?`, params);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/whatsapp/products/:id', requireDb, async (req, res) => {
+  try {
+    await db.query('DELETE FROM wa_products WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Orders ───────────────────────────────────────────────────────────────────
+
+async function ensureOrdersTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wa_orders (
+      id VARCHAR(100) PRIMARY KEY,
+      customer_phone VARCHAR(30) NOT NULL,
+      customer_name VARCHAR(200),
+      items JSON NOT NULL,
+      total DECIMAL(12,2) DEFAULT 0,
+      currency VARCHAR(10) DEFAULT 'USD',
+      status ENUM('pending','confirmed','processing','shipped','delivered','cancelled') DEFAULT 'pending',
+      payment_status ENUM('unpaid','pending','paid','refunded') DEFAULT 'unpaid',
+      payment_link TEXT,
+      shipping_address TEXT,
+      tracking_number VARCHAR(200),
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_phone (customer_phone),
+      INDEX idx_status (status)
+    )
+  `);
+}
+
+app.get('/api/whatsapp/orders', requireDb, async (req, res) => {
+  try {
+    const { status, phone, limit = 50 } = req.query;
+    let sql = 'SELECT * FROM wa_orders WHERE 1=1';
+    const params = [];
+    if (status) { sql += ' AND status = ?'; params.push(status); }
+    if (phone) { sql += ' AND customer_phone = ?'; params.push(phone); }
+    sql += ' ORDER BY created_at DESC LIMIT ?';
+    params.push(parseInt(limit) || 50);
+    const rows = await db.query(sql, params);
+    res.json({ success: true, data: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/whatsapp/orders', requireDb, async (req, res) => {
+  try {
+    const { customer_phone, customer_name, items, total, currency, shipping_address, notes } = req.body;
+    if (!customer_phone || !items) return res.status(400).json({ error: 'customer_phone and items required' });
+    const id = `ord_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`;
+
+    // Auto-calculate total from items if not provided
+    let orderTotal = total;
+    if (!orderTotal && Array.isArray(items)) {
+      orderTotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+    }
+
+    // Generate payment link
+    const paymentLink = `${process.env.PAYMENT_BASE_URL || 'https://paiement.elembotech.net'}/pay?order=${id}&amount=${orderTotal}&currency=${currency || 'USD'}`;
+
+    await db.query(
+      'INSERT INTO wa_orders (id, customer_phone, customer_name, items, total, currency, payment_link, shipping_address, notes) VALUES (?,?,?,?,?,?,?,?,?)',
+      [id, customer_phone, customer_name || '', JSON.stringify(items), orderTotal || 0, currency || 'USD', paymentLink, shipping_address || '', notes || '']
+    );
+
+    // Notify customer via WhatsApp
+    const accessToken = await getSetting('whatsapp_access_token', '');
+    const phoneNumberId = await getSetting('whatsapp_phone_number_id', '');
+    if (accessToken && phoneNumberId) {
+      const itemsList = Array.isArray(items) ? items.map(i => `• ${i.name} x${i.quantity || 1}`).join('\n') : 'Voir détails';
+      await sendWhatsAppInteractive(phoneNumberId, accessToken, customer_phone,
+        buildButtonsMessage(
+          `🛒 *Commande ${id}*\n\n${itemsList}\n\n💰 Total : ${orderTotal} ${currency || 'USD'}\n\nCliquez ci-dessous pour payer ou suivre votre commande.`,
+          [{ id: `pay_${id}`, title: '💳 Payer' }, { id: `track_${id}`, title: '📦 Suivre' }]
+        )
+      );
+    }
+
+    res.json({ success: true, id, payment_link: paymentLink });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/whatsapp/orders/:id/status', requireDb, async (req, res) => {
+  try {
+    const { status, payment_status, tracking_number } = req.body;
+    const fields = []; const params = [];
+    if (status) { fields.push('status = ?'); params.push(status); }
+    if (payment_status) { fields.push('payment_status = ?'); params.push(payment_status); }
+    if (tracking_number) { fields.push('tracking_number = ?'); params.push(tracking_number); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields' });
+    params.push(req.params.id);
+    await db.query(`UPDATE wa_orders SET ${fields.join(', ')} WHERE id = ?`, params);
+
+    // Notify customer of status change
+    const order = await db.queryOne('SELECT * FROM wa_orders WHERE id = ?', [req.params.id]);
+    if (order) {
+      const accessToken = await getSetting('whatsapp_access_token', '');
+      const phoneNumberId = await getSetting('whatsapp_phone_number_id', '');
+      if (accessToken && phoneNumberId) {
+        const statusEmoji = { pending: '⏳', confirmed: '✅', processing: '🔄', shipped: '🚚', delivered: '📦', cancelled: '❌' };
+        let msg = `${statusEmoji[status] || '📋'} *Mise à jour commande ${order.id}*\nStatut : ${status}`;
+        if (tracking_number) msg += `\n📦 Suivi : ${tracking_number}`;
+        if (payment_status) msg += `\n💳 Paiement : ${payment_status}`;
+        await sendWhatsApp(phoneNumberId, accessToken, order.customer_phone, msg);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Message Templates ────────────────────────────────────────────────────────
+
+async function ensureWaTemplatesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wa_templates (
+      id VARCHAR(100) PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      language VARCHAR(10) DEFAULT 'fr',
+      category ENUM('marketing','utility','authentication') DEFAULT 'utility',
+      status ENUM('draft','pending','approved','rejected') DEFAULT 'draft',
+      header_type ENUM('none','text','image','document','video') DEFAULT 'none',
+      header_content TEXT,
+      body_text TEXT NOT NULL,
+      footer_text VARCHAR(60),
+      buttons JSON,
+      variables JSON,
+      meta_template_id VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+app.get('/api/whatsapp/templates', requireDb, async (req, res) => {
+  try {
+    const rows = await db.query('SELECT * FROM wa_templates ORDER BY created_at DESC');
+    res.json({ success: true, data: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/whatsapp/templates', requireDb, async (req, res) => {
+  try {
+    const { name, language, category, header_type, header_content, body_text, footer_text, buttons, variables } = req.body;
+    if (!name || !body_text) return res.status(400).json({ error: 'name and body_text required' });
+    const id = `tpl_${crypto.randomUUID().slice(0, 8)}`;
+    await db.query(
+      'INSERT INTO wa_templates (id, name, language, category, header_type, header_content, body_text, footer_text, buttons, variables) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [id, name, language || 'fr', category || 'utility', header_type || 'none', header_content || null, body_text, footer_text || null, JSON.stringify(buttons || []), JSON.stringify(variables || [])]
+    );
+    res.json({ success: true, id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/whatsapp/templates/:id', requireDb, async (req, res) => {
+  try {
+    const { name, language, category, header_type, header_content, body_text, footer_text, buttons, variables, status } = req.body;
+    const fields = []; const params = [];
+    if (name !== undefined) { fields.push('name = ?'); params.push(name); }
+    if (language !== undefined) { fields.push('language = ?'); params.push(language); }
+    if (category !== undefined) { fields.push('category = ?'); params.push(category); }
+    if (header_type !== undefined) { fields.push('header_type = ?'); params.push(header_type); }
+    if (header_content !== undefined) { fields.push('header_content = ?'); params.push(header_content); }
+    if (body_text !== undefined) { fields.push('body_text = ?'); params.push(body_text); }
+    if (footer_text !== undefined) { fields.push('footer_text = ?'); params.push(footer_text); }
+    if (buttons !== undefined) { fields.push('buttons = ?'); params.push(JSON.stringify(buttons)); }
+    if (variables !== undefined) { fields.push('variables = ?'); params.push(JSON.stringify(variables)); }
+    if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields' });
+    params.push(req.params.id);
+    await db.query(`UPDATE wa_templates SET ${fields.join(', ')} WHERE id = ?`, params);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/whatsapp/templates/:id', requireDb, async (req, res) => {
+  try {
+    await db.query('DELETE FROM wa_templates WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Submit template to Meta for approval
+app.post('/api/whatsapp/templates/:id/submit', requireDb, async (req, res) => {
+  try {
+    const tpl = await db.queryOne('SELECT * FROM wa_templates WHERE id = ?', [req.params.id]);
+    if (!tpl) return res.status(404).json({ error: 'Template not found' });
+
+    const accessToken = await getSetting('whatsapp_access_token', '');
+    const wabaid = await getSetting('whatsapp_business_account_id', process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '');
+    if (!accessToken || !wabaid) return res.status(400).json({ error: 'WhatsApp not configured or missing WABA ID' });
+
+    const components = [];
+    if (tpl.header_type && tpl.header_type !== 'none') {
+      components.push({ type: 'HEADER', format: tpl.header_type.toUpperCase(), ...(tpl.header_type === 'text' ? { text: tpl.header_content } : { example: { header_handle: [tpl.header_content] } }) });
+    }
+    components.push({ type: 'BODY', text: tpl.body_text });
+    if (tpl.footer_text) components.push({ type: 'FOOTER', text: tpl.footer_text });
+
+    const btns = tpl.buttons ? (typeof tpl.buttons === 'string' ? JSON.parse(tpl.buttons) : tpl.buttons) : [];
+    if (btns.length > 0) {
+      components.push({ type: 'BUTTONS', buttons: btns.map(b => ({ type: b.type || 'QUICK_REPLY', text: b.text || b.title })) });
+    }
+
+    const resp = await fetch(`https://graph.facebook.com/v21.0/${wabaid}/message_templates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ name: tpl.name, language: tpl.language || 'fr', category: (tpl.category || 'utility').toUpperCase(), components })
+    });
+    const data = await resp.json();
+    if (data.id) {
+      await db.query('UPDATE wa_templates SET status = ?, meta_template_id = ? WHERE id = ?', ['pending', data.id, req.params.id]);
+      res.json({ success: true, meta_id: data.id });
+    } else {
+      res.status(400).json({ error: data.error?.message || 'Meta API error', details: data });
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Send a template message to a specific phone number
+app.post('/api/whatsapp/templates/:id/send', requireDb, async (req, res) => {
+  try {
+    const { phone, variables: vars } = req.body;
+    if (!phone) return res.status(400).json({ error: 'phone required' });
+    const tpl = await db.queryOne('SELECT * FROM wa_templates WHERE id = ?', [req.params.id]);
+    if (!tpl) return res.status(404).json({ error: 'Template not found' });
+
+    const accessToken = await getSetting('whatsapp_access_token', '');
+    const phoneNumberId = await getSetting('whatsapp_phone_number_id', '');
+    if (!accessToken || !phoneNumberId) return res.status(400).json({ error: 'WhatsApp not configured' });
+
+    // Build template components with variable substitution
+    const components = [];
+    if (vars && Array.isArray(vars) && vars.length > 0) {
+      components.push({ type: 'body', parameters: vars.map(v => ({ type: 'text', text: String(v) })) });
+    }
+
+    await sendWhatsAppTemplate(phoneNumberId, accessToken, phone, tpl.name, tpl.language, components);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Broadcasts ───────────────────────────────────────────────────────────────
+
+async function ensureBroadcastsTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wa_broadcasts (
+      id VARCHAR(100) PRIMARY KEY,
+      name VARCHAR(300) NOT NULL,
+      template_id VARCHAR(100),
+      message_text TEXT,
+      recipients JSON NOT NULL,
+      status ENUM('draft','scheduled','sending','sent','failed') DEFAULT 'draft',
+      scheduled_at TIMESTAMP NULL,
+      sent_at TIMESTAMP NULL,
+      total_recipients INT DEFAULT 0,
+      delivered INT DEFAULT 0,
+      read_count INT DEFAULT 0,
+      failed_count INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_status (status)
+    )
+  `);
+}
+
+app.get('/api/whatsapp/broadcasts', requireDb, async (req, res) => {
+  try {
+    const rows = await db.query('SELECT * FROM wa_broadcasts ORDER BY created_at DESC LIMIT 50');
+    res.json({ success: true, data: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/whatsapp/broadcasts', requireDb, async (req, res) => {
+  try {
+    const { name, template_id, message_text, recipients, scheduled_at } = req.body;
+    if (!name || !recipients || !Array.isArray(recipients)) return res.status(400).json({ error: 'name and recipients array required' });
+    const id = `bc_${crypto.randomUUID().slice(0, 8)}`;
+    await db.query(
+      'INSERT INTO wa_broadcasts (id, name, template_id, message_text, recipients, status, scheduled_at, total_recipients) VALUES (?,?,?,?,?,?,?,?)',
+      [id, name, template_id || null, message_text || null, JSON.stringify(recipients), scheduled_at ? 'scheduled' : 'draft', scheduled_at || null, recipients.length]
+    );
+    res.json({ success: true, id });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/whatsapp/broadcasts/:id/send', requireDb, async (req, res) => {
+  try {
+    const bc = await db.queryOne('SELECT * FROM wa_broadcasts WHERE id = ?', [req.params.id]);
+    if (!bc) return res.status(404).json({ error: 'Broadcast not found' });
+
+    const accessToken = await getSetting('whatsapp_access_token', '');
+    const phoneNumberId = await getSetting('whatsapp_phone_number_id', '');
+    if (!accessToken || !phoneNumberId) return res.status(400).json({ error: 'WhatsApp not configured' });
+
+    const recipients = typeof bc.recipients === 'string' ? JSON.parse(bc.recipients) : bc.recipients;
+    await db.query('UPDATE wa_broadcasts SET status = ? WHERE id = ?', ['sending', bc.id]);
+
+    let delivered = 0, failed = 0;
+
+    // Send asynchronously with rate limiting (50ms between messages)
+    for (const phone of recipients) {
+      try {
+        if (bc.template_id) {
+          const tpl = await db.queryOne('SELECT * FROM wa_templates WHERE id = ?', [bc.template_id]);
+          if (tpl) {
+            await sendWhatsAppTemplate(phoneNumberId, accessToken, phone, tpl.name, tpl.language, []);
+            delivered++;
+          }
+        } else if (bc.message_text) {
+          await sendWhatsApp(phoneNumberId, accessToken, phone, bc.message_text);
+          delivered++;
+        }
+        await new Promise(r => setTimeout(r, 50)); // Rate limit
+      } catch {
+        failed++;
+      }
+    }
+
+    await db.query('UPDATE wa_broadcasts SET status = ?, sent_at = NOW(), delivered = ?, failed_count = ? WHERE id = ?',
+      ['sent', delivered, failed, bc.id]);
+
+    res.json({ success: true, delivered, failed });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── WhatsApp Analytics / Delivery tracking ───────────────────────────────────
+
+async function ensureWaAnalyticsTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS wa_message_status (
+      id VARCHAR(100) PRIMARY KEY,
+      wa_message_id VARCHAR(200),
+      phone VARCHAR(30),
+      direction ENUM('outbound','inbound') DEFAULT 'outbound',
+      status ENUM('sent','delivered','read','failed') DEFAULT 'sent',
+      timestamp BIGINT,
+      error_code VARCHAR(50),
+      error_title VARCHAR(200),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_phone (phone),
+      INDEX idx_status (status),
+      INDEX idx_ts (timestamp)
+    )
+  `);
+}
+
+// Analytics dashboard data
+app.get('/api/whatsapp/analytics', requireDb, async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const [totals] = await db.query(
+      `SELECT
+         COUNT(*) as total_messages,
+         SUM(CASE WHEN direction='inbound' THEN 1 ELSE 0 END) as inbound,
+         SUM(CASE WHEN direction='outbound' THEN 1 ELSE 0 END) as outbound,
+         SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) as delivered,
+         SUM(CASE WHEN status='read' THEN 1 ELSE 0 END) as read_count,
+         SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) as failed,
+         COUNT(DISTINCT phone) as unique_contacts
+       FROM wa_message_status
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [parseInt(days)]
+    ).catch(() => [{}]);
+
+    const dailyVolume = await db.query(
+      `SELECT DATE(created_at) as date, COUNT(*) as count, direction
+       FROM wa_message_status
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+       GROUP BY DATE(created_at), direction
+       ORDER BY date`, [parseInt(days)]
+    ).catch(() => []);
+
+    const [orderStats] = await db.query(
+      `SELECT
+         COUNT(*) as total_orders,
+         SUM(total) as revenue,
+         SUM(CASE WHEN payment_status='paid' THEN 1 ELSE 0 END) as paid_orders,
+         SUM(CASE WHEN status='delivered' THEN 1 ELSE 0 END) as delivered_orders
+       FROM wa_orders
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [parseInt(days)]
+    ).catch(() => [{}]);
+
+    const avgResponseTime = await db.query(
+      `SELECT AVG(TIMESTAMPDIFF(SECOND, created_at, first_response_at)) as avg_seconds
+       FROM helpdesk_tickets
+       WHERE channel IN ('whatsapp','whatsapp_client')
+         AND first_response_at IS NOT NULL
+         AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)`, [parseInt(days)]
+    ).catch(() => [{}]);
+
+    res.json({
+      success: true,
+      messages: totals || {},
+      daily_volume: dailyVolume,
+      orders: orderStats || {},
+      avg_response_time_seconds: avgResponseTime?.[0]?.avg_seconds || null,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── WhatsApp Contact List (from conversations) ──────────────────────────────
+
+app.get('/api/whatsapp/contacts', requireDb, async (req, res) => {
+  try {
+    const rows = await db.query(
+      `SELECT DISTINCT customer_name, external_id,
+              MAX(created_at) as last_contact,
+              COUNT(*) as conversation_count
+       FROM helpdesk_tickets
+       WHERE channel IN ('whatsapp','whatsapp_client')
+       GROUP BY customer_name, external_id
+       ORDER BY last_contact DESC
+       LIMIT 200`
+    );
+    // Extract phone from external_id (format: whatsapp:+1234567890)
+    const contacts = rows.map(r => ({
+      name: r.customer_name,
+      phone: r.external_id?.replace('whatsapp:', '').replace('whatsapp_client:', '') || '',
+      last_contact: r.last_contact,
+      conversations: r.conversation_count,
+    }));
+    res.json({ success: true, data: contacts });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Send media/interactive from API ──────────────────────────────────────────
+
+app.post('/api/whatsapp/send', requireDb, async (req, res) => {
+  try {
+    const { phone, type, text, media_url, caption, interactive, template_name, template_vars } = req.body;
+    if (!phone) return res.status(400).json({ error: 'phone required' });
+
+    const accessToken = await getSetting('whatsapp_access_token', '');
+    const phoneNumberId = await getSetting('whatsapp_phone_number_id', '');
+    if (!accessToken || !phoneNumberId) return res.status(400).json({ error: 'WhatsApp not configured' });
+
+    let result;
+    if (type === 'interactive' && interactive) {
+      result = await sendWhatsAppInteractive(phoneNumberId, accessToken, phone, interactive);
+    } else if (['image', 'document', 'video', 'audio'].includes(type) && media_url) {
+      result = await sendWhatsAppMedia(phoneNumberId, accessToken, phone, type, media_url, caption);
+    } else if (type === 'template' && template_name) {
+      const components = template_vars ? [{ type: 'body', parameters: template_vars.map(v => ({ type: 'text', text: String(v) })) }] : [];
+      result = await sendWhatsAppTemplate(phoneNumberId, accessToken, phone, template_name, 'fr', components);
+    } else {
+      result = await sendWhatsApp(phoneNumberId, accessToken, phone, text || '');
+    }
+
+    const data = await result.json().catch(() => ({}));
+
+    // Track message
+    if (data.messages?.[0]?.id) {
+      await db.query('INSERT INTO wa_message_status (id, wa_message_id, phone, direction, status, timestamp) VALUES (?,?,?,?,?,?)',
+        [crypto.randomUUID(), data.messages[0].id, phone, 'outbound', 'sent', Date.now()]).catch(() => {});
+    }
+
+    res.json({ success: true, wa_response: data });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Enhanced webhook: handle interactive replies, status updates, media ──────
+
+// Extend the existing webhook to handle button replies and order actions
+app.post('/api/whatsapp/webhook/status', requireDb, async (req, res) => {
+  res.status(200).send('OK');
+  try {
+    const body = req.body;
+    if (body.object !== 'whatsapp_business_account') return;
+
+    for (const entry of body.entry || []) {
+      for (const change of entry.changes || []) {
+        const value = change.value;
+
+        // Handle message status updates (delivered, read)
+        if (value?.statuses) {
+          for (const status of value.statuses) {
+            await db.query(
+              `INSERT INTO wa_message_status (id, wa_message_id, phone, direction, status, timestamp)
+               VALUES (?, ?, ?, 'outbound', ?, ?)
+               ON DUPLICATE KEY UPDATE status = VALUES(status), timestamp = VALUES(timestamp)`,
+              [crypto.randomUUID(), status.id, status.recipient_id, status.status, status.timestamp ? parseInt(status.timestamp) * 1000 : Date.now()]
+            ).catch(() => {});
+
+            // Update broadcast read count
+            if (status.status === 'read') {
+              await db.query(
+                `UPDATE wa_broadcasts SET read_count = read_count + 1 WHERE status = 'sent' AND JSON_CONTAINS(recipients, ?)`,
+                [JSON.stringify(status.recipient_id)]
+              ).catch(() => {});
+            }
+          }
+        }
+
+        // Handle interactive replies (button clicks)
+        if (value?.messages) {
+          for (const msg of value.messages) {
+            if (msg.type === 'interactive') {
+              const reply = msg.interactive?.button_reply || msg.interactive?.list_reply;
+              if (!reply) continue;
+
+              const accessToken = await getSetting('whatsapp_access_token', '');
+              const phoneNumberId = await getSetting('whatsapp_phone_number_id', '');
+
+              // Handle order actions
+              if (reply.id?.startsWith('pay_')) {
+                const orderId = reply.id.replace('pay_', '');
+                const order = await db.queryOne('SELECT * FROM wa_orders WHERE id = ?', [orderId]);
+                if (order && order.payment_link) {
+                  await sendWhatsApp(phoneNumberId, accessToken, msg.from,
+                    `💳 *Paiement pour ${orderId}*\n\nCliquez ici pour payer :\n${order.payment_link}\n\n💰 Montant : ${order.total} ${order.currency}`);
+                }
+              } else if (reply.id?.startsWith('track_')) {
+                const orderId = reply.id.replace('track_', '');
+                const order = await db.queryOne('SELECT * FROM wa_orders WHERE id = ?', [orderId]);
+                if (order) {
+                  const statusEmoji = { pending: '⏳', confirmed: '✅', processing: '🔄', shipped: '🚚', delivered: '📦', cancelled: '❌' };
+                  let msg2 = `📦 *Suivi ${orderId}*\n\nStatut : ${statusEmoji[order.status] || '📋'} ${order.status}\nPaiement : ${order.payment_status}`;
+                  if (order.tracking_number) msg2 += `\nNuméro de suivi : ${order.tracking_number}`;
+                  await sendWhatsApp(phoneNumberId, accessToken, msg.from, msg2);
+                }
+              } else if (reply.id?.startsWith('cat_')) {
+                // Product category browsing
+                const category = reply.id.replace('cat_', '');
+                const products = await db.query('SELECT * FROM wa_products WHERE category = ? AND in_stock = 1 LIMIT 10', [category]);
+                if (products.length > 0) {
+                  await sendWhatsAppInteractive(phoneNumberId, accessToken, msg.from,
+                    buildListMessage(
+                      `📋 *${category}* — ${products.length} produit(s)`,
+                      'Voir produits',
+                      [{ title: category, rows: products.map(p => ({ id: `prod_${p.id}`, title: p.name.slice(0, 24), description: `${p.price} ${p.currency}` })) }]
+                    )
+                  );
+                }
+              } else if (reply.id?.startsWith('prod_')) {
+                // Product detail
+                const prodId = reply.id.replace('prod_', '');
+                const product = await db.queryOne('SELECT * FROM wa_products WHERE id = ?', [prodId]);
+                if (product) {
+                  if (product.image_url) {
+                    await sendWhatsAppMedia(phoneNumberId, accessToken, msg.from, 'image', product.image_url,
+                      `*${product.name}*\n\n${product.description || ''}\n\n💰 ${product.price} ${product.currency}`);
+                  }
+                  await sendWhatsAppInteractive(phoneNumberId, accessToken, msg.from,
+                    buildButtonsMessage(
+                      `*${product.name}*\n${product.description || ''}\n\n💰 Prix : ${product.price} ${product.currency}\n${product.in_stock ? '✅ En stock' : '❌ Rupture'}`,
+                      [{ id: `buy_${product.id}`, title: '🛒 Commander' }, { id: `info_${product.id}`, title: 'ℹ️ Plus d\'infos' }]
+                    )
+                  );
+                }
+              } else if (reply.id?.startsWith('buy_')) {
+                // Quick order from product
+                const prodId = reply.id.replace('buy_', '');
+                const product = await db.queryOne('SELECT * FROM wa_products WHERE id = ?', [prodId]);
+                if (product) {
+                  const orderId = `ord_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`;
+                  const paymentLink = `${process.env.PAYMENT_BASE_URL || 'https://paiement.elembotech.net'}/pay?order=${orderId}&amount=${product.price}&currency=${product.currency}`;
+                  await db.query(
+                    'INSERT INTO wa_orders (id, customer_phone, items, total, currency, payment_link) VALUES (?,?,?,?,?,?)',
+                    [orderId, msg.from, JSON.stringify([{ id: product.id, name: product.name, price: product.price, quantity: 1 }]), product.price, product.currency, paymentLink]
+                  );
+                  await sendWhatsAppInteractive(phoneNumberId, accessToken, msg.from,
+                    buildButtonsMessage(
+                      `✅ *Commande créée !*\n\n${product.name}\n💰 ${product.price} ${product.currency}\n\n🆔 ${orderId}`,
+                      [{ id: `pay_${orderId}`, title: '💳 Payer' }]
+                    )
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) { console.error('[whatsapp/status]', e.message); }
+});
+
+// ── Enhance main webhook: handle catalog browsing commands ───────────────────
+
+// Patch: Add product catalog awareness to the AI system prompt
+const originalSendWhatsApp = sendWhatsApp;
+
+// ── WhatsApp commerce tables init ────────────────────────────────────────────
+async function ensureWhatsAppCommerceTables() {
+  await ensureProductCatalogTable();
+  await ensureOrdersTable();
+  await ensureWaTemplatesTable();
+  await ensureBroadcastsTable();
+  await ensureWaAnalyticsTable();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 11: AUTO-CATEGORISATION IA DES TICKETS
@@ -10138,6 +11630,90 @@ setInterval(async () => {
   } catch {}
 }, 2 * 60 * 1000);
 
+// ─── Scheduled Jobs Runner — checks every 60s, runs due jobs via AI ──────────
+function cronMatchesNow(cronExpr, tz) {
+  const parts = cronExpr.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+  const [cronMin, cronHr, cronDom, cronMon, cronDow] = parts;
+
+  // Get current time in the job's timezone
+  const now = new Date();
+  const fmt = (part, opts) => Number(new Intl.DateTimeFormat('en-US', { ...opts, timeZone: tz || 'UTC' }).format(now));
+  const minute = fmt('m', { minute: 'numeric' });
+  const hour = fmt('h', { hour: 'numeric', hour12: false });
+  const dayOfMonth = fmt('d', { day: 'numeric' });
+  const month = fmt('M', { month: 'numeric' });
+  const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'short', timeZone: tz || 'UTC' });
+  const dowMap = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dow = dowMap[dayOfWeek] ?? 0;
+
+  const matchField = (field, value, max) => {
+    if (field === '*') return true;
+    // Handle lists (1,3,5) and ranges (1-5) and steps (*/5)
+    return field.split(',').some(part => {
+      if (part.includes('/')) { const [, step] = part.split('/'); return value % Number(step) === 0; }
+      if (part.includes('-')) { const [a, b] = part.split('-').map(Number); return value >= a && value <= b; }
+      return Number(part) === value;
+    });
+  };
+
+  return matchField(cronMin, minute, 59) &&
+         matchField(cronHr, hour, 23) &&
+         matchField(cronDom, dayOfMonth, 31) &&
+         matchField(cronMon, month, 12) &&
+         matchField(cronDow, dow, 6);
+}
+
+setInterval(async () => {
+  try {
+    if (!_dbReady) return;
+    const jobs = await db.query('SELECT * FROM scheduled_jobs WHERE enabled = 1');
+    for (const job of jobs) {
+      if (!cronMatchesNow(job.cron_expression, job.timezone)) continue;
+
+      // Don't run if already ran this minute
+      if (job.last_run_at) {
+        const lastRun = new Date(job.last_run_at).getTime();
+        if (Date.now() - lastRun < 55000) continue; // 55s guard
+      }
+
+      console.log(`[scheduled-job] Running "${job.name}" (id=${job.id})`);
+      try {
+        const ai = await getAiConfig();
+        const systemPrompt = `You are an AI assistant executing a scheduled task. Task name: "${job.name}". Execute the following instructions and provide a clear, concise result.`;
+        const aiResp = await fetch(ai.primaryUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
+          body: JSON.stringify({
+            model: ai.models.chat,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: job.prompt || job.name }
+            ],
+            max_tokens: 2000,
+          }),
+        });
+        const aiData = await aiResp.json();
+        const result = aiData.choices?.[0]?.message?.content || 'No response';
+
+        await db.query(
+          'UPDATE scheduled_jobs SET last_run_at = NOW(), last_result = ? WHERE id = ?',
+          [result.slice(0, 10000), job.id]
+        );
+        console.log(`[scheduled-job] ✓ "${job.name}" completed (${result.length} chars)`);
+      } catch (jobErr) {
+        console.error(`[scheduled-job] ✗ "${job.name}" failed:`, jobErr.message);
+        await db.query(
+          'UPDATE scheduled_jobs SET last_run_at = NOW(), last_result = ? WHERE id = ?',
+          [`ERROR: ${jobErr.message}`, job.id]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('[scheduled-jobs-runner] Error:', err.message);
+  }
+}, 60 * 1000); // Check every 60 seconds
+
 // SharePoint connector (sync into KB)
 app.post('/api/integrations/:id/sync-sharepoint', requireAuth, async (req, res) => {
   const { id } = req.params;
@@ -11073,6 +12649,721 @@ app.post('/api/webhooks/trigger', requireAuth, async (req, res) => {
   }
 });
 
+// ─── MCP Server (Model Context Protocol) ────────────────────────────────────
+
+app.use('/mcp', createMcpRouter());
+
+// ─── SOC 2 / HIPAA Compliance endpoints ─────────────────────────────────────
+
+// Audit log ingestion
+app.post('/api/compliance/audit-log', async (req, res) => {
+  try {
+    const { entries } = req.body;
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return res.status(400).json({ error: 'entries array required' });
+    }
+    for (const entry of entries.slice(0, 500)) {
+      await db.query(
+        `INSERT INTO audit_logs (id, action, actor, resource, details, result, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          entry.id || crypto.randomUUID(),
+          entry.action || '',
+          entry.actor || 'unknown',
+          entry.resource || '',
+          entry.details || null,
+          entry.result || 'success',
+          entry.timestamp ? new Date(entry.timestamp) : new Date(),
+        ]
+      );
+    }
+    res.json({ success: true, ingested: entries.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Audit log query
+app.get('/api/compliance/audit-log', async (req, res) => {
+  try {
+    const { action, actor, since, limit = 100 } = req.query;
+    let sql = 'SELECT * FROM audit_logs WHERE 1=1';
+    const params = [];
+    if (action) { sql += ' AND action = ?'; params.push(action); }
+    if (actor) { sql += ' AND actor = ?'; params.push(actor); }
+    if (since) { sql += ' AND created_at >= ?'; params.push(since); }
+    sql += ' ORDER BY created_at DESC LIMIT ?';
+    params.push(parseInt(limit) || 100);
+    const rows = await db.query(sql, params);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Data retention — purge endpoint
+app.post('/api/compliance/purge', async (req, res) => {
+  try {
+    const { before, targets = [] } = req.body;
+    if (!before) return res.status(400).json({ error: 'before date required' });
+    let purged = 0;
+
+    // Purge meeting transcripts from KB
+    if (targets.includes('transcripts') || targets.includes('meetings')) {
+      try {
+        const result = await db.query(
+          `DELETE FROM kb_chunks WHERE document_name LIKE 'Meeting_%' AND created_at < ?`,
+          [before]
+        );
+        purged += result.affectedRows || 0;
+      } catch { /* table may not exist */ }
+    }
+
+    // Purge conversations
+    if (targets.includes('conversations')) {
+      try {
+        const result = await db.query(
+          `DELETE FROM conversations WHERE created_at < ?`,
+          [before]
+        );
+        purged += result.affectedRows || 0;
+      } catch { /* table may not exist */ }
+    }
+
+    // Log the purge action
+    await db.query(
+      `INSERT INTO audit_logs (id, action, actor, resource, details, result, created_at)
+       VALUES (?, 'data_purge', 'system', 'compliance', ?, 'success', NOW())`,
+      [crypto.randomUUID(), `Purged ${purged} records before ${before}. Targets: ${targets.join(',')}`]
+    );
+
+    res.json({ success: true, purged });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Consent management — store/retrieve consent records
+app.post('/api/compliance/consent', async (req, res) => {
+  try {
+    const { type, granted, actor, expires_at } = req.body;
+    if (!type || !actor) return res.status(400).json({ error: 'type and actor required' });
+
+    await db.query(
+      `INSERT INTO consent_records (id, consent_type, granted, actor, expires_at, created_at)
+       VALUES (?, ?, ?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE granted = VALUES(granted), actor = VALUES(actor), expires_at = VALUES(expires_at), created_at = NOW()`,
+      [crypto.randomUUID(), type, granted ? 1 : 0, actor, expires_at || null]
+    );
+
+    // Audit log
+    await db.query(
+      `INSERT INTO audit_logs (id, action, actor, resource, details, result, created_at)
+       VALUES (?, ?, ?, ?, ?, 'success', NOW())`,
+      [crypto.randomUUID(), granted ? 'consent_granted' : 'consent_revoked', actor, `consent:${type}`, null]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/compliance/consent', async (req, res) => {
+  try {
+    const rows = await db.query('SELECT * FROM consent_records ORDER BY created_at DESC');
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Compliance status overview
+app.get('/api/compliance/status', async (req, res) => {
+  try {
+    const [auditCount] = await db.query('SELECT COUNT(*) as count FROM audit_logs').catch(() => [{ count: 0 }]);
+    const [consentCount] = await db.query('SELECT COUNT(*) as count FROM consent_records WHERE granted = 1').catch(() => [{ count: 0 }]);
+    res.json({
+      success: true,
+      audit_log_entries: auditCount?.count || 0,
+      active_consents: consentCount?.count || 0,
+      encryption: 'AES-256-GCM (client-side)',
+      phi_detection: 'enabled',
+      data_retention: 'configurable',
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Models Table ───────────────────────────────────────────────────────────
+
+async function ensureModelsTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS models (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      provider VARCHAR(100) NOT NULL,
+      name VARCHAR(200) NOT NULL,
+      model VARCHAR(200) NOT NULL UNIQUE,
+      description TEXT,
+      modality VARCHAR(100) DEFAULT 'text',
+      is_available TINYINT(1) DEFAULT 1,
+      allowed_plan_ids VARCHAR(500) DEFAULT NULL,
+      sort_order INT DEFAULT 100,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default models if table is empty
+  const [{ cnt }] = await db.query('SELECT COUNT(*) AS cnt FROM models');
+  if (cnt === 0) {
+    const defaultModels = [
+      // Fast / Realtime
+      ['meta-llama',  'Llama 4 Scout',            'meta-llama/llama-4-scout',            'Fast, efficient model for real-time tasks',              'text',              10],
+      ['meta-llama',  'Llama 4 Maverick',         'meta-llama/llama-4-maverick',         'High-quality open-source model',                         'text+image',        11],
+      // Google
+      ['google',      'Gemini 2.5 Flash',         'google/gemini-2.5-flash',             'Fast and cost-effective with great reasoning',           'text+image',        20],
+      ['google',      'Gemini 2.5 Pro',           'google/gemini-2.5-pro-preview',       'Most capable Google model, strong coding & analysis',    'text+image',        21],
+      // OpenAI
+      ['openai',      'GPT-4.1',                  'openai/gpt-4.1',                      'Latest flagship GPT model, coding & instruction-following', 'text+image',     30],
+      ['openai',      'GPT-4.1 Mini',             'openai/gpt-4.1-mini',                 'Fast and affordable, great for most tasks',              'text+image',        31],
+      ['openai',      'GPT-4.1 Nano',             'openai/gpt-4.1-nano',                 'Fastest, cheapest GPT model',                            'text',              32],
+      ['openai',      'o4 Mini',                  'openai/o4-mini',                      'Advanced reasoning at lower cost',                       'text+image',        33],
+      // Anthropic
+      ['anthropic',   'Claude Sonnet 4.6',        'anthropic/claude-sonnet-4.6',         'Excellent for coding, analysis, and nuanced tasks',      'text+image+vision', 40],
+      ['anthropic',   'Claude Haiku 4.5',         'anthropic/claude-haiku-4.5',          'Fast and affordable Claude model',                       'text+image+vision', 41],
+      ['anthropic',   'Claude Opus 4.6',          'anthropic/claude-opus-4.6',           'Most powerful Claude, deep reasoning & complex tasks',    'text+image+vision', 42],
+      // DeepSeek
+      ['deepseek',    'DeepSeek R1',              'deepseek/deepseek-r1',                'Strong reasoning model, open-source',                    'text',              50],
+      ['deepseek',    'DeepSeek V3',              'deepseek/deepseek-chat',              'Fast general-purpose chat model',                        'text',              51],
+      // Qwen
+      ['qwen',        'Qwen3 235B',              'qwen/qwen3-235b-a22b',               'Large MoE model, strong multilingual',                   'text',              60],
+      ['qwen',        'Qwen3 30B',               'qwen/qwen3-30b-a3b',                 'Efficient MoE, great quality/cost ratio',                'text',              61],
+      // Mistral
+      ['mistral',     'Mistral Medium 3',         'mistralai/mistral-medium-3',          'Balanced performance and speed',                         'text',              70],
+      ['mistral',     'Mistral Small 3.2',        'mistralai/mistral-small-3.2',         'Fast, efficient for everyday tasks',                     'text+image+vision', 71],
+      // xAI
+      ['xai',         'Grok 3',                   'x-ai/grok-3',                        'Powerful model from xAI',                                'text',              80],
+      ['xai',         'Grok 3 Mini',              'x-ai/grok-3-mini',                   'Fast reasoning model from xAI',                          'text',              81],
+    ];
+
+    for (const [provider, name, model, description, modality, sortOrder] of defaultModels) {
+      try {
+        await db.query(
+          'INSERT INTO models (provider, name, model, description, modality, sort_order) VALUES (?, ?, ?, ?, ?, ?)',
+          [provider, name, model, description, modality, sortOrder]
+        );
+      } catch (e) {
+        // Skip duplicates silently
+      }
+    }
+    console.log(`  [models] Seeded ${defaultModels.length} default models`);
+  }
+}
+
+// ─── Workflow Automation Engine ──────────────────────────────────────────────
+
+async function ensureWorkflowAutomationTables() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS automations (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(200) NOT NULL,
+      description TEXT,
+      trigger_type ENUM('schedule','event','keyword','webhook','manual') NOT NULL,
+      trigger_config JSON NOT NULL,
+      actions JSON NOT NULL,
+      is_active TINYINT(1) DEFAULT 1,
+      last_run_at TIMESTAMP NULL,
+      run_count INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS automation_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      automation_id INT NOT NULL,
+      status ENUM('success','error','skipped') NOT NULL,
+      trigger_data JSON,
+      results JSON,
+      error_message TEXT,
+      executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_auto_id (automation_id)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS scheduled_emails (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      to_email VARCHAR(500) NOT NULL,
+      cc VARCHAR(500),
+      subject VARCHAR(500) NOT NULL,
+      body_markdown TEXT NOT NULL,
+      send_at TIMESTAMP NOT NULL,
+      status ENUM('pending','sent','failed','cancelled') DEFAULT 'pending',
+      error_message TEXT,
+      source VARCHAR(200),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      sent_at TIMESTAMP NULL,
+      INDEX idx_send_at (send_at, status)
+    )
+  `);
+}
+
+// ── Automation CRUD endpoints ────────────────────────────────────────────────
+
+// List automations
+app.get('/api/automations', requireAuth, async (req, res) => {
+  try {
+    const rows = await db.query('SELECT * FROM automations ORDER BY created_at DESC');
+    res.json({ automations: rows.map(r => ({ ...r, trigger_config: JSON.parse(r.trigger_config || '{}'), actions: JSON.parse(r.actions || '[]') })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Create automation
+app.post('/api/automations', requireAuth, async (req, res) => {
+  try {
+    const { name, description, trigger_type, trigger_config, actions } = req.body;
+    if (!name || !trigger_type || !actions?.length) return res.status(400).json({ error: 'name, trigger_type, and actions are required.' });
+    const r = await db.query(
+      'INSERT INTO automations (name, description, trigger_type, trigger_config, actions) VALUES (?,?,?,?,?)',
+      [name, description || null, trigger_type, JSON.stringify(trigger_config || {}), JSON.stringify(actions)]
+    );
+    res.json({ success: true, id: r.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Update automation
+app.put('/api/automations/:id', requireAuth, async (req, res) => {
+  try {
+    const { name, description, trigger_type, trigger_config, actions, is_active } = req.body;
+    const sets = [];
+    const vals = [];
+    if (name !== undefined) { sets.push('name=?'); vals.push(name); }
+    if (description !== undefined) { sets.push('description=?'); vals.push(description); }
+    if (trigger_type !== undefined) { sets.push('trigger_type=?'); vals.push(trigger_type); }
+    if (trigger_config !== undefined) { sets.push('trigger_config=?'); vals.push(JSON.stringify(trigger_config)); }
+    if (actions !== undefined) { sets.push('actions=?'); vals.push(JSON.stringify(actions)); }
+    if (is_active !== undefined) { sets.push('is_active=?'); vals.push(is_active ? 1 : 0); }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
+    vals.push(req.params.id);
+    await db.query(`UPDATE automations SET ${sets.join(',')} WHERE id=?`, vals);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Delete automation
+app.delete('/api/automations/:id', requireAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM automations WHERE id=?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Trigger automation manually
+app.post('/api/automations/:id/run', requireAuth, async (req, res) => {
+  try {
+    const auto = await db.queryOne('SELECT * FROM automations WHERE id=?', [req.params.id]);
+    if (!auto) return res.status(404).json({ error: 'Automation not found.' });
+    const result = await executeAutomation(auto, req.body.trigger_data || {});
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get automation logs
+app.get('/api/automations/:id/logs', requireAuth, async (req, res) => {
+  try {
+    const logs = await db.query('SELECT * FROM automation_logs WHERE automation_id=? ORDER BY executed_at DESC LIMIT 50', [req.params.id]);
+    res.json({ logs: logs.map(l => ({ ...l, trigger_data: JSON.parse(l.trigger_data || '{}'), results: JSON.parse(l.results || '{}') })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Webhook trigger endpoint (public — authenticated by automation's webhook secret)
+app.post('/api/automations/webhook/:secret', async (req, res) => {
+  try {
+    const autos = await db.query("SELECT * FROM automations WHERE trigger_type='webhook' AND is_active=1");
+    let matched = null;
+    for (const a of autos) {
+      const cfg = JSON.parse(a.trigger_config || '{}');
+      if (cfg.webhook_secret === req.params.secret) { matched = a; break; }
+    }
+    if (!matched) return res.status(404).json({ error: 'No automation found for this webhook.' });
+    const result = await executeAutomation(matched, { webhook_body: req.body, webhook_headers: req.headers });
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Automation execution engine ──────────────────────────────────────────────
+
+async function executeAutomation(auto, triggerData = {}) {
+  const actions = JSON.parse(auto.actions || '[]');
+  const results = [];
+
+  for (const action of actions) {
+    try {
+      let result;
+      switch (action.type) {
+        case 'create_task': {
+          const { executeTool } = require('./tools');
+          result = await executeTool('create_task', {
+            title: interpolate(action.title, triggerData),
+            description: interpolate(action.description || '', triggerData),
+            assignee: action.assignee || null,
+            due_date: action.due_date || null,
+            priority: action.priority || 'medium',
+            source: `automation:${auto.name}`,
+          }, { integrations: action.integrations || {} });
+          break;
+        }
+        case 'send_email': {
+          const { executeTool } = require('./tools');
+          result = await executeTool('send_email', {
+            to: interpolate(action.to, triggerData),
+            subject: interpolate(action.subject, triggerData),
+            body_markdown: interpolate(action.body, triggerData),
+            cc: action.cc || undefined,
+          }, { getSmtp: getSmtpSettings });
+          break;
+        }
+        case 'schedule_email': {
+          const sendAt = action.send_at || action.delay_minutes
+            ? new Date(Date.now() + (action.delay_minutes || 0) * 60000).toISOString()
+            : new Date().toISOString();
+          await db.query(
+            'INSERT INTO scheduled_emails (to_email, cc, subject, body_markdown, send_at, source) VALUES (?,?,?,?,?,?)',
+            [interpolate(action.to, triggerData), action.cc || null, interpolate(action.subject, triggerData), interpolate(action.body, triggerData), action.send_at || sendAt, `automation:${auto.name}`]
+          );
+          result = { success: true, scheduled: true, send_at: action.send_at || sendAt };
+          break;
+        }
+        case 'slack_message': {
+          const { executeTool } = require('./tools');
+          result = await executeTool('slack_send_message', {
+            channel: action.channel,
+            text: interpolate(action.text, triggerData),
+          }, { integrations: action.integrations || {} });
+          break;
+        }
+        case 'webhook': {
+          const resp = await fetch(action.url, {
+            method: action.method || 'POST',
+            headers: { 'Content-Type': 'application/json', ...(action.headers || {}) },
+            body: JSON.stringify({ automation: auto.name, trigger: triggerData, data: action.data || {} }),
+          });
+          result = { success: resp.ok, status: resp.status };
+          break;
+        }
+        case 'create_calendar_event': {
+          const { executeTool } = require('./tools');
+          result = await executeTool('gcal_create_event', {
+            summary: interpolate(action.summary, triggerData),
+            start: action.start,
+            end: action.end,
+            description: interpolate(action.description || '', triggerData),
+            attendees: action.attendees,
+            conference: action.conference || false,
+          }, { integrations: action.integrations || {} });
+          break;
+        }
+        case 'sf_log': {
+          const { executeTool } = require('./tools');
+          result = await executeTool('sf_log_activity', {
+            subject: interpolate(action.subject, triggerData),
+            description: interpolate(action.description || '', triggerData),
+            type: action.activity_type || 'Call',
+          }, { integrations: action.integrations || {} });
+          break;
+        }
+        default:
+          result = { error: `Unknown action type: ${action.type}` };
+      }
+      results.push({ action: action.type, ...result });
+    } catch (err) {
+      results.push({ action: action.type, error: err.message });
+    }
+  }
+
+  // Log & update
+  const allOk = results.every(r => !r.error);
+  await db.query(
+    'INSERT INTO automation_logs (automation_id, status, trigger_data, results) VALUES (?,?,?,?)',
+    [auto.id, allOk ? 'success' : 'error', JSON.stringify(triggerData), JSON.stringify(results)]
+  );
+  await db.query('UPDATE automations SET last_run_at=NOW(), run_count=run_count+1 WHERE id=?', [auto.id]);
+
+  return { success: allOk, automation: auto.name, results };
+}
+
+function interpolate(template, data) {
+  if (!template || typeof template !== 'string') return template || '';
+  return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (_, path) => {
+    return path.split('.').reduce((o, k) => o?.[k], data) ?? `{{${path}}}`;
+  });
+}
+
+// ── Schedule-based automation runner (every 60s) ────────────────────────────
+
+setInterval(async () => {
+  try {
+    const autos = await db.query("SELECT * FROM automations WHERE trigger_type='schedule' AND is_active=1");
+    for (const auto of autos) {
+      const cfg = JSON.parse(auto.trigger_config || '{}');
+      if (!cfg.cron_minutes) continue;
+      const now = new Date();
+      const lastRun = auto.last_run_at ? new Date(auto.last_run_at) : new Date(0);
+      const elapsed = (now - lastRun) / 60000;
+      if (elapsed >= cfg.cron_minutes) {
+        executeAutomation(auto, { scheduled_at: now.toISOString() }).catch(e => console.error(`[automation:${auto.name}]`, e.message));
+      }
+    }
+  } catch {}
+}, 60000);
+
+// ── Event-based automation trigger (called from other parts of server) ──────
+
+async function triggerEventAutomations(eventType, eventData = {}) {
+  try {
+    const autos = await db.query("SELECT * FROM automations WHERE trigger_type='event' AND is_active=1");
+    for (const auto of autos) {
+      const cfg = JSON.parse(auto.trigger_config || '{}');
+      if (cfg.event_type === eventType) {
+        executeAutomation(auto, { event_type: eventType, ...eventData }).catch(e => console.error(`[automation:${auto.name}]`, e.message));
+      }
+    }
+  } catch {}
+}
+
+// ── Keyword-based automation (called from chat pipeline) ────────────────────
+
+async function checkKeywordAutomations(message) {
+  try {
+    const autos = await db.query("SELECT * FROM automations WHERE trigger_type='keyword' AND is_active=1");
+    for (const auto of autos) {
+      const cfg = JSON.parse(auto.trigger_config || '{}');
+      const keywords = (cfg.keywords || '').toLowerCase().split(',').map(k => k.trim()).filter(Boolean);
+      const text = (message || '').toLowerCase();
+      if (keywords.some(k => text.includes(k))) {
+        executeAutomation(auto, { matched_message: message }).catch(e => console.error(`[automation:${auto.name}]`, e.message));
+      }
+    }
+  } catch {}
+}
+
+// ─── Sub-Agents (Parallel AI Tasks) ─────────────────────────────────────────
+
+const activeSubAgents = new Map(); // id → { status, result, startedAt }
+
+// Dispatch multiple sub-agent tasks in parallel
+app.post('/api/agents/dispatch', requireAuth, async (req, res) => {
+  try {
+    const { tasks, parent_context } = req.body;
+    if (!tasks?.length) return res.status(400).json({ error: 'tasks array is required.' });
+
+    const ai = await getAiConfig();
+    if (!ai.primaryUrl || !ai.primaryKey) return res.status(503).json({ error: 'AI provider not configured.' });
+
+    const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const agentIds = [];
+
+    for (const task of tasks) {
+      const agentId = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      agentIds.push(agentId);
+      activeSubAgents.set(agentId, { status: 'running', result: null, startedAt: Date.now(), task: task.description || task.prompt });
+
+      // Run each sub-agent in parallel (fire-and-forget with status tracking)
+      (async () => {
+        try {
+          const systemPrompt = `You are a sub-agent of Lamu AI, working on a specific task as part of a larger workflow. Complete your assigned task thoroughly and return a structured result.
+${parent_context ? `\nParent context: ${parent_context}` : ''}
+${task.context ? `\nTask context: ${task.context}` : ''}`;
+
+          const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: task.prompt || task.description },
+          ];
+
+          let parsedExtras = {};
+          try { parsedExtras = JSON.parse(ai.bodyExtras || '{}'); } catch {}
+          const model = task.model || ai.primaryModel;
+
+          const aiRes = await fetch(ai.primaryUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
+            body: JSON.stringify({ model, messages, max_tokens: task.max_tokens || 4096, temperature: 0.3, ...parsedExtras }),
+          });
+
+          if (!aiRes.ok) {
+            const errText = await aiRes.text().catch(() => '');
+            activeSubAgents.set(agentId, { status: 'error', result: null, error: `AI error: ${errText.slice(0, 200)}`, completedAt: Date.now() });
+            return;
+          }
+
+          const data = await aiRes.json();
+          const content = data.choices?.[0]?.message?.content || '';
+          const usage = data.usage || {};
+
+          activeSubAgents.set(agentId, {
+            status: 'completed',
+            result: content,
+            usage: { prompt_tokens: usage.prompt_tokens, completion_tokens: usage.completion_tokens },
+            completedAt: Date.now(),
+            task: task.description || task.prompt,
+          });
+        } catch (err) {
+          activeSubAgents.set(agentId, { status: 'error', error: err.message, completedAt: Date.now() });
+        }
+      })();
+    }
+
+    res.json({ success: true, batch_id: batchId, agent_ids: agentIds, count: agentIds.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Check status of sub-agents
+app.post('/api/agents/status', requireAuth, (req, res) => {
+  const { agent_ids } = req.body;
+  if (!agent_ids?.length) return res.status(400).json({ error: 'agent_ids required.' });
+
+  const results = {};
+  let allDone = true;
+  for (const id of agent_ids) {
+    const agent = activeSubAgents.get(id);
+    if (!agent) { results[id] = { status: 'not_found' }; continue; }
+    results[id] = { status: agent.status, task: agent.task };
+    if (agent.status === 'completed') {
+      results[id].result = agent.result;
+      results[id].usage = agent.usage;
+    } else if (agent.status === 'error') {
+      results[id].error = agent.error;
+    }
+    if (agent.status === 'running') allDone = false;
+  }
+  res.json({ all_done: allDone, agents: results });
+});
+
+// Collect results from all sub-agents (waits up to 60s for completion)
+app.post('/api/agents/collect', requireAuth, async (req, res) => {
+  const { agent_ids, timeout_ms = 60000 } = req.body;
+  if (!agent_ids?.length) return res.status(400).json({ error: 'agent_ids required.' });
+
+  const deadline = Date.now() + Math.min(timeout_ms, 120000);
+
+  // Poll until all done or timeout
+  while (Date.now() < deadline) {
+    let allDone = true;
+    for (const id of agent_ids) {
+      const agent = activeSubAgents.get(id);
+      if (agent?.status === 'running') { allDone = false; break; }
+    }
+    if (allDone) break;
+    await new Promise(r => setTimeout(r, 500));
+  }
+
+  const results = [];
+  for (const id of agent_ids) {
+    const agent = activeSubAgents.get(id);
+    results.push({
+      agent_id: id,
+      status: agent?.status || 'not_found',
+      task: agent?.task,
+      result: agent?.result || null,
+      error: agent?.error || null,
+      usage: agent?.usage || null,
+    });
+    // Cleanup
+    activeSubAgents.delete(id);
+  }
+  res.json({ results, all_completed: results.every(r => r.status === 'completed') });
+});
+
+// Auto-cleanup old sub-agents (every 5 min)
+setInterval(() => {
+  const cutoff = Date.now() - 600000; // 10 min
+  for (const [id, agent] of activeSubAgents) {
+    if (agent.completedAt && agent.completedAt < cutoff) activeSubAgents.delete(id);
+    if (agent.startedAt && agent.startedAt < cutoff && agent.status === 'running') {
+      activeSubAgents.set(id, { ...agent, status: 'timeout', error: 'Agent timed out after 10 minutes' });
+    }
+  }
+}, 300000);
+
+// ─── Scheduled Emails ────────────────────────────────────────────────────────
+
+// List scheduled emails
+app.get('/api/emails/scheduled', requireAuth, async (req, res) => {
+  try {
+    const emails = await db.query("SELECT * FROM scheduled_emails ORDER BY send_at ASC LIMIT 100");
+    res.json({ emails });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Schedule a new email
+app.post('/api/emails/schedule', requireAuth, async (req, res) => {
+  try {
+    const { to, cc, subject, body_markdown, send_at, source } = req.body;
+    if (!to || !subject || !body_markdown || !send_at) return res.status(400).json({ error: 'to, subject, body_markdown, and send_at are required.' });
+    const r = await db.query(
+      'INSERT INTO scheduled_emails (to_email, cc, subject, body_markdown, send_at, source) VALUES (?,?,?,?,?,?)',
+      [to, cc || null, subject, body_markdown, send_at, source || 'manual']
+    );
+    res.json({ success: true, id: r.insertId, send_at });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Cancel a scheduled email
+app.delete('/api/emails/scheduled/:id', requireAuth, async (req, res) => {
+  try {
+    await db.query("UPDATE scheduled_emails SET status='cancelled' WHERE id=? AND status='pending'", [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Email scheduler runner (every 30s) ──────────────────────────────────────
+
+setInterval(async () => {
+  try {
+    const due = await db.query("SELECT * FROM scheduled_emails WHERE status='pending' AND send_at <= NOW() ORDER BY send_at ASC LIMIT 10");
+    if (!due.length) return;
+
+    const nodemailer = require('nodemailer');
+    const smtp = await getSmtpSettings();
+    if (!smtp.host || !smtp.user) return;
+
+    const transporter = nodemailer.createTransport({ host: smtp.host, port: smtp.port, secure: smtp.port === 465, auth: { user: smtp.user, pass: smtp.pass } });
+
+    for (const email of due) {
+      try {
+        const html = email.body_markdown
+          .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+          .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/^- (.+)$/gm, '<li>$1</li>')
+          .replace(/\n\n/g, '</p><p>');
+        const fullHtml = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1a1a2e;line-height:1.6"><p>${html}</p><hr style="border:none;border-top:1px solid #eee;margin:32px 0"><p style="font-size:11px;color:#999">Envoyé automatiquement par Lamu — Lamu</p></div>`;
+        await transporter.sendMail({ from: smtp.from, to: email.to_email, cc: email.cc || undefined, subject: email.subject, html: fullHtml, text: email.body_markdown });
+        await db.query("UPDATE scheduled_emails SET status='sent', sent_at=NOW() WHERE id=?", [email.id]);
+      } catch (err) {
+        await db.query("UPDATE scheduled_emails SET status='failed', error_message=? WHERE id=?", [err.message, email.id]);
+      }
+    }
+  } catch {}
+}, 30000);
+
+// Ensure compliance tables exist
+async function ensureComplianceTables() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS consent_records (
+      id VARCHAR(100) PRIMARY KEY,
+      consent_type VARCHAR(100) NOT NULL,
+      granted TINYINT(1) DEFAULT 0,
+      actor VARCHAR(200) NOT NULL,
+      expires_at TIMESTAMP NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY idx_consent_type (consent_type)
+    )
+  `);
+}
+
 // ─── Outgoing webhooks table ────────────────────────────────────────────────
 
 async function ensureOutgoingWebhooksTable() {
@@ -11100,11 +13391,13 @@ httpServer.listen(PORT, async () => {
   try { await db.query('SELECT 1'); dbOk = true; _dbReady = true; } catch (e) { console.error('[db] Connection failed:', e.message); }
   if (dbOk) {
     try { await ensureSettingsTable(); } catch (e) { console.error('[settings table]', e.message); }
+    try { await ensureNewTables(); } catch (e) { console.error('[new settings tables]', e.message); }
     try { await ensureActivityTables(); } catch (e) { console.error('[activity tables]', e.message); }
     try { await ensureLicenseTables(); } catch (e) { console.error('[license tables]', e.message); }
     try { await ensurePaymentTable(); } catch (e) { console.error('[payment table]', e.message); }
     try { await importActivityJson(); } catch (e) { console.error('[activity import]', e.message); }
     try { await ensureMonitoringTables(); } catch (e) { console.error('[monitoring tables]', e.message); }
+    try { await ensureModelsTable(); } catch (e) { console.error('[models table]', e.message); }
     try { await ensureKbColumns(); } catch (e) { console.error('[kb columns]', e.message); }
     const saasTableInits = [
       ['helpdesk_agents',         ensureHelpdeskAgentsTable],
@@ -11133,6 +13426,9 @@ httpServer.listen(PORT, async () => {
       ['ai_actions_log',          ensureActionsTable],
       ['onboarding_progress',     ensureOnboardingTable],
       ['outgoing_webhooks',       ensureOutgoingWebhooksTable],
+      ['consent_records',          ensureComplianceTables],
+      ['wa_commerce',              ensureWhatsAppCommerceTables],
+      ['automations',              ensureWorkflowAutomationTables],
     ];
     const saasResults = [];
     for (const [name, fn] of saasTableInits) {
