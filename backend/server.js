@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
 const userdb = require('./userdb');
+const whatsapp = require('./whatsapp');
 const { createMcpRouter } = require('./mcp-server');
 
 const http = require('http');
@@ -1476,6 +1477,153 @@ app.delete('/api/db/connection', requireAuth, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ═══ WhatsApp (multi-tenant, Modèle B) ════════════════════════════════════════
+// Chaque client Lamu connecte SON numéro WhatsApp Business (saisie manuelle des
+// identifiants). Un seul webhook route les messages par phone_number_id.
+
+// Connexion WhatsApp du client (scopée par email).
+app.get('/api/whatsapp/connection', requireAuth, async (req, res) => {
+  const userEmail = (req.query.user_email || '').toString().trim().toLowerCase();
+  if (!userEmail) return res.status(400).json({ error: 'user_email required' });
+  try {
+    const cfg = await whatsapp.getConnectionPublic(userEmail);
+    res.json({ connection: cfg, verify_token: process.env.WHATSAPP_VERIFY_TOKEN || 'lamu-whatsapp-verify' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/whatsapp/connection', requireAuth, async (req, res) => {
+  const userEmail = (req.body?.user_email || '').toString().trim().toLowerCase();
+  const { phone_number_id, access_token, business_name, system_prompt, enabled } = req.body || {};
+  if (!userEmail || !phone_number_id)
+    return res.status(400).json({ error: 'user_email, phone_number_id requis' });
+  try {
+    // Token vide à l'édition → on garde celui déjà enregistré.
+    let token = access_token;
+    if (!token) {
+      const existing = await whatsapp.getConnection(userEmail);
+      if (existing && existing.access_token) token = existing.access_token;
+      else return res.status(400).json({ error: 'access_token requis' });
+    }
+    await whatsapp.saveConnection(userEmail, { phone_number_id, access_token: token, business_name, system_prompt, enabled });
+    res.json({ success: true });
+  } catch (e) {
+    if (String(e.message).includes('Duplicate'))
+      return res.status(409).json({ error: 'Ce numéro WhatsApp est déjà connecté à un autre compte.' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/whatsapp/connection', requireAuth, async (req, res) => {
+  const userEmail = (req.query.user_email || '').toString().trim().toLowerCase();
+  if (!userEmail) return res.status(400).json({ error: 'user_email required' });
+  try { await whatsapp.deleteConnection(userEmail); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Webhook Meta — vérification (GET). Public (Meta appelle sans auth).
+app.get('/api/whatsapp/webhook', (req, res) => {
+  const challenge = whatsapp.verifyWebhook(req.query);
+  if (challenge) return res.status(200).send(challenge);
+  return res.sendStatus(403);
+});
+
+// Webhook Meta — réception des messages (POST). Public.
+app.post('/api/whatsapp/webhook', async (req, res) => {
+  res.sendStatus(200); // ACK immédiat — Meta réessaie sinon
+  try {
+    const msgs = whatsapp.parseIncoming(req.body || {});
+    for (const m of msgs) {
+      const conn = await whatsapp.findByPhoneNumberId(m.phoneNumberId);
+      if (!conn) continue; // numéro non rattaché à un client Lamu
+      let reply;
+      if (m.unsupported) {
+        reply = "Je ne gère que les messages texte pour l'instant. Écris-moi ta question 🙂";
+      } else {
+        await whatsapp.addMessage(conn.user_email, m.from, 'user', m.text);
+        reply = await generateWhatsappReply(conn, m.from, m.text).catch((e) => {
+          console.error('[whatsapp] reply error:', e.message);
+          return 'Désolé, une erreur est survenue. Réessaie dans un instant.';
+        });
+        await whatsapp.addMessage(conn.user_email, m.from, 'assistant', reply);
+      }
+      await whatsapp.sendText(conn, m.from, reply).catch((e) => console.error('[whatsapp] send:', e.message));
+    }
+  } catch (e) {
+    console.error('[whatsapp] webhook error:', e.message);
+  }
+});
+
+// Génère une réponse d'agent (non-streaming, avec outils) pour WhatsApp.
+async function generateWhatsappReply(conn, waFrom, text) {
+  const ai = await getAiConfig();
+  if (!ai.primaryUrl || !ai.primaryKey) return "Le service IA n'est pas configuré pour le moment.";
+  const { getAllToolSchemas, APPROVAL_REQUIRED, executeTool } = require('./tools');
+  const model = ai.primaryModel || 'openai/gpt-4.1-mini';
+
+  const bizLine = conn.business_name ? `Tu réponds au nom de l'entreprise « ${conn.business_name} ».` : '';
+  const sys = `Tu es Lamu, l'assistant WhatsApp de cette entreprise. ${bizLine}
+Réponds dans la langue du client (français par défaut). Sois bref, clair et chaleureux — ce sont des messages WhatsApp. Utilise la base de connaissances et tes outils quand c'est pertinent. N'invente jamais ; si tu ne sais pas, propose de laisser un humain recontacter le client.${conn.system_prompt ? `\n\nConsignes de l'entreprise :\n${conn.system_prompt}` : ''}`;
+
+  const history = await whatsapp.getHistory(conn.user_email, waFrom, 12);
+  const loopMessages = [
+    { role: 'system', content: sys },
+    ...history.map((h) => ({ role: h.role, content: h.content })),
+  ];
+
+  const tools = getAllToolSchemas();
+  const toolCtx = { getSmtp: getSmtpSettings, integrations: {}, userEmail: conn.user_email };
+  const strip = (s) => (s || '').replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim();
+
+  for (let round = 0; round < 3; round++) {
+    let data;
+    try {
+      const resp = await fetch(ai.primaryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
+        body: JSON.stringify({ model, messages: loopMessages, tools, tool_choice: 'auto', temperature: 0.3, max_tokens: 1024 }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!resp.ok) break;
+      data = await resp.json();
+    } catch { break; }
+    const msg = data && data.choices && data.choices[0] && data.choices[0].message;
+    if (!msg) break;
+    if (!msg.tool_calls || msg.tool_calls.length === 0) {
+      return strip(msg.content) || "Je n'ai pas de réponse pour le moment.";
+    }
+    loopMessages.push(msg);
+    for (const tc of msg.tool_calls) {
+      const fn = tc.function.name;
+      let args = {};
+      try { args = JSON.parse(tc.function.arguments || '{}'); } catch {}
+      let result;
+      if (APPROVAL_REQUIRED.has(fn)) {
+        result = { note: `Action ${fn} nécessite une validation humaine — non exécutée via WhatsApp.` };
+      } else {
+        try { result = await executeTool(fn, args, toolCtx); } catch (e) { result = { error: e.message }; }
+        if (result && result.needs_client_execution && fn.startsWith('db_')) {
+          const sr = await userdb.executeDbTool(conn.user_email, result).catch((e) => ({ error: e.message }));
+          if (sr) result = sr;
+        }
+      }
+      loopMessages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result).slice(0, 6000) });
+    }
+  }
+  // Dernière passe sans outils pour formuler une réponse.
+  try {
+    const resp = await fetch(ai.primaryUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ai.primaryKey}` },
+      body: JSON.stringify({ model, messages: loopMessages, temperature: 0.3, max_tokens: 1024 }),
+      signal: AbortSignal.timeout(45000),
+    });
+    const data = await resp.json();
+    return strip(data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || 'Je reviens vers toi rapidement.';
+  } catch {
+    return "Désolé, je n'arrive pas à répondre pour l'instant.";
+  }
+}
 
 // ─── STT proxy — transcrit un audio (base64) via le provider serveur (clé cachée) ─
 app.post('/api/stt', requireAuth, async (req, res) => {
