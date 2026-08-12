@@ -1,0 +1,4 @@
+[submodule "mobile"]
+	path = mobile
+	url = https://github.com/J0312Y/lamu-mobile.git
+	branch = master
