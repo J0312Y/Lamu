@@ -3186,8 +3186,19 @@ app.post('/api/license/login', async (req, res) => {
       console.log(`[license/login] ✓ ${license.license_key} logged in (email: ${email})`);
     }
 
+    // Jeton de session, comme pour le parcours OTP. Sans lui, un client mobile
+    // qui récupère sa licence par email n'aurait aucun identifiant à présenter
+    // aux endpoints protégés et se ferait rejeter en 401 dès la première requête.
+    // La possession d'une licence active vaut ici preuve d'identité.
+    const token = jwt.sign(
+      { email: email.trim().toLowerCase(), license_key: license.license_key, plan: license.plan, trial: false },
+      WEBAPP_JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.json({
       success: true,
+      token,
       license_key: license.license_key,
       plan_id: license.plan,
       plan_name: license.plan_name || license.plan,
@@ -3486,6 +3497,76 @@ app.post('/api/webapp/verify-otp', async (req, res) => {
     });
   } catch (err) {
     console.error('[webapp/verify-otp]', err.message);
+    res.status(500).json({ success: false, error: 'Erreur serveur.' });
+  }
+});
+
+// POST /api/webapp/refresh — re-issue a JWT reflecting the user's CURRENT plan.
+// Needed after a payment confirms: the token issued at login still says
+// `trial: true`, so /api/chat would keep counting the user against the free
+// message cap even though they now have a license. Re-login by OTP would work
+// but forcing a new email code right after paying is a terrible experience.
+app.post('/api/webapp/refresh', requireAuth, requireWebAuth, async (req, res) => {
+  const email = (req.webUser?.email || '').toLowerCase();
+  if (!email) return res.status(401).json({ success: false, error: 'Session invalide' });
+
+  try {
+    const license = await db.queryOne(
+      `SELECT l.*, p.name as plan_name, p.features as plan_features
+       FROM licenses l LEFT JOIN plans p ON p.id = l.plan
+       WHERE l.customer_email = ? AND l.is_active = 1
+       ORDER BY l.created_at DESC LIMIT 1`,
+      [email]
+    );
+
+    if (license && !(license.expires_at && new Date(license.expires_at) < new Date())) {
+      const token = jwt.sign(
+        { email, license_key: license.license_key, plan: license.plan, trial: false },
+        WEBAPP_JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+      return res.json({
+        success: true, token,
+        user: {
+          email,
+          name: license.customer_name || null,
+          plan: license.plan,
+          plan_name: license.plan_name || license.plan,
+          features: parseFeaturesSafe(license.plan_features),
+          max_requests: license.max_requests,
+          expires_at: license.expires_at || null,
+          license_key: license.license_key,
+          trial: false,
+        },
+      });
+    }
+
+    // No active license → stay on the trial, with its up-to-date counters.
+    const trial = await db.queryOne('SELECT * FROM webapp_trials WHERE email = ?', [email]);
+    const maxMessages = trial?.max_messages || WEBAPP_FREE_MESSAGES;
+    const used = trial?.messages_used || 0;
+    const token = jwt.sign(
+      { email, plan: 'free_trial', trial: true },
+      WEBAPP_JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+    res.json({
+      success: true, token,
+      user: {
+        email,
+        name: trial?.name || null,
+        plan: 'free_trial',
+        plan_name: 'Free Trial',
+        features: [],
+        max_requests: maxMessages,
+        expires_at: null,
+        trial: true,
+        messages_used: used,
+        messages_remaining: Math.max(0, maxMessages - used),
+      },
+    });
+  } catch (err) {
+    console.error('[webapp/refresh]', err.message);
     res.status(500).json({ success: false, error: 'Erreur serveur.' });
   }
 });
@@ -10586,6 +10667,11 @@ async function ensureNotifPrefsTable() {
 const NOTIF_EVENTS = ['ticket_assigned', 'sla_breach', 'ticket_escalated', 'new_ticket', 'ticket_resolved', 'csat_received'];
 
 async function sendOpsEmail(event, data) {
+  // Push mobile en parallèle de l'email, sur les mêmes destinataires et les
+  // mêmes préférences. Placé avant le early-return sur le mailer : une équipe
+  // sans SMTP configuré doit quand même recevoir ses notifications.
+  sendOpsPush(event, data).catch(() => {});
+
   try {
     const mailer = await createMailer();
     if (!mailer) return;
@@ -10657,6 +10743,136 @@ app.put('/api/notifications/prefs', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// ─── Push mobile (Expo) ──────────────────────────────────────────────────────
+// Les préférences ci-dessus n'étaient jusqu'ici jamais utilisées pour envoyer
+// quoi que ce soit. Un appareil enregistre son jeton Expo ici, et
+// `sendPushToEmail` respecte les préférences de l'utilisateur.
+
+let _pushTableReady = false;
+async function ensurePushTable() {
+  if (_pushTableReady) return;
+  await db.query(`CREATE TABLE IF NOT EXISTS push_tokens (
+    token VARCHAR(255) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    platform VARCHAR(16) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_push_email (email)
+  )`);
+  _pushTableReady = true;
+}
+
+app.post('/api/notifications/token', requireAuth, async (req, res) => {
+  const { email, token, platform } = req.body || {};
+  if (!email || !token) return res.status(400).json({ error: 'email and token required' });
+  try {
+    await ensurePushTable();
+    // Un même appareil peut changer de compte : le jeton est la clé, l'email suit.
+    await db.query(
+      `INSERT INTO push_tokens (token, email, platform) VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE email = VALUES(email), platform = VALUES(platform)`,
+      [token, String(email).toLowerCase(), platform || null]
+    );
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/notifications/token', requireAuth, async (req, res) => {
+  const token = req.query.token;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  try {
+    await ensurePushTable();
+    await db.query('DELETE FROM push_tokens WHERE token = ?', [token]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/** Titres/corps courts des notifications push, par événement. */
+function pushTextFor(event, data) {
+  switch (event) {
+    case 'ticket_assigned':
+      return [`Ticket #${data.ticket_id} assigné`, data.subject || 'Nouveau ticket pour toi'];
+    case 'sla_breach':
+      return [`⚠️ SLA dépassé — #${data.ticket_id}`, `${data.breach_type} · ${data.elapsed_minutes} min`];
+    case 'ticket_escalated':
+      return [`🔴 Ticket #${data.ticket_id} escaladé`, data.reason || 'Nécessite une intervention'];
+    case 'new_ticket':
+      return ['Nouveau ticket', data.subject || data.customer_email || '—'];
+    case 'ticket_resolved':
+      return [`✅ Ticket #${data.ticket_id} résolu`, data.subject || ''];
+    case 'csat_received':
+      return [`Nouvelle évaluation ${data.rating}★`, data.comment || ''];
+    default:
+      return ['Lamu', ''];
+  }
+}
+
+/** Push aux membres de l'équipe qui n'ont pas désactivé cet événement. */
+async function sendOpsPush(event, data) {
+  try {
+    const team = await db.query('SELECT DISTINCT email FROM team_members');
+    if (!team.length) return;
+    const [title, body] = pushTextFor(event, data);
+    for (const m of team) {
+      // sendPushToEmail relit la préférence par utilisateur.
+      await sendPushToEmail(m.email, event, title, body, { ticket_id: data.ticket_id });
+    }
+  } catch (e) {
+    console.error('[push:ops]', e.message);
+  }
+}
+
+/**
+ * Envoie une notification push à tous les appareils d'un utilisateur.
+ * Respecte notification_prefs : un événement désactivé n'est pas envoyé.
+ * Ne jette jamais — une push ratée ne doit pas faire échouer l'action métier.
+ */
+async function sendPushToEmail(email, eventType, title, body, data = {}) {
+  try {
+    if (!email) return;
+    const emailLower = String(email).toLowerCase();
+    await ensurePushTable();
+
+    if (eventType) {
+      const pref = await db.queryOne(
+        'SELECT enabled FROM notification_prefs WHERE email = ? AND event_type = ?',
+        [emailLower, eventType]
+      );
+      if (pref && !pref.enabled) return; // désactivé explicitement (défaut = activé)
+    }
+
+    const rows = await db.query('SELECT token FROM push_tokens WHERE email = ?', [emailLower]);
+    if (!rows.length) return;
+
+    const messages = rows.map(r => ({
+      to: r.token,
+      sound: 'default',
+      title,
+      body,
+      data: { ...data, event: eventType },
+    }));
+
+    const resp = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(messages),
+    });
+    const out = await resp.json().catch(() => null);
+
+    // Expo signale les jetons morts : on les purge pour ne pas réessayer sans fin.
+    const tickets = out?.data;
+    if (Array.isArray(tickets)) {
+      for (let i = 0; i < tickets.length; i++) {
+        if (tickets[i]?.details?.error === 'DeviceNotRegistered') {
+          await db.query('DELETE FROM push_tokens WHERE token = ?', [rows[i].token]).catch(() => {});
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[push]', e.message);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Feature 25 — CSV / Data Export

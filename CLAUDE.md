@@ -115,7 +115,32 @@ backend/
 ## État actuel / Ce sur quoi on travaille
 _(mettre à jour à chaque fin de session)_
 
-Dernière session : 2026-05-25
+Dernière session : 2026-08-12
+
+### App mobile (`mobile/`) — mise à niveau production (2026-08-12)
+
+⚠️ `mobile/` est un **dépôt git imbriqué** (branche `master`), pas suivi par le dépôt parent. Il n'a **aucun remote** — pas de sauvegarde hors machine.
+
+**Configuration / build**
+- `app.config.js` (nouveau) surcharge `app.json` selon `APP_ENV` défini par profil dans `eas.json`. Dev → backend LAN HTTP + cleartext ; prod → `https://api.lamu.lamuka-tech.com`, cleartext désactivé.
+- `scheme: 'lamu'` (retour OAuth), `expo-updates` (OTA), splash screen.
+- `src/config.ts` ne code plus rien en dur : tout vient de `Constants.expoConfig.extra`.
+
+**Authentification** — l'app s'authentifie avec le **JWT par utilisateur** (`x-webapp-token`), jamais avec une clé partagée (extractible d'un bundle). `requireAuth` l'accepte déjà (server.js).
+- Parcours OTP (`send-otp` → `verify-otp`) : couvre le client licencié ET le nouvel utilisateur (essai gratuit automatique).
+- `/api/license/login` rend maintenant un JWT ; `/api/webapp/refresh` (nouveau) réémet un jeton reflétant le plan courant après paiement.
+- Revalidation licence au lancement + déconnexion globale sur tout 401 (`lib/authToken.ts`).
+
+**Nouveaux écrans mobile** : Réglages, Abonnement (plans + CinetPay/Flutterwave), Réunion (transcription continue par segments de 20 s + coaching + résumé), Agent (runs + approbation d'outils), Tickets helpdesk, WhatsApp Business.
+
+**Nouveaux modules** : `lib/i18n.ts` (fr/en), `lib/settings.ts` (+ `ASSISTANT_MODES` alignés sur le desktop), `lib/network.ts` (NetInfo + file d'attente), `lib/attachments.ts` (photo/caméra/document → vision ou extraction texte), `lib/push.ts`.
+
+**Backend ajouté** : `/api/webapp/refresh`, `/api/notifications/token` (POST/DELETE), `sendPushToEmail` + `sendOpsPush` — les préférences `notification_prefs` n'envoyaient jusque-là **rien** ; `sendOpsEmail` déclenche maintenant aussi les push.
+
+**Points d'attention**
+- Le thème s'applique via un bootstrap dans `index.ts` (import dynamique de `App`) car les écrans figent leurs couleurs dans `StyleSheet.create`. Changer de thème recharge le bundle.
+- Les images jointes ne sont **pas** persistées en base64 dans AsyncStorage (limite ~6 Mo Android) : remplacées par `[image jointe]` à la sauvegarde.
+- La vision suppose que le modèle configuré côté serveur sait lire les images.
 
 ### Système de licences — identité email + anti-réutilisation (complété 2026-05-25)
 
