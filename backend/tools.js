@@ -60,7 +60,7 @@ const TOOL_SCHEMAS = [
     function: {
       name: 'generate_image',
       description:
-        "Generate an image from a text description (text-to-image). Use whenever the user asks to create, draw, generate, design, or illustrate an image, picture, logo, artwork, or illustration. After it returns, you MUST embed the result in your reply using markdown image syntax exactly: ![short description](image_url).",
+        "Generate an image, or EDIT an image the user just sent. Use whenever the user asks to create, draw, generate, design, illustrate, modify, retouch, or change an image. If the user is asking to modify an image present in the conversation, you MUST set edit_source_image to true — the original is then sent to the image model so faces, people and composition are preserved. Without it a brand-new image is created from scratch and will NOT look like the original. After it returns, you MUST embed the result in your reply using markdown image syntax exactly: ![short description](image_url).",
       parameters: {
         type: 'object',
         properties: {
@@ -72,6 +72,11 @@ const TOOL_SCHEMAS = [
             type: 'string',
             enum: ['1024x1024', '1792x1024', '1024x1792'],
             description: 'Image dimensions. Use 1024x1024 (square) by default, 1792x1024 for wide, 1024x1792 for tall.',
+          },
+          edit_source_image: {
+            type: 'boolean',
+            description:
+              'Set to true when modifying an image the user sent. The backend attaches the most recent image of the conversation, so the result keeps the original faces and composition. When true, the prompt must describe ONLY the change to apply, not the whole scene.',
           },
         },
         required: ['prompt'],
@@ -523,13 +528,21 @@ function parseDataUri(uri) {
 // Mode 1 (clé dédiée IMAGE_API_KEY) : API OpenAI /v1/images/generations (DALL·E…).
 // Mode 2 (défaut) : réutilise le provider chat (OpenRouter) avec un modèle image
 //   — renvoie souvent un data URI qu'on héberge en fichier → URL courte.
-async function execGenerateImage({ prompt, size = '1024x1024' }, context = {}) {
+async function execGenerateImage({ prompt, size = '1024x1024', edit_source_image = false }, context = {}) {
   if (!prompt || !prompt.trim()) return { error: 'prompt requis' };
   const baseUrl = context.baseUrl;
 
+  // Image de la conversation à retoucher. Fournie par l'appelant (voir /api/chat) :
+  // le modèle ne peut pas la transmettre lui-même, une data URI base64 pèse
+  // des centaines de kilo-octets et ne se recopie pas dans un argument d'outil.
+  const sourceImage = edit_source_image ? context.sourceImage || null : null;
+
   // ── Mode 1 : clé image dédiée (format OpenAI images) ──
   const dedicatedKey = process.env.IMAGE_API_KEY || '';
-  if (dedicatedKey) {
+  // L'endpoint /images/generations est purement text-to-image. L'utiliser pour une
+  // retouche produirait une image sans rapport avec l'originale — mieux vaut
+  // basculer sur le provider chat, qui accepte une image en entrée.
+  if (dedicatedKey && !sourceImage) {
     const url = process.env.IMAGE_API_URL || 'https://api.openai.com/v1/images/generations';
     const model = process.env.IMAGE_MODEL || 'dall-e-3';
     const allowed = ['1024x1024', '1792x1024', '1024x1792', '512x512', '256x256'];
@@ -568,7 +581,24 @@ async function execGenerateImage({ prompt, size = '1024x1024' }, context = {}) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: `Generate an image: ${prompt.slice(0, 4000)}` }],
+        messages: [
+          {
+            role: 'user',
+            // Avec une image source, on envoie l'originale ET la consigne : c'est
+            // ce qui fait la différence entre retoucher et régénérer de zéro.
+            content: sourceImage
+              ? [
+                  { type: 'image_url', image_url: { url: sourceImage } },
+                  {
+                    type: 'text',
+                    text:
+                      'Edit this exact image. Keep the same people, faces, identity, pose and composition. ' +
+                      `Apply only this change: ${prompt.slice(0, 4000)}`,
+                  },
+                ]
+              : `Generate an image: ${prompt.slice(0, 4000)}`,
+          },
+        ],
         modalities: ['image', 'text'],
       }),
       signal: AbortSignal.timeout(90000),

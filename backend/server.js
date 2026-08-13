@@ -1718,6 +1718,26 @@ app.post('/api/kb/summarize', requireAuth, async (req, res) => {
 
 // ─── POST /api/chat ───────────────────────────────────────────────────────────
 
+/**
+ * Dernière image de la conversation, en data URI ou URL.
+ *
+ * L'outil generate_image ne peut pas récupérer l'image lui-même : le modèle
+ * devrait alors recopier une data URI base64 de plusieurs centaines de
+ * kilo-octets dans un argument de fonction, ce qu'aucun modèle ne fait. C'est
+ * donc au serveur de la retrouver et de la lui fournir.
+ */
+function lastImageOf(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const c = messages[i]?.content;
+    if (!Array.isArray(c)) continue;
+    for (let j = c.length - 1; j >= 0; j--) {
+      const url = c[j]?.type === 'image_url' ? c[j]?.image_url?.url : null;
+      if (url) return url;
+    }
+  }
+  return null;
+}
+
 app.post('/api/chat', requireAuth, async (req, res) => {
   // ── Webapp trial message limit check ──
   const webToken = req.headers['x-webapp-token'] || '';
@@ -2247,6 +2267,9 @@ I'll provide a clear summary with sources.
             integrations: integContext,
             aiConfig: ai,
             baseUrl: `${req.protocol}://${req.headers.host}`,
+            // Permet la retouche d'image : sans elle, une demande de
+            // modification régénère une image sans rapport avec l'originale.
+            sourceImage: lastImageOf(messages),
           });
         } catch (toolErr) {
           toolResult = { error: toolErr.message };
