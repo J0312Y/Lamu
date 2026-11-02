@@ -29,10 +29,10 @@ const Promote = () => {
       <CardContent className="flex flex-col gap-4 p-4 py-0 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2 md:max-w-[70%]">
           <CardTitle className="text-xs lg:text-sm">
-            Promote Lamu, Earn Rewards
+            Promouvez Lamu, gagnez des récompenses
           </CardTitle>
           <CardDescription className="text-[10px] lg:text-xs">
-            Share Lamu on social and help us grow. Email your post link to{" "}
+            Partagez Lamu sur les réseaux sociaux et aidez-nous à grandir. Envoyez le lien de votre publication à{" "}
             <a
               className="text-primary underline underline-offset-4"
               href="mailto:support@lamuka-tech.com"
@@ -48,12 +48,12 @@ const Promote = () => {
             rel="noopener noreferrer"
             target="_blank"
           >
-            Contact Us
+            Nous contacter
           </a>
         </Button>
       </CardContent>
       <button
-        aria-label="Dismiss promotion"
+        aria-label="Fermer la promotion"
         className="absolute -right-1 -top-2 rounded-full border border-transparent bg-primary/10 p-1 transition hover:border-primary/20 hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         onClick={handleDismiss}
         type="button"

@@ -1,7 +1,7 @@
 {
   "plugins": {
     "updater": {
-      "endpoints": ["https://api.lamuka.com/api/update"]
+      "endpoints": ["https://api.lamu.lamuka-tech.com/api/update"]
     }
   }
 }

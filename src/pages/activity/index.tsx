@@ -18,13 +18,13 @@ import { useState } from "react";
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms;
   const s = Math.floor(diff / 1000);
-  if (s < 60) return "just now";
+  if (s < 60) return "à l'instant";
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return `il y a ${m}m`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return `il y a ${h}h`;
   const d = Math.floor(h / 24);
-  return `${d}d ago`;
+  return `il y a ${d}j`;
 }
 
 function sourceIcon(sourceType: string) {
@@ -72,7 +72,7 @@ function ActivityCard({ entry }: { entry: KbActivityEntry }) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">{entry.query}</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {entry.result_count} source{entry.result_count !== 1 ? "s" : ""} retrieved
+            {entry.result_count} source{entry.result_count !== 1 ? "s" : ""} récupérée{entry.result_count !== 1 ? "s" : ""}
             &nbsp;·&nbsp;{relativeTime(entry.created_at)}
           </p>
         </div>
@@ -119,12 +119,12 @@ function groupByDate(entries: KbActivityEntry[]): Record<string, KbActivityEntry
     const now = new Date();
     let label: string;
     if (d.toDateString() === now.toDateString()) {
-      label = "Today";
+      label = "Aujourd'hui";
     } else {
       const yesterday = new Date(now);
       yesterday.setDate(now.getDate() - 1);
       if (d.toDateString() === yesterday.toDateString()) {
-        label = "Yesterday";
+        label = "Hier";
       } else {
         label = d.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
       }
@@ -143,14 +143,14 @@ const ActivityPage = () => {
 
   return (
     <PageLayout
-      title="KB Activity"
-      description="Timeline of knowledge base lookups made during AI sessions"
+      title="Activité KB"
+      description="Historique des recherches dans la base de connaissances lors des sessions IA"
     >
       <div className="space-y-6">
         {/* Toolbar */}
         <div className="flex items-center justify-between">
           <p className="text-xs text-muted-foreground">
-            {entries.length} {entries.length === 1 ? "entry" : "entries"}
+            {entries.length} {entries.length === 1 ? "entrée" : "entrées"}
           </p>
           <div className="flex gap-2">
             <button
@@ -160,7 +160,7 @@ const ActivityPage = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs hover:bg-accent disabled:opacity-50 transition-colors"
             >
               <RefreshCwIcon className={`w-3 h-3 ${isLoading ? "animate-spin" : ""}`} />
-              Refresh
+              Actualiser
             </button>
             {entries.length > 0 && (
               <button
@@ -169,7 +169,7 @@ const ActivityPage = () => {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <Trash2Icon className="w-3 h-3" />
-                Clear all
+                Tout effacer
               </button>
             )}
           </div>
@@ -181,10 +181,10 @@ const ActivityPage = () => {
             <div className="p-4 rounded-full bg-muted">
               <SearchIcon className="w-6 h-6 text-muted-foreground" />
             </div>
-            <p className="text-sm font-medium">No activity yet</p>
+            <p className="text-sm font-medium">Aucune activité pour le moment</p>
             <p className="text-xs text-muted-foreground max-w-xs">
-              Activity is recorded whenever the AI retrieves context from your knowledge base.
-              Connect sources and start a conversation to see results here.
+              L'activité est enregistrée chaque fois que l'IA récupère du contexte de votre base de connaissances.
+              Connectez des sources et démarrez une conversation pour voir les résultats ici.
             </p>
           </div>
         )}

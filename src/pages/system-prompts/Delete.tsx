@@ -50,17 +50,17 @@ export const DeleteSystemPrompt = ({
               <AlertTriangle className="h-5 w-5 text-destructive" />
             </div>
             <div className="flex-1">
-              <DialogTitle>Delete System Prompt</DialogTitle>
+              <DialogTitle>Supprimer le prompt système</DialogTitle>
               <DialogDescription className="mt-1">
-                Are you sure you want to delete "{promptName}"?
+                Êtes-vous sûr de vouloir supprimer « {promptName} » ?
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
         <div className="py-3">
           <p className="text-sm text-muted-foreground">
-            This action cannot be undone. This will permanently delete the
-            system prompt from the database.
+            Cette action est irréversible. Le prompt système sera définitivement
+            supprimé de la base de données.
           </p>
         </div>
         <DialogFooter>
@@ -69,14 +69,14 @@ export const DeleteSystemPrompt = ({
             onClick={() => onOpenChange(false)}
             disabled={isDeleting}
           >
-            Cancel
+            Annuler
           </Button>
           <Button
             variant="destructive"
             onClick={handleConfirmDelete}
             disabled={isDeleting}
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? "Suppression..." : "Supprimer"}
           </Button>
         </DialogFooter>
       </DialogContent>

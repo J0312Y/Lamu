@@ -18,3 +18,4 @@ export * from "./useApp";
 export * from "./useMenuItems";
 export * from "./useKnowledgeBase";
 export * from "./useIntegrations";
+export * from "./useAutoJoinCalendar";

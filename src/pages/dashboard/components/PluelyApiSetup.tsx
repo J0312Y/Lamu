@@ -58,6 +58,7 @@ export const LamuApiSetup = () => {
     setHasActiveLicense,
     getActiveLicenseStatus,
     setSupportsImages,
+    trialExpired,
   } = useApp();
 
   const [licenseKey, setLicenseKey] = useState("");
@@ -92,6 +93,13 @@ export const LamuApiSetup = () => {
       commandListRef.current.scrollTop = 0;
     }
   }, [searchValue]);
+
+  // Re-fetch models when switching to own API key mode
+  useEffect(() => {
+    if (!lamuApiEnabled && models.length === 0) {
+      fetchModels();
+    }
+  }, [lamuApiEnabled]);
 
   // Update supportsImages when Lamu API toggle changes
   useEffect(() => {
@@ -158,7 +166,7 @@ export const LamuApiSetup = () => {
 
   const handleActivateLicense = async () => {
     if (!licenseKey.trim()) {
-      setError("Please enter a license key");
+      setError("Veuillez entrer une clé de licence");
       return;
     }
 
@@ -189,7 +197,7 @@ export const LamuApiSetup = () => {
           ],
         });
 
-        setSuccess("License activated successfully!");
+        setSuccess("Licence activée avec succès !");
         setLicenseKey(""); // Clear the input
 
         // Auto-enable Lamu API when license is activated
@@ -201,11 +209,11 @@ export const LamuApiSetup = () => {
         await fetchModels();
         await getActiveLicenseStatus();
       } else {
-        setError(response.error || "Failed to activate license");
+        setError(response.error || "Échec de l'activation de la licence");
       }
     } catch (err) {
       console.error("License activation failed:", err);
-      setError(typeof err === "string" ? err : "Failed to activate license");
+      setError(typeof err === "string" ? err : "Échec de l'activation de la licence");
     } finally {
       setIsLoading(false);
     }
@@ -257,7 +265,7 @@ export const LamuApiSetup = () => {
         ],
       });
 
-      setSuccess("License removed successfully!");
+      setSuccess("Licence supprimée avec succès !");
 
       // Disable Lamu API when license is removed
       setLamuApiEnabled(false);
@@ -266,7 +274,7 @@ export const LamuApiSetup = () => {
       await loadLicenseStatus(); // Reload status
     } catch (err) {
       console.error("Failed to remove license:", err);
-      setError("Failed to remove license");
+      setError("Échec de la suppression de la licence");
     } finally {
       setIsLoading(false);
       await invoke("deactivate_license_api");
@@ -298,7 +306,7 @@ export const LamuApiSetup = () => {
       });
     } catch (error) {
       console.error("Failed to save model selection:", error);
-      setError("Failed to save model selection.");
+      setError("Échec de l'enregistrement du modèle sélectionné.");
     }
   };
 
@@ -326,23 +334,24 @@ export const LamuApiSetup = () => {
   } else if (capitalizedProviders.length === 1) {
     providerList = capitalizedProviders[0];
   } else if (capitalizedProviders.length === 2) {
-    providerList = capitalizedProviders.join(" and ");
+    providerList = capitalizedProviders.join(" et ");
   } else {
     const lastProvider = capitalizedProviders.pop();
-    providerList = `${capitalizedProviders.join(", ")}, and ${lastProvider}`;
+    providerList = `${capitalizedProviders.join(", ")} et ${lastProvider}`;
   }
 
+  // Only show model selector when Lamu API is disabled (user uses their own key)
+  const showModelSelector = !lamuApiEnabled;
+
   const title = isModelsLoading
-    ? "Loading Models..."
-    : `Lamu supports ${models?.length} model${
-        models?.length !== 1 ? "s" : ""
-      }`;
+    ? "Chargement des modèles..."
+    : `${models?.length} modèle${models?.length !== 1 ? "s" : ""} disponible${models?.length !== 1 ? "s" : ""}`;
 
   const description = isModelsLoading
-    ? "Fetching the list of supported models..."
+    ? "Récupération de la liste des modèles disponibles..."
     : providerList
-    ? `Access top models from providers like ${providerList}. and select smaller models for faster responses.`
-    : "Explore all the models Lamu supports.";
+    ? `Choisissez un modèle parmi ${providerList} à utiliser avec votre propre clé API.`
+    : "Sélectionnez le modèle IA à utiliser avec votre propre fournisseur.";
 
   return (
     <div id="lamu-api" className="space-y-3 -mt-2">
@@ -362,88 +371,93 @@ export const LamuApiSetup = () => {
             </p>
           </div>
         )}
-        <Header title={title} description={description} />
-        <Popover
-          modal={true}
-          open={isPopoverOpen}
-          onOpenChange={handlePopoverOpenChange}
-        >
-          <PopoverTrigger
-            asChild
-            disabled={isModelsLoading}
-            className="cursor-pointer flex justify-start"
-          >
-            <Button
-              variant="outline"
-              className="h-11 text-start shadow-none w-full"
+        {/* Model selector — only visible when user uses their own API key */}
+        {showModelSelector && (
+          <>
+            <Header title={title} description={description} />
+            <Popover
+              modal={true}
+              open={isPopoverOpen}
+              onOpenChange={handlePopoverOpenChange}
             >
-              {selectedModel ? selectedModel.name : "Select pro models"}{" "}
-              <ChevronDown />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            side="bottom"
-            className="w-[calc(100vw-20rem)] p-0 rounded-xl overflow-hidden"
-          >
-            <Command shouldFilter={true}>
-              <CommandInput
-                placeholder="Select model..."
-                value={searchValue}
-                onValueChange={setSearchValue}
-              />
-              <CommandList
-                ref={commandListRef}
-                className="rounded-xl h-full overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/30"
+              <PopoverTrigger
+                asChild
+                disabled={isModelsLoading}
+                className="cursor-pointer flex justify-start"
               >
-                <CommandEmpty>
-                  No models found. Please try again later.
-                </CommandEmpty>
-                <CommandGroup className="h-full rounded-xl">
-                  {models.map((model, index) => (
-                    <CommandItem
-                      disabled={!model?.isAvailable}
-                      key={`${model?.id}-${index}`}
-                      className="cursor-pointer"
-                      onSelect={() => handleModelSelect(model)}
-                    >
-                      <div className="flex flex-col">
-                        <div className="flex flex-row items-center gap-2">
-                          <p className="text-sm font-medium">{`${model?.name}`}</p>
-                          <div className="text-xs border border-input/50 bg-muted/50 rounded-full px-2">
-                            {model?.modality}
-                          </div>
-                          {model?.isAvailable ? (
-                            <div className="text-xs text-orange-600 bg-white rounded-full px-2">
-                              {model?.provider}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-red-600 bg-white rounded-full px-2">
-                              Not Available
-                            </div>
-                          )}
-                        </div>
-                        <p
-                          className="text-sm text-muted-foreground line-clamp-2"
-                          title={model?.description}
+                <Button
+                  variant="outline"
+                  className="h-11 text-start shadow-none w-full"
+                >
+                  {selectedModel ? selectedModel.name : "Sélectionner un modèle"}{" "}
+                  <ChevronDown />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="bottom"
+                className="w-[calc(100vw-20rem)] p-0 rounded-xl overflow-hidden"
+              >
+                <Command shouldFilter={true}>
+                  <CommandInput
+                    placeholder="Rechercher un modèle..."
+                    value={searchValue}
+                    onValueChange={setSearchValue}
+                  />
+                  <CommandList
+                    ref={commandListRef}
+                    className="rounded-xl h-full overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/30"
+                  >
+                    <CommandEmpty>
+                      Aucun modèle trouvé. Veuillez réessayer plus tard.
+                    </CommandEmpty>
+                    <CommandGroup className="h-full rounded-xl">
+                      {models.map((model, index) => (
+                        <CommandItem
+                          disabled={!model?.isAvailable}
+                          key={`${model?.id}-${index}`}
+                          className="cursor-pointer"
+                          onSelect={() => handleModelSelect(model)}
                         >
-                          {model?.description}
-                        </p>
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-        {/* this model only supports these modalities */}
-        {selectedModel && (
-          <div className="text-xs text-amber-500 bg-amber-500/10 p-3 rounded-md">
-            {selectedModel.modality?.includes("image") || selectedModel.modality?.includes("vision")
-              ? "This model accepts both text and images as input and generates text responses."
-              : "⚠️ This model ONLY accepts text input. Do NOT upload images - they will not work with this model. Use a text+image→text model if you need image support."}
-          </div>
+                          <div className="flex flex-col">
+                            <div className="flex flex-row items-center gap-2">
+                              <p className="text-sm font-medium">{`${model?.name}`}</p>
+                              <div className="text-xs border border-input/50 bg-muted/50 rounded-full px-2">
+                                {model?.modality}
+                              </div>
+                              {model?.isAvailable ? (
+                                <div className="text-xs text-orange-600 bg-white rounded-full px-2">
+                                  {model?.provider}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-red-600 bg-white rounded-full px-2">
+                                  Non disponible
+                                </div>
+                              )}
+                            </div>
+                            <p
+                              className="text-sm text-muted-foreground line-clamp-2"
+                              title={model?.description}
+                            >
+                              {model?.description}
+                            </p>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {/* this model only supports these modalities */}
+            {selectedModel && (
+              <div className="text-xs text-amber-500 bg-amber-500/10 p-3 rounded-md">
+                {selectedModel.modality?.includes("image") || selectedModel.modality?.includes("vision")
+                  ? "Ce modèle accepte du texte et des images en entrée et génère des réponses textuelles."
+                  : "⚠️ Ce modèle n'accepte QUE du texte en entrée. N'envoyez PAS d'images — elles ne fonctionneront pas avec ce modèle. Utilisez un modèle texte+image→texte si vous avez besoin du support des images."}
+              </div>
+            )}
+          </>
         )}
         {/* License activation — key or email */}
         <div className="space-y-3">
@@ -604,19 +618,19 @@ export const LamuApiSetup = () => {
       </div>
       <div className="flex justify-between items-center">
         <Header
-          title={`${lamuApiEnabled ? "Disable" : "Enable"} Lamu API`}
+          title={`${lamuApiEnabled ? "Désactiver" : "Activer"} l'API Lamu`}
           description={
             storedLicenseKey
               ? lamuApiEnabled
-                ? "Using all Lamu APIs for audio, and chat."
-                : "Using all your own AI Providers for audio, and chat."
-              : "A valid license is required to enable Lamu API or you can use your own AI Providers and STT Providers."
+                ? "Utilisation des APIs Lamu pour l'audio et le chat."
+                : "Utilisation de vos propres fournisseurs IA pour l'audio et le chat."
+              : "Votre essai a expiré. Activez une licence pour utiliser l'API Lamu, ou utilisez vos propres fournisseurs IA et STT."
           }
         />
         <Switch
           checked={lamuApiEnabled}
           onCheckedChange={setLamuApiEnabled}
-          disabled={!storedLicenseKey || !hasActiveLicense} // Disable if no license is stored
+          disabled={trialExpired && !hasActiveLicense} // Only disable when trial expired AND no license
         />
       </div>
     </div>

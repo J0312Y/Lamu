@@ -17,25 +17,25 @@ export const AutostartToggle = ({ className }: AutostartToggleProps) => {
   return (
     <div id="autostart" className={`space-y-2 ${className}`}>
       <Header
-        title="Launch on Startup"
-        description="Automatically open Lamu when your system starts"
+        title="Lancer au démarrage"
+        description="Ouvrir automatiquement Lamu au démarrage du système"
         isMainTitle
       />
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div>
-            <Label className="text-sm font-medium">Open on Start</Label>
+            <Label className="text-sm font-medium">Ouvrir au démarrage</Label>
             <p className="text-xs text-muted-foreground mt-1">
               {isEnabled
-                ? "Lamu will launch automatically on system startup"
-                : "Lamu will not launch automatically"}
+                ? "Lamu se lancera automatiquement au démarrage du système"
+                : "Lamu ne se lancera pas automatiquement"}
             </p>
           </div>
         </div>
         <Switch
           checked={isEnabled}
           onCheckedChange={handleSwitchChange}
-          aria-label="Toggle autostart"
+          aria-label="Basculer le démarrage automatique"
         />
       </div>
     </div>

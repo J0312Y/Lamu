@@ -47,7 +47,7 @@ const AutoSpeechVADInternal = ({
           setState((prev: any) => ({
             ...prev,
             error:
-              "No speech provider selected. Please select one in settings.",
+              "Aucun fournisseur vocal sélectionné. Veuillez en configurer un dans les paramètres.",
           }));
           return;
         }

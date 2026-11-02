@@ -27,11 +27,11 @@ export const ScreenshotConfigs = ({
         <div className="space-y-2">
           <div className="flex flex-col">
             <Header
-              title="Capture Method"
+              title="Méthode de capture"
               description={
                 screenshotConfiguration.enabled
-                  ? "Screenshot Mode: Quickly capture the entire screen with one click."
-                  : "Selection Mode: Click and drag to select a specific area to capture."
+                  ? "Mode Capture d'écran : Capturez rapidement tout l'écran en un clic."
+                  : "Mode Sélection : Cliquez et faites glisser pour sélectionner une zone spécifique à capturer."
               }
             />
           </div>
@@ -50,8 +50,8 @@ export const ScreenshotConfigs = ({
                 )}
                 <div className="text-sm font-medium">
                   {screenshotConfiguration.enabled
-                    ? "Screenshot Mode"
-                    : "Selection Mode"}
+                    ? "Mode Capture d'écran"
+                    : "Mode Sélection"}
                 </div>
               </div>
             </SelectTrigger>
@@ -59,17 +59,17 @@ export const ScreenshotConfigs = ({
               <SelectItem value="selection" disabled={locked}>
                 <div className="flex items-center gap-2">
                   <MousePointer2Icon className="size-4" />
-                  <div className="font-medium">Selection Mode</div>
+                  <div className="font-medium">Mode Sélection</div>
                   {locked && (
                     <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                      You need an active license to use Selection Mode.
+                      Une licence active est requise pour utiliser le mode Sélection.
                     </span>
                   )}
                 </div>
               </SelectItem>
               <SelectItem value="screenshot" className="flex flex-row gap-2">
                 <LaptopMinimalIcon className="size-4" />
-                <div className="font-medium">Screenshot Mode</div>
+                <div className="font-medium">Mode Capture d'écran</div>
               </SelectItem>
             </SelectContent>
           </Select>
@@ -79,11 +79,11 @@ export const ScreenshotConfigs = ({
         <div className="space-y-2">
           <div className="flex flex-col">
             <Header
-              title="Processing Mode"
+              title="Mode de traitement"
               description={
                 screenshotConfiguration.mode === "manual"
-                  ? "Screenshots will be captured and automatically added to your attached files. You can then submit them with your own prompt. you can capture multiple screenshots and submit them later."
-                  : "Screenshots will be automatically submitted to AI using your custom prompt. No manual intervention required. only one screenshot can be submitted at a time."
+                  ? "Les captures seront ajoutées automatiquement à vos fichiers joints. Vous pouvez ensuite les soumettre avec votre propre prompt. Plusieurs captures peuvent être effectuées et soumises ultérieurement."
+                  : "Les captures seront automatiquement soumises à l'IA avec votre prompt personnalisé. Aucune intervention manuelle requise. Une seule capture peut être soumise à la fois."
               }
             />
           </div>
@@ -94,17 +94,17 @@ export const ScreenshotConfigs = ({
             <SelectTrigger className="w-full h-11 border-1 border-input/50 focus:border-primary/50 transition-colors">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-medium">
-                  {screenshotConfiguration.mode === "auto" ? "Auto" : "Manual"}{" "}
+                  {screenshotConfiguration.mode === "auto" ? "Automatique" : "Manuel"}{" "}
                   Mode
                 </div>
               </div>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="manual">
-                <div className="font-medium">Manual Mode</div>
+                <div className="font-medium">Mode Manuel</div>
               </SelectItem>
               <SelectItem value="auto">
-                <div className="font-medium">Auto Mode</div>
+                <div className="font-medium">Mode Automatique</div>
               </SelectItem>
             </SelectContent>
           </Select>
@@ -113,15 +113,15 @@ export const ScreenshotConfigs = ({
         {/* Auto Prompt Input - Only show when auto mode is selected */}
         {screenshotConfiguration.mode === "auto" && (
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Auto Prompt</Label>
+            <Label className="text-sm font-medium">Prompt automatique</Label>
             <Input
-              placeholder="Enter prompt for automatic screenshot analysis..."
+              placeholder="Saisissez un prompt pour l'analyse automatique des captures..."
               value={screenshotConfiguration.autoPrompt}
               onChange={(e) => handleScreenshotPromptChange(e.target.value)}
               className="w-full h-11 border-1 border-input/50 focus:border-primary/50 transition-colors"
             />
             <p className="text-xs text-muted-foreground">
-              This prompt will be used automatically when screenshots are taken
+              Ce prompt sera utilisé automatiquement lors de la prise de captures
             </p>
           </div>
         )}
@@ -132,10 +132,9 @@ export const ScreenshotConfigs = ({
         <p>
           💡 <strong>Tip:</strong>{" "}
           {screenshotConfiguration.enabled
-            ? "Screenshot mode captures the full screen with one click."
-            : "Selection mode lets you choose specific areas to capture."}{" "}
-          Auto mode is great for quick analysis, manual mode gives you more
-          control.
+            ? "Le mode Capture d'écran prend l'intégralité de l'écran en un clic."
+            : "Le mode Sélection vous permet de choisir des zones spécifiques à capturer."}{" "}
+          Le mode automatique est idéal pour une analyse rapide, le mode manuel offre plus de contrôle.
         </p>
       </div>
     </div>

@@ -28,13 +28,13 @@ export const PremiumGate = ({ children, featureName }: PremiumGateProps) => {
           </div>
           <div className="space-y-1">
             <h3 className="font-semibold text-base">
-              {featureName ? `${featureName} requires a license` : "License required"}
+              {featureName ? `${featureName} nécessite une licence` : "Licence requise"}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Your free trial has ended. Get a license to unlock all premium features.
+              Votre période d'essai est terminée. Obtenez une licence pour débloquer toutes les fonctionnalités premium.
             </p>
           </div>
-          <GetLicense buttonText="Get License" buttonClassName="w-full" />
+          <GetLicense buttonText="Obtenir une licence" buttonClassName="w-full" />
         </div>
       </div>
     </div>

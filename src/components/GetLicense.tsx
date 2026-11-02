@@ -196,7 +196,7 @@ export const GetLicense = ({
         size="sm"
         className={buttonClassName}
       >
-        {buttonText || "Get License"}
+        {buttonText || "Obtenir une licence"}
       </Button>
 
       {showModal && (

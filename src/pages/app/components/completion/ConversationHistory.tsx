@@ -66,8 +66,8 @@ export const ConversationHistory = ({
         <Button
           size="icon"
           variant="outline"
-          aria-label="Browse conversation history"
-          title="Conversation history"
+          aria-label="Parcourir l'historique des conversations"
+          title="Historique des conversations"
           className="cursor-pointer w-7 h-7 flex-shrink-0"
         >
           <ClockIcon className="h-3.5 w-3.5" />
@@ -82,14 +82,14 @@ export const ConversationHistory = ({
         {/* Header */}
         <div className="border-b border-input/50 px-4 py-3 flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-semibold">Conversation History</h2>
+            <h2 className="text-sm font-semibold">Historique des conversations</h2>
             <p className="text-[10px] text-muted-foreground">
               {conversations.length} conversation{conversations.length !== 1 ? "s" : ""}
             </p>
           </div>
           <Button size="sm" onClick={handleNewChat} className="text-xs h-7">
             <Plus className="h-3 w-3" />
-            New Chat
+            Nouvelle conversation
           </Button>
         </div>
 
@@ -98,7 +98,7 @@ export const ConversationHistory = ({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
             <Input
-              placeholder="Search conversations..."
+              placeholder="Rechercher des conversations…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-7 h-7 text-xs focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -110,13 +110,13 @@ export const ConversationHistory = ({
         <ScrollArea className="h-64">
           {isLoading ? (
             <div className="p-6 text-center text-xs text-muted-foreground">
-              Loading...
+              Chargement…
             </div>
           ) : filtered.length === 0 ? (
             <div className="p-6 text-center text-xs text-muted-foreground">
               {search
-                ? "No conversations match your search."
-                : "No conversations yet. Start chatting!"}
+                ? "Aucune conversation ne correspond à votre recherche."
+                : "Aucune conversation pour l'instant. Commencez à discuter !"}
             </div>
           ) : (
             <div className="p-1">
@@ -143,7 +143,7 @@ export const ConversationHistory = ({
                     </div>
                     {isActive && (
                       <span className="text-[10px] text-primary font-medium flex-shrink-0 mt-0.5">
-                        active
+                        actif
                       </span>
                     )}
                   </button>

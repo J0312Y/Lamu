@@ -67,7 +67,7 @@ export const SoundbitesPanel = ({ soundbites, onRemove, onExport }: SoundbitesPa
             className="h-5 px-1.5 text-[10px] gap-1"
             onClick={(e) => { e.stopPropagation(); onExport(); }}
           >
-            <ShareIcon className="w-2.5 h-2.5" />Export
+            <ShareIcon className="w-2.5 h-2.5" />Exporter
           </Button>
         )}
         {expanded ? <ChevronUpIcon className="w-3 h-3 text-muted-foreground" /> : <ChevronDownIcon className="w-3 h-3 text-muted-foreground" />}

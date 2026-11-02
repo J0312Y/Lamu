@@ -22,8 +22,8 @@ export const CursorSelection = ({ className }: CursorSelectionProps) => {
   return (
     <div id="cursor" className={`space-y-2 ${className}`}>
       <Header
-        title="Cursor"
-        description="Control Lamu cursor visibility"
+        title="Curseur"
+        description="Contrôlez la visibilité du curseur Lamu"
         isMainTitle
         rightSlot={
           <Select
@@ -31,19 +31,19 @@ export const CursorSelection = ({ className }: CursorSelectionProps) => {
             onValueChange={(value) => setCursorType(value as CursorType)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select a cursor type" />
+              <SelectValue placeholder="Sélectionner un type de curseur" />
             </SelectTrigger>
             <SelectContent position="popper" align="end">
               <SelectItem value="invisible" disabled={platform === "linux"}>
                 Invisible (<MousePointer2 className="size-3 px-0" />){" "}
                 {platform === "linux" && (
                   <span className="text-xs text-muted-foreground">
-                    Not supported on Linux
+                    Non supporté sur Linux
                   </span>
                 )}
               </SelectItem>
               <SelectItem value="default">
-                Default (<MousePointer className="size-3" />)
+                Par défaut (<MousePointer className="size-3" />)
               </SelectItem>
               <SelectItem value="auto">
                 Auto (

@@ -123,7 +123,7 @@ export const LamuPrompts = () => {
     } catch (err) {
       console.error("Failed to fetch Lamu prompts:", err);
       setError(
-        typeof err === "string" ? err : "Failed to fetch Lamu prompts"
+        typeof err === "string" ? err : "Échec de la récupération des prompts Lamu"
       );
     } finally {
       setIsLoading(false);
@@ -204,14 +204,14 @@ export const LamuPrompts = () => {
     return (
       <div className="space-y-4 mt-6">
         <Header
-          title="Lamu Default Prompts"
-          description="Pre-configured prompts with optimal model selection"
+          title="Prompts par défaut Lamu"
+          description="Prompts préconfigurés avec sélection optimale du modèle"
         />
         <Empty
           isLoading={true}
           icon={Sparkles}
-          title="Loading prompts..."
-          description="Fetching Lamu default prompts"
+          title="Chargement des prompts..."
+          description="Récupération des prompts par défaut Lamu"
         />
       </div>
     );
@@ -232,19 +232,19 @@ export const LamuPrompts = () => {
         <div className="flex items-start gap-3 w-full">
           <div className="flex flex-col gap-1 w-full">
             <Header
-              title="Lamu Default Prompts"
-              description="Pre-configured prompts with optimal model pairings. Selecting a prompt will automatically set the recommended AI model for best results."
+              title="Prompts par défaut Lamu"
+              description="Prompts préconfigurés avec les modèles optimaux associés. La sélection d'un prompt définit automatiquement le modèle IA recommandé pour de meilleurs résultats."
             />
             {lastUpdated && (
               <div className="flex justify-end items-center gap-1 text-[10px] text-muted-foreground">
                 <ClockIcon className="size-2" />
-                <span>Last updated: {moment(lastUpdated).fromNow()}</span>
+                <span>Dernière mise à jour : {moment(lastUpdated).fromNow()}</span>
               </div>
             )}
           </div>
         </div>
         {lamuApiBlocked && (
-          <GetLicense buttonText="Unlock" buttonClassName="shrink-0" />
+          <GetLicense buttonText="Débloquer" buttonClassName="shrink-0" />
         )}
       </div>
 

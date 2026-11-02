@@ -59,7 +59,7 @@ export const Input = ({
           <div className="relative select-none">
             <InputComponent
               ref={inputRef}
-              placeholder="Ask me anything..."
+              placeholder="Posez-moi une question…"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
@@ -114,16 +114,16 @@ export const Input = ({
           <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
             <div className="flex flex-row gap-1 items-center">
               <h3 className="font-semibold text-xs select-none">
-                {keepEngaged ? "Conversation Mode" : "AI Response"}
+                {keepEngaged ? "Mode conversation" : "Réponse IA"}
               </h3>
               <div className="text-[10px] text-muted-foreground/70">
-                (Use arrow keys to scroll)
+                (Utilisez les flèches pour défiler)
               </div>
             </div>
             <div className="flex items-center gap-2 select-none">
               <div className="flex flex-row items-center gap-2 mr-2">
-                <p className="text-[10px]">{`Toggle ${
-                  keepEngaged ? "AI response" : "conversation mode"
+                <p className="text-[10px]">{`Basculer en ${
+                  keepEngaged ? "réponse IA" : "mode conversation"
                 }`}</p>
                 <span className="text-[10px] text-muted-foreground/60 bg-muted/30 px-1 py-0 rounded border border-input/50">
                   {navigator.platform.toLowerCase().includes("mac")
@@ -160,10 +160,10 @@ export const Input = ({
                 className="cursor-pointer"
                 title={
                   isLoading
-                    ? "Cancel loading"
+                    ? "Annuler le chargement"
                     : keepEngaged
-                    ? "Close and start new conversation"
-                    : "Clear conversation"
+                    ? "Fermer et démarrer une nouvelle conversation"
+                    : "Effacer la conversation"
                 }
               >
                 <XIcon />
@@ -181,7 +181,7 @@ export const Input = ({
               {isLoading && (
                 <div className="flex items-center gap-2 my-4 text-muted-foreground animate-pulse select-none">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Generating response...</span>
+                  <span className="text-sm">Génération de la réponse…</span>
                 </div>
               )}
               {response && <Markdown>{response}</Markdown>}
@@ -214,7 +214,7 @@ export const Input = ({
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              {message.role === "user" ? "You" : "AI"}
+                              {message.role === "user" ? "Vous" : "IA"}
                             </span>
                             <span className="text-xs text-muted-foreground">
                               {new Date(message.timestamp).toLocaleTimeString(

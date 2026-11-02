@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
-import { Download } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Download, Shield, Lock, HardDrive, Zap } from 'lucide-react'
 import { BorderBeam } from '../components/BorderBeam'
 
 function AppleLogo({ size = 24 }: { size?: number; color?: string }) {
@@ -51,7 +52,7 @@ const platforms = [
     color: '#fff',
     bg: 'rgba(255,255,255,0.06)',
     note: 'macOS 11+',
-    href: 'mailto:support@lamuka.com?subject=Telecharger Lamu - macOS',
+    href: 'mailto:support@lamuka-tech.com?subject=Télécharger Lamu - macOS',
   },
   {
     icon: WindowsLogo,
@@ -61,7 +62,7 @@ const platforms = [
     color: '#22d3ee',
     bg: 'rgba(34,211,238,0.08)',
     note: 'Windows 10+',
-    href: 'mailto:support@lamuka.com?subject=Telecharger Lamu - Windows',
+    href: 'mailto:support@lamuka-tech.com?subject=Télécharger Lamu - Windows',
     featured: true,
   },
   {
@@ -72,7 +73,7 @@ const platforms = [
     color: '#fbbf24',
     bg: 'rgba(251,191,36,0.08)',
     note: 'Ubuntu 20+',
-    href: 'mailto:support@lamuka.com?subject=Telecharger Lamu - Linux',
+    href: 'mailto:support@lamuka-tech.com?subject=Télécharger Lamu - Linux',
   },
 ]
 
@@ -99,16 +100,16 @@ export default function Downloads() {
         >
           <motion.div variants={fadeUp} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 100, padding: '5px 16px', marginBottom: 28 }}>
             <Download size={13} color="#818cf8" />
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: '#818cf8', textTransform: 'uppercase' }}>Telechargements</span>
+            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, color: '#818cf8', textTransform: 'uppercase' }}>Téléchargements</span>
           </motion.div>
           <motion.h1 variants={fadeUp} style={{ fontSize: 'clamp(2.5rem,6vw,4rem)', fontWeight: 800, letterSpacing: -2, marginBottom: 16, lineHeight: 1.1 }}>
-            Telecharger <span className="gradient-text">Lamu</span>
+            Télécharger <span className="gradient-text">Lamu</span>
           </motion.h1>
           <motion.p variants={fadeUp} style={{ fontSize: 17, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 12 }}>
             Disponible sur toutes les plateformes majeures. Seulement ~10MB.
           </motion.p>
           <motion.p variants={fadeUp} style={{ fontSize: 14, color: 'rgba(99,102,241,0.8)', fontWeight: 500 }}>
-            Version 0.2.0 — Derniere version
+            Version 0.2.0 — <Link to="/changelog" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: 3 }}>Voir le changelog</Link>
           </motion.p>
         </motion.div>
       </section>
@@ -133,7 +134,7 @@ export default function Downloads() {
                   {p.featured && <BorderBeam colorTo="rgba(99,102,241,0.9)" duration={3.5} />}
                   {p.featured && (
                     <div style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: '#818cf8' }}>
-                      Recommande
+                      Recommandé
                     </div>
                   )}
                   <div style={{ width: 56, height: 56, background: p.bg, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
@@ -158,7 +159,7 @@ export default function Downloads() {
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: p.featured ? '#fff' : 'rgba(255,255,255,0.07)', color: p.featured ? '#000' : '#fff', fontWeight: 600, padding: '12px 20px', borderRadius: 10, fontSize: 14, textDecoration: 'none', border: p.featured ? 'none' : '1px solid rgba(255,255,255,0.1)', transition: 'background 0.2s' }}
                   >
                     <Download size={15} />
-                    Telecharger {p.name}
+                    Télécharger {p.name}
                   </motion.a>
                 </motion.div>
               </motion.div>
@@ -168,7 +169,7 @@ export default function Downloads() {
       </section>
 
       {/* Requirements */}
-      <section style={{ padding: '0 24px 100px' }}>
+      <section style={{ padding: '0 24px 80px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <motion.h2
             initial={{ opacity: 0, y: 16 }}
@@ -176,7 +177,7 @@ export default function Downloads() {
             viewport={{ once: true }}
             style={{ fontSize: 22, fontWeight: 700, textAlign: 'center', marginBottom: 32 }}
           >
-            Systemes Compatibles
+            Systèmes Compatibles
           </motion.h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
             {requirements.map((r, i) => (
@@ -194,6 +195,41 @@ export default function Downloads() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Trust & Security */}
+      <section style={{ padding: '0 24px 100px' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            style={{ background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 20, padding: '40px 32px' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+              <Shield size={20} color="#4ade80" />
+              <h3 style={{ fontSize: 18, fontWeight: 700 }}>Sécurité & Confiance</h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
+              {[
+                { icon: Lock, label: '100% Local', desc: 'Aucune donnée ne quitte votre machine. Zéro télémétrie, zéro tracking.' },
+                { icon: HardDrive, label: 'Seulement ~10MB', desc: "Pas de bloatware. L'app complète pèse moins qu'une photo." },
+                { icon: Shield, label: 'Open Source', desc: 'Code source auditable. Transparence totale sur ce que fait Lamu.' },
+                { icon: Zap, label: 'Aucune inscription', desc: "Téléchargez et utilisez. Pas de compte requis pour démarrer." },
+              ].map(item => (
+                <div key={item.label} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 36, height: 36, background: 'rgba(74,222,128,0.1)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <item.icon size={16} color="#4ade80" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{item.label}</div>
+                    <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </section>
     </div>

@@ -56,15 +56,15 @@ export const ChatAudio = ({
       >
         <div className="text-sm">
           <div className="font-semibold text-orange-600 mb-1">
-            Speech Provider Required
+            Fournisseur vocal requis
           </div>
           <p className="text-muted-foreground">
             <div className="mt-2 flex items-center gap-1 text-orange-600">
               <InfoIcon size={16} />
-              <span>Provider not configured</span>
+              <span>Fournisseur non configuré</span>
             </div>
             <span className="block mt-2">
-              Configure a speech provider in settings to enable voice input.
+              Configurez un fournisseur vocal dans les paramètres pour activer la saisie vocale.
             </span>
           </p>
         </div>

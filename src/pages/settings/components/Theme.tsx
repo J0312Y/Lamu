@@ -16,10 +16,10 @@ export const Theme = () => {
   return (
     <div id="theme" className="relative space-y-3">
       <Header
-        title={`Theme Customization ${
-          locked ? " (You need an active license to use this feature)" : ""
+        title={`Personnalisation du thème${
+          locked ? " (Une licence active est requise pour cette fonctionnalité)" : ""
         }`}
-        description="Personalize your experience with custom theme and transparency settings"
+        description="Personnalisez votre expérience avec un thème et des paramètres de transparence"
         isMainTitle
       />
 
@@ -36,24 +36,24 @@ export const Theme = () => {
                 {theme === "system" ? (
                   <>
                     <MonitorIcon className="h-4 w-4" />
-                    System
+                    Système
                   </>
                 ) : theme === "light" ? (
                   <>
                     <SunIcon className="h-4 w-4" />
-                    Light Mode
+                    Mode clair
                   </>
                 ) : (
                   <>
                     <MoonIcon className="h-4 w-4" />
-                    Dark Mode
+                    Mode sombre
                   </>
                 )}
               </Label>
               <p className="text-xs text-muted-foreground mt-1">
                 {theme === "light"
-                  ? "Using light theme for better visibility in bright environments"
-                  : "Using dark theme for comfortable viewing in low light"}
+                  ? "Thème clair pour une meilleure lisibilité dans les environnements lumineux"
+                  : "Thème sombre pour un confort visuel en faible luminosité"}
               </p>
             </div>
           </div>
@@ -72,13 +72,13 @@ export const Theme = () => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setTheme("light")}>
-                Light
+                Clair
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme("dark")}>
-                Dark
+                Sombre
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTheme("system")}>
-                System
+                Système
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -92,8 +92,8 @@ export const Theme = () => {
         }`}
       >
         <Header
-          title="Window Transparency"
-          description="Adjust the transparency level of the application window"
+          title="Transparence de la fenêtre"
+          description="Ajustez le niveau de transparence de la fenêtre de l'application"
         />
         <div className="space-y-3">
           <div className="flex items-center gap-4 mt-4">
@@ -108,8 +108,8 @@ export const Theme = () => {
           </div>
 
           <p className="text-xs text-muted-foreground/70">
-            💡 Tip: Higher transparency lets you see through the window, perfect
-            for dark overlay. Changes apply immediately.
+            💡 Astuce : une transparence élevée permet de voir à travers la fenêtre, idéal
+            pour l'overlay sombre. Les modifications sont appliquées immédiatement.
           </p>
         </div>
       </div>

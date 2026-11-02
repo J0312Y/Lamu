@@ -165,8 +165,8 @@ const SystemPrompts = () => {
 
   return (
     <PageLayout
-      title="System Prompts"
-      description="Manage your AI behavior profiles and create new ones"
+      title="Prompts système"
+      description="Gérez vos profils de comportement IA et créez-en de nouveaux"
     >
       {/* Error Display */}
       {error && (
@@ -180,7 +180,7 @@ const SystemPrompts = () => {
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search system prompts..."
+            placeholder="Rechercher des prompts système..."
             className="pl-9 focus-visible:ring-0 focus-visible:ring-offset-0"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -188,15 +188,15 @@ const SystemPrompts = () => {
         </div>
         <Button variant="default" size="default" onClick={handleCreateClick}>
           <PlusIcon className="size-4" />
-          Create New
+          Créer
         </Button>
       </div>
       {filteredPrompts.length === 0 ? (
         <Empty
           isLoading={isLoading}
           icon={WandSparklesIcon}
-          title="No prompts found"
-          description="Create a new prompt to get started"
+          title="Aucun prompt trouvé"
+          description="Créez un nouveau prompt pour commencer"
         />
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 pb-4">
@@ -252,7 +252,7 @@ const SystemPrompts = () => {
                         }}
                       >
                         <Pencil className="size-4 mr-2" />
-                        Edit
+                        Modifier
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         variant="destructive"
@@ -262,7 +262,7 @@ const SystemPrompts = () => {
                         }}
                       >
                         <Trash2 className="size-4 mr-2" />
-                        Delete
+                        Supprimer
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

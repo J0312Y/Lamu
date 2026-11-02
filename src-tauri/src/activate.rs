@@ -527,10 +527,11 @@ pub async fn validate_license_api(app: AppHandle) -> Result<ValidateResponse, St
                         let _ = fs::write(dir.join("last_validated_at.txt"), format!("{}", ts));
                     }
                 }
+                let is_dev = data["is_dev_license"].as_bool().unwrap_or(false);
                 return Ok(ValidateResponse {
                     is_active,
                     last_validated_at: Some(format!("{}", ts)),
-                    is_dev_license: is_active,
+                    is_dev_license: is_dev,
                     plan_id,
                     plan_name,
                     features,
@@ -567,7 +568,7 @@ pub async fn validate_license_api(app: AppHandle) -> Result<ValidateResponse, St
     Ok(ValidateResponse {
         is_active: offline_valid,
         last_validated_at: Some(format!("{}", last_ok_ts)),
-        is_dev_license: offline_valid,
+        is_dev_license: false,
         plan_id: if offline_valid { Some("pro".to_string()) } else { None },
         plan_name: if offline_valid { Some("Pro".to_string()) } else { None },
         features: if offline_valid {
@@ -695,7 +696,7 @@ pub async fn get_checkout_url() -> Result<CheckoutResponse, String> {
     // Redirected to website — this command is kept for compatibility
     Ok(CheckoutResponse {
         success: Some(true),
-        checkout_url: Some("https://lamuka.com/pricing".to_string()),
+        checkout_url: Some("https://lamu.lamuka-tech.com/pricing".to_string()),
         error: None,
     })
 }

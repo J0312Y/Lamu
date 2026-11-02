@@ -41,10 +41,10 @@ export function Usage({
 }) {
   const chartConfig = {
     views: {
-      label: "Requests",
+      label: "Requêtes",
     },
     requests: {
-      label: "Requests",
+      label: "Requêtes",
       color: "var(--chart-1)",
     },
   } satisfies ChartConfig;
@@ -57,9 +57,9 @@ export function Usage({
       <CardHeader className="flex flex-row items-stretch border-b !p-0 ">
         <div className="flex flex-row justify-between items-center">
           <div className="flex flex-1 flex-col justify-center gap-1 px-6 pb-0">
-            <CardTitle className="text-md lg:text-lg">Lamu Usage</CardTitle>
+            <CardTitle className="text-md lg:text-lg">Utilisation Lamu</CardTitle>
             <CardDescription className="text-xs lg:text-sm">
-              Your current monthly usage of Lamu's API
+              Votre utilisation mensuelle actuelle de l'API Lamu
             </CardDescription>
           </div>
 
@@ -75,7 +75,7 @@ export function Usage({
         <div className="flex flex-1">
           {[
             {
-              label: "Total Requests",
+              label: "Total Requêtes",
               value: data.reduce((acc, curr) => acc + curr.requests, 0),
             },
             {
@@ -121,7 +121,7 @@ export function Usage({
               minTickGap={32}
               tickFormatter={(value) => {
                 const date = new Date(value);
-                return date.toLocaleDateString("en-US", {
+                return date.toLocaleDateString("fr-FR", {
                   month: "short",
                   day: "numeric",
                 });
@@ -133,7 +133,7 @@ export function Usage({
                   className="w-[150px]"
                   nameKey="views"
                   labelFormatter={(value) => {
-                    return new Date(value).toLocaleDateString("en-US", {
+                    return new Date(value).toLocaleDateString("fr-FR", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",

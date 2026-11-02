@@ -1,6 +1,6 @@
 //! External database integration: PostgreSQL, MySQL
-//! Read-only (SELECT/SHOW/DESCRIBE/EXPLAIN/WITH) for live queries.
-//! Full write access through the confirmed LAMU_ACTION path.
+//! Full CRUD support: read queries run freely, write operations require explicit allow_write flag.
+//! Server-level management: list databases, switch database, create/drop databases.
 
 use serde_json::Value;
 use sqlx::{Column, Pool, Row, TypeInfo};
@@ -17,21 +17,41 @@ pub const PROVIDER_MYSQL:    &str = "mysql";
 fn build_connection_string(db_type: &str, config: &Value, password: &str) -> String {
     let host     = config["host"].as_str().unwrap_or("localhost");
     let port     = config["port"].as_u64().unwrap_or(if db_type == PROVIDER_MYSQL { 3306 } else { 5432 });
-    let dbname   = config["dbname"].as_str().unwrap_or("postgres");
     let username = config["username"].as_str().unwrap_or("postgres");
     let ssl      = config["ssl"].as_bool().unwrap_or(false);
 
+    // dbname can be empty for "server mode" — connect without targeting a specific DB
+    let dbname_raw = config["dbname"].as_str().unwrap_or("");
+    let server_mode = dbname_raw.is_empty() || dbname_raw == "*";
+
     match db_type {
         PROVIDER_POSTGRES => {
+            // PostgreSQL requires a database name — use "postgres" (system DB) for server mode
+            let dbname = if server_mode { "postgres" } else { dbname_raw };
             let ssl_mode = if ssl { "require" } else { "disable" };
             format!("postgresql://{}:{}@{}:{}/{}?sslmode={}",
                 username, urlenc(password), host, port, dbname, ssl_mode)
         }
         PROVIDER_MYSQL => {
-            format!("mysql://{}:{}@{}:{}/{}", username, urlenc(password), host, port, dbname)
+            // MySQL allows connecting without a database (empty path = server level)
+            if server_mode {
+                format!("mysql://{}:{}@{}:{}/information_schema", username, urlenc(password), host, port)
+            } else {
+                format!("mysql://{}:{}@{}:{}/{}", username, urlenc(password), host, port, dbname_raw)
+            }
         }
-        _ => format!("postgresql://{}:{}@{}:{}/{}", username, urlenc(password), host, port, dbname),
+        _ => {
+            let dbname = if server_mode { "postgres" } else { dbname_raw };
+            format!("postgresql://{}:{}@{}:{}/{}", username, urlenc(password), host, port, dbname)
+        }
     }
+}
+
+/// Check if this config is in server mode (no specific DB selected).
+#[allow(dead_code)]
+pub fn is_server_mode(config: &Value) -> bool {
+    let dbname = config["dbname"].as_str().unwrap_or("");
+    dbname.is_empty() || dbname == "*"
 }
 
 async fn get_pool(db_type: &str, config: &Value, password: &str) -> Result<AnyPool, String> {
@@ -128,17 +148,90 @@ pub async fn execute_query(
     let db_type = config["db_type"].as_str().unwrap_or("postgres");
     let pool    = get_pool(db_type, config, password).await?;
 
-    let rows: Vec<AnyRow> = sqlx::query(sql)
-        .fetch_all(&pool)
+    // Try the Any driver first; if it fails due to unsupported types (DATE, DECIMAL in MySQL),
+    // fall back to a CAST-wrapped query that converts all columns to text.
+    let result = execute_query_inner(&pool, sql, db_type).await;
+    pool.close().await;
+    result
+}
+
+async fn execute_query_inner(pool: &AnyPool, sql: &str, db_type: &str) -> Result<String, String> {
+    let rows: Vec<AnyRow> = match sqlx::query(sql).fetch_all(pool).await {
+        Ok(r) => r,
+        Err(e) => {
+            let err_msg = format!("{}", e);
+            // If the Any driver can't handle a MySQL type (DATE, DECIMAL, etc.),
+            // retry by wrapping the query to cast all columns to CHAR
+            if db_type == PROVIDER_MYSQL && err_msg.contains("Any driver does not support") {
+                return execute_mysql_cast_fallback(pool, sql).await;
+            }
+            return Err(format!("Erreur requête: {}", e));
+        }
+    };
+
+    format_any_rows(&rows, sql)
+}
+
+/// Fallback for MySQL: discover columns via temp table, then CAST all to CHAR.
+async fn execute_mysql_cast_fallback(pool: &AnyPool, sql: &str) -> Result<String, String> {
+    let temp_table = "_lamu_tmp_cols";
+    let drop_sql = format!("DROP TEMPORARY TABLE IF EXISTS {}", temp_table);
+    let create_sql = format!(
+        "CREATE TEMPORARY TABLE {} AS SELECT * FROM ({}) AS _sq LIMIT 0",
+        temp_table,
+        sql.trim().trim_end_matches(';')
+    );
+
+    // Drop old temp table
+    let _ = sqlx::query(&drop_sql).execute(pool).await;
+
+    // Create temp table to discover columns
+    sqlx::query(&create_sql)
+        .execute(pool)
         .await
         .map_err(|e| format!("Erreur requête: {}", e))?;
-    pool.close().await;
 
+    // Get column names
+    let col_rows: Vec<AnyRow> = sqlx::query(&format!("SHOW COLUMNS FROM {}", temp_table))
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("Erreur requête: {}", e))?;
+
+    let col_names: Vec<String> = col_rows.iter()
+        .map(|r| cell_to_string(r, 0))
+        .collect();
+
+    // Drop temp table
+    let _ = sqlx::query(&drop_sql).execute(pool).await;
+
+    if col_names.is_empty() {
+        return Err("Impossible de déterminer les colonnes".into());
+    }
+
+    // Build CAST query — cast every column to CHAR
+    let cast_cols: Vec<String> = col_names.iter()
+        .map(|c| format!("CAST(`{}` AS CHAR) AS `{}`", c, c))
+        .collect();
+    let cast_sql = format!(
+        "SELECT {} FROM ({}) AS _sq",
+        cast_cols.join(", "),
+        sql.trim().trim_end_matches(';')
+    );
+
+    // Run the CAST query — now all columns are strings, Any driver can handle it
+    let rows: Vec<AnyRow> = sqlx::query(&cast_sql)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("Erreur requête: {}", e))?;
+
+    format_any_rows(&rows, sql)
+}
+
+fn format_any_rows(rows: &[AnyRow], sql: &str) -> Result<String, String> {
     if rows.is_empty() {
         return Ok(format!("Requête exécutée. 0 résultat.\nSQL: {}", sql));
     }
 
-    // Column names (use Column trait via Row::columns)
     use sqlx::Column as _;
     let col_count = rows[0].columns().len();
     let col_names: Vec<String> = (0..col_count)
@@ -244,10 +337,183 @@ pub async fn live_snapshot(password: &str, config: &Value, query_hint: &str) -> 
     Ok(out)
 }
 
+/// List all databases on the server.
+pub async fn list_databases(password: &str, config: &Value) -> Result<Vec<String>, String> {
+    let db_type = config["db_type"].as_str().unwrap_or("postgres");
+    let pool = get_pool(db_type, config, password).await?;
+
+    let sql = match db_type {
+        "postgres" => "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname",
+        "mysql" => "SHOW DATABASES",
+        _ => return Err("Unsupported database type".into()),
+    };
+
+    let rows: Vec<AnyRow> = sqlx::query(sql).fetch_all(&pool).await
+        .map_err(|e| format!("List databases error: {}", e))?;
+    pool.close().await;
+
+    let dbs: Vec<String> = rows.iter().map(|r| cell_to_string(r, 0)).collect();
+    Ok(dbs)
+}
+
+/// Connect to a different database on the same server (returns new config).
+pub fn switch_database(config: &Value, new_dbname: &str) -> Value {
+    let mut new_config = config.clone();
+    new_config["dbname"] = serde_json::json!(new_dbname);
+    // Update alias to reflect new DB
+    if let Some(alias) = config["alias"].as_str() {
+        let base = alias.split('(').next().unwrap_or(alias).trim();
+        new_config["alias"] = serde_json::json!(format!("{} ({})", base, new_dbname));
+    }
+    new_config
+}
+
+/// Get table list with row counts for a database.
+pub async fn list_tables(password: &str, config: &Value) -> Result<String, String> {
+    let db_type = config["db_type"].as_str().unwrap_or("postgres");
+    let pool = get_pool(db_type, config, password).await?;
+
+    let sql = match db_type {
+        "postgres" => {
+            "SELECT schemaname || '.' || relname AS table_name, n_live_tup AS row_count \
+             FROM pg_stat_user_tables ORDER BY n_live_tup DESC"
+        }
+        "mysql" => {
+            "SELECT TABLE_NAME, TABLE_ROWS \
+             FROM INFORMATION_SCHEMA.TABLES \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE' \
+             ORDER BY TABLE_ROWS DESC"
+        }
+        _ => return Err("Unsupported database type".into()),
+    };
+
+    let rows: Vec<AnyRow> = sqlx::query(sql).fetch_all(&pool).await
+        .map_err(|e| format!("List tables error: {}", e))?;
+    pool.close().await;
+
+    let db_alias = config["alias"].as_str().unwrap_or(db_type);
+    let dbname = config["dbname"].as_str().unwrap_or("unknown");
+    let mut out = format!("=== Tables in {} ({}) ===\n\n", dbname, db_alias);
+    out.push_str(&format!("{:<40} {:<12}\n", "TABLE", "ROWS"));
+    out.push_str(&format!("{:<40} {:<12}\n", "-".repeat(40), "-".repeat(12)));
+    for row in &rows {
+        let name = cell_to_string(row, 0);
+        let count = cell_to_string(row, 1);
+        out.push_str(&format!("{:<40} {:<12}\n", name, count));
+    }
+    if rows.is_empty() {
+        out.push_str("No tables found.\n");
+    }
+    out.push_str(&format!("\nTotal: {} tables\n", rows.len()));
+    Ok(out)
+}
+
+/// Get detailed info about a specific table (columns, indexes, foreign keys).
+pub async fn describe_table(password: &str, config: &Value, table_name: &str) -> Result<String, String> {
+    let db_type = config["db_type"].as_str().unwrap_or("postgres");
+    let pool = get_pool(db_type, config, password).await?;
+    let mut out = format!("=== Table: {} ===\n\n", table_name);
+
+    // Columns
+    let col_sql = match db_type {
+        "postgres" => format!(
+            "SELECT column_name, data_type, is_nullable, column_default, character_maximum_length \
+             FROM information_schema.columns \
+             WHERE table_schema = 'public' AND table_name = '{}' \
+             ORDER BY ordinal_position", table_name),
+        "mysql" => format!(
+            "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT, CHARACTER_MAXIMUM_LENGTH \
+             FROM INFORMATION_SCHEMA.COLUMNS \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{}' \
+             ORDER BY ORDINAL_POSITION", table_name),
+        _ => return Err("Unsupported".into()),
+    };
+
+    let rows: Vec<AnyRow> = sqlx::query(&col_sql).fetch_all(&pool).await
+        .map_err(|e| format!("Describe error: {}", e))?;
+
+    out.push_str("COLUMNS:\n");
+    for row in &rows {
+        let name = cell_to_string(row, 0);
+        let dtype = cell_to_string(row, 1);
+        let nullable = cell_to_string(row, 2);
+        let default = cell_to_string(row, 3);
+        let max_len = cell_to_string(row, 4);
+        let mut info = format!("  {} {}", name, dtype);
+        if max_len != "NULL" && !max_len.is_empty() { info.push_str(&format!("({})", max_len)); }
+        if nullable == "NO" { info.push_str(" NOT NULL"); }
+        if default != "NULL" && !default.is_empty() { info.push_str(&format!(" DEFAULT {}", &default[..default.len().min(30)])); }
+        out.push_str(&info);
+        out.push('\n');
+    }
+
+    // Indexes
+    let idx_sql = match db_type {
+        "postgres" => format!(
+            "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = '{}' AND schemaname = 'public'", table_name),
+        "mysql" => format!(
+            "SHOW INDEX FROM {}", table_name),
+        _ => return Err("Unsupported".into()),
+    };
+
+    if let Ok(idx_rows) = sqlx::query(&idx_sql).fetch_all(&pool).await {
+        if !idx_rows.is_empty() {
+            out.push_str("\nINDEXES:\n");
+            for row in &idx_rows {
+                let name = cell_to_string(row, 0);
+                let def = cell_to_string(row, 1);
+                out.push_str(&format!("  {} — {}\n", name, &def[..def.len().min(80)]));
+            }
+        }
+    }
+
+    // Row count
+    let count_sql = format!("SELECT COUNT(*) FROM {}", table_name);
+    if let Ok(count_rows) = sqlx::query(&count_sql).fetch_all(&pool).await {
+        if let Some(row) = count_rows.first() {
+            out.push_str(&format!("\nROW COUNT: {}\n", cell_to_string(row, 0)));
+        }
+    }
+
+    pool.close().await;
+    Ok(out)
+}
+
+/// Execute a write query (INSERT/UPDATE/DELETE/CREATE/ALTER/DROP) and return affected rows.
+pub async fn execute_write(
+    password: &str,
+    config: &Value,
+    sql: &str,
+) -> Result<String, String> {
+    let db_type = config["db_type"].as_str().unwrap_or("postgres");
+    let pool = get_pool(db_type, config, password).await?;
+
+    let result = sqlx::query(sql)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("Write error: {}", e))?;
+
+    pool.close().await;
+    let affected = result.rows_affected();
+    Ok(format!("Query executed successfully. {} row(s) affected.\nSQL: {}", affected, sql))
+}
+
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 fn is_read_only(sql: &str) -> bool {
-    let upper = sql.trim().to_uppercase();
+    // Strip leading SQL comments (-- … and /* … */) so that
+    // "-- DB: bonrsto\nSELECT …" is correctly recognised as read-only.
+    let mut s = sql.trim();
+    loop {
+        if s.starts_with("--") {
+            s = s.find('\n').map_or("", |i| &s[i + 1..]).trim_start();
+        } else if s.starts_with("/*") {
+            s = s.find("*/").map_or("", |i| &s[i + 2..]).trim_start();
+        } else {
+            break;
+        }
+    }
+    let upper = s.to_uppercase();
     upper.starts_with("SELECT")
         || upper.starts_with("SHOW")
         || upper.starts_with("DESCRIBE")

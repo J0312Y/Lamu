@@ -10,7 +10,7 @@ const fadeUp = {
 }
 const stagger = { show: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } } }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || 'https://api.lamu.lamuka-tech.com'
 
 // ── Feature key → label lisible ───────────────────────────────────────────────
 
@@ -154,7 +154,7 @@ function PaymentModal({ plan, onClose }: { plan: ApiPlan; onClose: () => void })
         setTimeout(() => {
           if (pollRef.current) clearInterval(pollRef.current)
           setStep(s => s === 'waiting' ? 'error' : s)
-          setError('Délai dépassé. Veuillez réessayer ou contacter support@lamuka.com')
+          setError('Délai dépassé. Veuillez réessayer ou contacter support@lamuka-tech.com')
         }, 10 * 60 * 1000)
 
       } else {
@@ -222,7 +222,7 @@ function PaymentModal({ plan, onClose }: { plan: ApiPlan; onClose: () => void })
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
-                Votre licence vous sera envoyée par email. Vous pourrez aussi la récupérer sur <Link to="/recover" style={{ color: plan.color, textDecoration: 'none' }}>lamuka.com/recover</Link>.
+                Votre licence vous sera envoyée par email. Vous pourrez aussi la récupérer sur <Link to="/recover" style={{ color: plan.color, textDecoration: 'none' }}>lamu.lamuka-tech.com/recover</Link>.
               </div>
 
               <motion.button whileHover={{ scale: canProceedInfo ? 1.02 : 1 }} whileTap={{ scale: canProceedInfo ? 0.98 : 1 }} onClick={() => canProceedInfo && setStep('form')} disabled={!canProceedInfo} style={{ width: '100%', background: canProceedInfo ? '#fff' : 'rgba(255,255,255,0.08)', color: canProceedInfo ? '#000' : 'rgba(255,255,255,0.25)', fontWeight: 700, padding: '14px 20px', borderRadius: 12, fontSize: 15, border: 'none', cursor: canProceedInfo ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}>
@@ -344,7 +344,7 @@ function PaymentModal({ plan, onClose }: { plan: ApiPlan; onClose: () => void })
               </div>
 
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
-                Clé perdue ? <Link to="/recover" style={{ color: '#818cf8', textDecoration: 'none' }}>Récupérer ma licence</Link> · <a href="mailto:support@lamuka.com" style={{ color: '#818cf8', textDecoration: 'none' }}>support@lamuka.com</a>
+                Clé perdue ? <Link to="/recover" style={{ color: '#818cf8', textDecoration: 'none' }}>Récupérer ma licence</Link> · <a href="mailto:support@lamuka-tech.com" style={{ color: '#818cf8', textDecoration: 'none' }}>support@lamuka-tech.com</a>
               </div>
             </div>
           )}
@@ -371,9 +371,9 @@ function PaymentModal({ plan, onClose }: { plan: ApiPlan; onClose: () => void })
 // ── FAQ ───────────────────────────────────────────────────────────────────────
 
 const faqItems = [
-  { q: "Ai-je besoin d'une licence pour utiliser Lamu ?", a: "Non. Le plan gratuit vous permet de decouvrir toutes les fonctionnalites de base. Les plans payants debloquent plus de messages, des fonctionnalites avancees et le support prioritaire." },
+  { q: "Ai-je besoin d'une licence pour utiliser Lamu ?", a: "Non. Le plan gratuit vous permet de découvrir toutes les fonctionnalités de base. Les plans payants débloquent plus de messages, des fonctionnalités avancées et le support prioritaire." },
   { q: "Comment recevoir ma clé de licence ?", a: "Après confirmation du paiement, votre clé s'affiche immédiatement à l'écran et vous est envoyée par email. Copiez-la et collez-la dans Lamu sous Paramètres → Licence." },
-  { q: "J'ai perdu ma clé de licence, que faire ?", a: "Rendez-vous sur lamuka.com/recover, entrez votre email d'achat, et nous vous renverrons votre clé instantanément." },
+  { q: "J'ai perdu ma clé de licence, que faire ?", a: "Rendez-vous sur lamu.lamuka-tech.com/recover, entrez votre email d'achat, et nous vous renverrons votre clé instantanément." },
   { q: "Quel mode de paiement est accepté ?", a: "Nous acceptons les paiements Mobile Money (Airtel Money). Entrez votre numéro, confirmez la demande sur votre téléphone, et votre clé est prête." },
   { q: "La licence lifetime est-elle vraiment à vie ?", a: "Oui. Paiement unique, pas d'abonnement, pas de renouvellement. Utilisez pour toujours avec toutes les mises à jour incluses." },
   { q: "Ma licence est-elle transférable ?", a: "Non. Chaque licence est nominative et liée à un seul utilisateur." },
@@ -542,7 +542,7 @@ export default function Pricing() {
                   <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>💬 Une question avant d'acheter ?</div>
                   <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>Clé perdue ? <Link to="/recover" style={{ color: '#818cf8', textDecoration: 'none' }}>Récupérer ma licence</Link> · Notre équipe est disponible avant et après l'achat.</div>
                 </div>
-                <a href="mailto:support@lamuka.com" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8', fontWeight: 600, padding: '10px 20px', borderRadius: 10, fontSize: 14, textDecoration: 'none' }}>
+                <a href="mailto:support@lamuka-tech.com" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', color: '#818cf8', fontWeight: 600, padding: '10px 20px', borderRadius: 10, fontSize: 14, textDecoration: 'none' }}>
                   Contacter le support →
                 </a>
               </motion.div>

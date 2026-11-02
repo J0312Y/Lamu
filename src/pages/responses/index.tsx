@@ -8,8 +8,8 @@ import { PageLayout } from "@/layouts";
 const Responses = () => {
   return (
     <PageLayout
-      title="Response Settings"
-      description="Customize how AI generates and displays responses"
+      title="Paramètres de réponse"
+      description="Personnalisez la façon dont l'IA génère et affiche les réponses"
     >
 
       {/* Response Length */}

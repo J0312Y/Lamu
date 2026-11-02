@@ -26,7 +26,7 @@ export const Sidebar = () => {
             Lamu
           </h1>
           <span className="text-[8px] lg:text-[10px] text-muted-foreground -mt-1 block">
-            {isLoading ? "Loading..." : `(v${version})`}
+            {isLoading ? "Chargement..." : `(v${version})`}
           </span>
         </div>
       </div>

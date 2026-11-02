@@ -43,8 +43,8 @@ export const Providers = ({
     <div className="space-y-3">
       <div className="space-y-2">
         <Header
-          title="Select AI Provider"
-          description="Select your preferred AI service provider or custom providers to get started."
+          title="Sélectionner un fournisseur IA"
+          description="Sélectionnez votre fournisseur de service IA préféré ou un fournisseur personnalisé pour commencer."
         />
         <Selection
           selected={selectedAIProvider?.provider}
@@ -52,13 +52,13 @@ export const Providers = ({
             const json = curl2Json(provider?.curl);
             return {
               label: provider?.isCustom
-                ? json?.url || "Custom Provider"
-                : provider?.id || "Custom Provider",
-              value: provider?.id || "Custom Provider",
+                ? json?.url || "Fournisseur personnalisé"
+                : provider?.id || "Fournisseur personnalisé",
+              value: provider?.id || "Fournisseur personnalisé",
               isCustom: provider?.isCustom,
             };
           })}
-          placeholder="Choose your AI provider"
+          placeholder="Choisissez votre fournisseur IA"
           onChange={(value) => {
             onSetSelectedAIProvider({
               provider: value,
@@ -70,24 +70,24 @@ export const Providers = ({
 
       {localSelectedProvider ? (
         <Header
-          title={`Method: ${
-            localSelectedProvider?.method || "Invalid"
-          }, Endpoint: ${localSelectedProvider?.url || "Invalid"}`}
-          description={`If you want to use different url or method, you can always create a custom provider.`}
+          title={`Méthode : ${
+            localSelectedProvider?.method || "Invalide"
+          }, Endpoint : ${localSelectedProvider?.url || "Invalide"}`}
+          description={`Si vous souhaitez utiliser une URL ou méthode différente, vous pouvez toujours créer un fournisseur personnalisé.`}
         />
       ) : null}
 
       {findKeyAndValue("api_key") ? (
         <div className="space-y-2">
           <Header
-            title="API Key"
-            description={`Enter your ${
+            title="Clé API"
+            description={`Saisissez votre clé API ${
               allAiProviders?.find(
                 (p) => p?.id === selectedAIProvider?.provider
               )?.isCustom
-                ? "Custom Provider"
+                ? "Fournisseur personnalisé"
                 : selectedAIProvider?.provider
-            } API key to authenticate and access AI models. Your key is stored locally and never shared.`}
+            } pour vous authentifier et accéder aux modèles IA. Votre clé est stockée localement et n'est jamais partagée.`}
           />
 
           <div className="space-y-2">
@@ -142,7 +142,7 @@ export const Providers = ({
                   disabled={isApiKeyEmpty()}
                   size="icon"
                   className="shrink-0 h-11 w-11"
-                  title="Submit API Key"
+                  title="Valider la clé API"
                 >
                   <KeyIcon className="h-4 w-4" />
                 </Button>
@@ -163,7 +163,7 @@ export const Providers = ({
                   size="icon"
                   variant="destructive"
                   className="shrink-0 h-11 w-11"
-                  title="Remove API Key"
+                  title="Supprimer la clé API"
                 >
                   <TrashIcon className="h-4 w-4" />
                 </Button>
@@ -188,25 +188,25 @@ export const Providers = ({
               <div className="space-y-1" key={variable?.key}>
                 <Header
                   title={variable?.value || ""}
-                  description={`add your preferred ${variable?.key?.replace(
+                  description={`Ajoutez votre ${variable?.key?.replace(
                     /_/g,
                     " "
-                  )} for ${
+                  )} préféré pour ${
                     allAiProviders?.find(
                       (p) => p?.id === selectedAIProvider?.provider
                     )?.isCustom
-                      ? "Custom Provider"
+                      ? "Fournisseur personnalisé"
                       : selectedAIProvider?.provider
                   }`}
                 />
                 <TextInput
-                  placeholder={`Enter ${
+                  placeholder={`Saisissez ${
                     allAiProviders?.find(
                       (p) => p?.id === selectedAIProvider?.provider
                     )?.isCustom
-                      ? "Custom Provider"
+                      ? "Fournisseur personnalisé"
                       : selectedAIProvider?.provider
-                  } ${variable?.key?.replace(/_/g, " ") || "value"}`}
+                  } ${variable?.key?.replace(/_/g, " ") || "valeur"}`}
                   value={getVariableValue()}
                   onChange={(value) => {
                     if (!variable?.key || !selectedAIProvider) return;

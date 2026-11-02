@@ -11,7 +11,7 @@ import { PageLayout } from "@/layouts";
 
 const Settings = () => {
   return (
-    <PageLayout title="Settings" description="Manage your settings">
+    <PageLayout title="Paramètres" description="Gérez vos paramètres">
       {/* User Profile */}
       <UserProfile />
 

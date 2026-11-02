@@ -54,7 +54,7 @@ function TermsContent() {
         </ul>
       </Section>
       <Section title="3. Paiement et remboursements">
-        <p>Les paiements sont traités via Mobile Money (Airtel Money) par notre partenaire de paiement, Airtel Money. Les licences lifetime sont des achats définitifs. Nous n'offrons pas de remboursement sauf en cas de défaillance technique avérée non résolue dans les 7 jours suivant l'achat. Pour toute demande, contactez <a href="mailto:support@lamuka.com" style={{ color: '#818cf8' }}>support@lamuka.com</a>.</p>
+        <p>Les paiements sont traités via Mobile Money (Airtel Money) par notre partenaire de paiement, Airtel Money. Les licences lifetime sont des achats définitifs. Nous n'offrons pas de remboursement sauf en cas de défaillance technique avérée non résolue dans les 7 jours suivant l'achat. Pour toute demande, contactez <a href="mailto:support@lamuka-tech.com" style={{ color: '#818cf8' }}>support@lamuka-tech.com</a>.</p>
       </Section>
       <Section title="4. Propriété intellectuelle">
         <p>Lamu et tous ses composants (code, design, marque) sont la propriété exclusive de Lamu. Toute reproduction, distribution ou utilisation commerciale est interdite sans autorisation écrite.</p>
@@ -66,7 +66,7 @@ function TermsContent() {
         <p>Nous nous réservons le droit de modifier ces conditions à tout moment. Les changements significatifs seront notifiés via le site web. La poursuite de l'utilisation après modification vaut acceptation.</p>
       </Section>
       <Section title="7. Contact">
-        <p>Pour toute question : <a href="mailto:support@lamuka.com" style={{ color: '#818cf8' }}>support@lamuka.com</a></p>
+        <p>Pour toute question : <a href="mailto:support@lamuka-tech.com" style={{ color: '#818cf8' }}>support@lamuka-tech.com</a></p>
       </Section>
     </>
   )
@@ -94,7 +94,7 @@ function PrivacyContent() {
         <p style={{ marginTop: 8 }}>Nous ne vendons, n'échangeons ni ne partageons vos données avec des tiers.</p>
       </Section>
       <Section title="3. Conservation des données">
-        <p>Vos données de licence sont conservées tant que votre licence est active. Vous pouvez demander la suppression de vos données à tout moment en contactant <a href="mailto:support@lamuka.com" style={{ color: '#818cf8' }}>support@lamuka.com</a>. La suppression entraîne la désactivation de votre licence.</p>
+        <p>Vos données de licence sont conservées tant que votre licence est active. Vous pouvez demander la suppression de vos données à tout moment en contactant <a href="mailto:support@lamuka-tech.com" style={{ color: '#818cf8' }}>support@lamuka-tech.com</a>. La suppression entraîne la désactivation de votre licence.</p>
       </Section>
       <Section title="4. Sécurité">
         <p>Vos données sont stockées dans une base de données sécurisée. Les clés de licence sont générées cryptographiquement. Nous ne stockons pas vos informations de paiement (Mobile Money) — celles-ci sont traitées directement par Airtel Money.</p>
@@ -103,7 +103,7 @@ function PrivacyContent() {
         <p>Le site web Lamu n'utilise pas de cookies de tracking. Aucune donnée analytique tierce (Google Analytics, etc.) n'est collectée.</p>
       </Section>
       <Section title="6. Vos droits">
-        <p>Conformément aux lois sur la protection des données applicables, vous avez le droit d'accéder à vos données, de les corriger ou de les supprimer. Contactez-nous à <a href="mailto:support@lamuka.com" style={{ color: '#818cf8' }}>support@lamuka.com</a>.</p>
+        <p>Conformément aux lois sur la protection des données applicables, vous avez le droit d'accéder à vos données, de les corriger ou de les supprimer. Contactez-nous à <a href="mailto:support@lamuka-tech.com" style={{ color: '#818cf8' }}>support@lamuka-tech.com</a>.</p>
       </Section>
     </>
   )

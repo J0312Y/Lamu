@@ -40,12 +40,11 @@ export const DragButton = () => {
           <div className="flex flex-col gap-2 w-116">
             <div className="flex flex-col gap-1 pb-2">
               <p className="text-md font-medium">
-                You need an active license to use this feature.
+                Vous avez besoin d'une licence active pour utiliser cette fonctionnalité.
               </p>
               <p className="text-sm font-medium text-muted-foreground">
-                Once you complete your purchase, you'll receive a license key
-                via email. Paste in the Settings → Lamu Access section to
-                activate.
+                Après votre achat, vous recevrez une clé de licence par email.
+                Collez-la dans Paramètres → Accès Lamu pour l'activer.
               </p>
             </div>
             <GetLicense setState={setIsOpen} />

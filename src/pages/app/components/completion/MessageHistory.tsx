@@ -29,7 +29,7 @@ export const MessageHistory = ({
         <Button
           size="icon"
           variant="outline"
-          aria-label="View Current Conversation"
+          aria-label="Voir la conversation actuelle"
           className="relative cursor-pointer w-12 h-7 px-2 flex gap-1 items-center justify-center"
         >
           <div className="flex items-center justify-center text-xs font-medium">
@@ -48,10 +48,10 @@ export const MessageHistory = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center flex-col">
               <h2 className="text-lg font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                Current Conversation
+                Conversation actuelle
               </h2>
               <p className="text-xs text-muted-foreground">
-                {conversationHistory.length} messages in this conversation
+                {conversationHistory.length} messages dans cette conversation
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -63,7 +63,7 @@ export const MessageHistory = ({
                 }}
                 className="text-xs"
               >
-                New Chat
+                Nouvelle conversation
               </Button>
               <Button
                 size="sm"
@@ -96,7 +96,7 @@ export const MessageHistory = ({
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs font-medium text-muted-foreground uppercase">
-                      {message.role === "user" ? "You" : "AI"}
+                      {message.role === "user" ? "Vous" : "IA"}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {new Date(message.timestamp).toLocaleTimeString([], {

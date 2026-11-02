@@ -91,6 +91,21 @@ export interface WooCommerceCredentials {
   storeUrl: string;
 }
 
+export interface LinearCredentials {
+  token: string;
+  defaultTeam?: string;
+}
+
+export interface TodoistCredentials {
+  token: string;
+  defaultProject?: string;
+}
+
+export interface SalesforceCredentials {
+  token: string;
+  instanceUrl: string;
+}
+
 export interface IntegrationCredentials {
   github?: GitHubCredentials;
   gitlab?: GitLabCredentials;
@@ -107,6 +122,9 @@ export interface IntegrationCredentials {
   freshdesk?: FreshdeskCredentials;
   intercom?: IntercomCredentials;
   woocommerce?: WooCommerceCredentials;
+  linear?: LinearCredentials;
+  todoist?: TodoistCredentials;
+  salesforce?: SalesforceCredentials;
 }
 
 export type IntegrationService = keyof IntegrationCredentials;

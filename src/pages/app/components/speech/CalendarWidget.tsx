@@ -18,10 +18,10 @@ export const CalendarWidget = ({ onLoadAsContext }: CalendarWidgetProps) => {
           <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
           <span className="text-xs font-medium">Google Calendar</span>
         </div>
-        <p className="text-[10px] text-muted-foreground">Connect to see upcoming meetings and auto-load context.</p>
+        <p className="text-[10px] text-muted-foreground">Connectez-vous pour voir les réunions à venir et charger le contexte automatiquement.</p>
         <Button size="sm" variant="outline" onClick={connect} disabled={loading} className="h-7 text-xs w-full gap-1.5">
           {loading ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <CalendarIcon className="w-3 h-3" />}
-          Connect Google Calendar
+          Connecter Google Calendar
         </Button>
         {error && <p className="text-[10px] text-destructive">{error}</p>}
       </div>
@@ -32,7 +32,7 @@ export const CalendarWidget = ({ onLoadAsContext }: CalendarWidgetProps) => {
     return (
       <div className="rounded-lg border border-border/50 bg-muted/30 p-3 flex items-center gap-2">
         <Loader2Icon className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">Loading calendar…</span>
+        <span className="text-xs text-muted-foreground">Chargement du calendrier…</span>
       </div>
     );
   }
@@ -47,7 +47,7 @@ export const CalendarWidget = ({ onLoadAsContext }: CalendarWidgetProps) => {
     <div className="rounded-lg border border-border/50 bg-muted/30 overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50">
         <CalendarIcon className="w-3.5 h-3.5 text-primary" />
-        <span className="text-xs font-medium">Upcoming</span>
+        <span className="text-xs font-medium">À venir</span>
       </div>
       <div className="divide-y divide-border/30">
         {upcoming.map((event) => {
@@ -68,7 +68,7 @@ export const CalendarWidget = ({ onLoadAsContext }: CalendarWidgetProps) => {
                   )}
                 </div>
                 <p className={cn("text-[10px] mt-0.5", isSoon ? "text-amber-600 font-medium" : "text-muted-foreground")}>
-                  {isNow ? "Now" : isSoon ? `In ${mins}m` : formatEventTime(event.start, event.end)}
+                  {isNow ? "Maintenant" : isSoon ? `Dans ${mins}min` : formatEventTime(event.start, event.end)}
                 </p>
                 {event.attendees.length > 0 && (
                   <p className="text-[10px] text-muted-foreground truncate">
@@ -80,7 +80,7 @@ export const CalendarWidget = ({ onLoadAsContext }: CalendarWidgetProps) => {
               {onLoadAsContext && (
                 <button
                   onClick={() => onLoadAsContext(event)}
-                  title="Load as playbook context"
+                  title="Charger comme contexte"
                   className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
                 >
                   <LinkIcon className="w-3 h-3 text-muted-foreground" />

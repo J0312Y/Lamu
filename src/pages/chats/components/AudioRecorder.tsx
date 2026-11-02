@@ -183,7 +183,7 @@ export const AudioRecorder = ({
           </div>
         ) : (
           <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-            Initializing...
+            Initialisation…
           </div>
         )}
       </div>
@@ -202,7 +202,7 @@ export const AudioRecorder = ({
             onClick={handleStop}
             disabled={isTranscribing}
             className="h-8 w-8"
-            title="Stop recording"
+            title="Arrêter l'enregistrement"
           >
             <StopCircle className="h-4 w-4" />
           </Button>
@@ -211,7 +211,7 @@ export const AudioRecorder = ({
             onClick={handleSend}
             disabled={isTranscribing}
             className="h-8 w-8"
-            title={isTranscribing ? "Sending..." : "Send to AI"}
+            title={isTranscribing ? "Envoi en cours…" : "Envoyer à l'IA"}
           >
             <Send className="h-4 w-4" />
           </Button>

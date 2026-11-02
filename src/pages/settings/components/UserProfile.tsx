@@ -26,8 +26,8 @@ export const UserProfile = () => {
   return (
     <div className="space-y-4">
       <Header
-        title="Your Name"
-        description="Used to personalize your experience and identify your account"
+        title="Votre nom"
+        description="Utilisé pour personnaliser votre expérience et identifier votre compte"
         isMainTitle
       />
 

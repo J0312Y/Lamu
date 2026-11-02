@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useWindowResize } from "./useWindow";
 import { useGlobalShortcuts } from "@/hooks";
-import { MAX_FILES } from "@/config";
+import { MAX_FILES, EMAIL_ACTION_INSTRUCTIONS, EMAIL_DISABLED_HINT } from "@/config";
 import { useApp } from "@/contexts";
 import {
   fetchAIResponse,
@@ -15,8 +15,38 @@ import {
   generateRequestId,
   getResponseSettings,
 } from "@/lib";
+import { safeLocalStorage } from "@/lib/storage/helper";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { EmailDraft } from "@/types/email";
+
+/**
+ * Extract the first complete JSON object that follows `marker:` in `text`.
+ */
+function extractJsonAfterMarker(text: string, marker: string): string | null {
+  const markerIdx = text.indexOf(marker);
+  if (markerIdx === -1) return null;
+  const start = text.indexOf("{", markerIdx + marker.length);
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (escape) { escape = false; continue; }
+    if (c === "\\" && inString) { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === "{") depth++;
+    if (c === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
 
 // Types for completion
 interface AttachedFile {
@@ -96,6 +126,8 @@ export const useCompletion = () => {
     dbQueryLoading: false,
   });
   const [dbIntegrations, setDbIntegrations] = useState<Array<{ id: string; provider: string; name: string }>>([]);
+  const [pendingEmailDraft, setPendingEmailDraft] = useState<EmailDraft | null>(null);
+  const emailEnabled = safeLocalStorage.getItem("email_enabled") === "true";
   const [micOpen, setMicOpen] = useState(false);
   const [enableVAD, setEnableVAD] = useState(false);
   const [messageHistoryOpen, setMessageHistoryOpen] = useState(false);
@@ -205,9 +237,9 @@ export const useCompletion = () => {
     return { integrationId: first.id, dbName: first.name };
   }
 
-  const processDbQueries = useCallback(async (response: string) => {
+  const processDbQueries = useCallback(async (response: string): Promise<SqlQueryResult[]> => {
     const sqlBlocks = extractSqlBlocks(response);
-    if (sqlBlocks.length === 0) return;
+    if (sqlBlocks.length === 0) return [];
 
     let dbIntegrations: Array<{ id: string; provider: string; name: string }> = [];
     try {
@@ -216,9 +248,9 @@ export const useCompletion = () => {
       );
       dbIntegrations = all.filter((i) => ["postgres", "mysql"].includes(i.provider));
     } catch {
-      return;
+      return [];
     }
-    if (dbIntegrations.length === 0) return;
+    if (dbIntegrations.length === 0) return [];
 
     const reads: Array<{ sql: string; integrationId: string; dbName: string }> = [];
     const writes: Array<{ sql: string; integrationId: string; dbName: string }> = [];
@@ -232,7 +264,7 @@ export const useCompletion = () => {
       }
     }
 
-    if (reads.length === 0 && writes.length === 0) return;
+    if (reads.length === 0 && writes.length === 0) return [];
 
     setState((prev) => ({ ...prev, dbQueryLoading: true }));
 
@@ -270,6 +302,7 @@ export const useCompletion = () => {
         ? { ...firstWrite, writeQueue: remainingWrites }
         : null,
     }));
+    return readResults;
   }, []);
 
   const confirmWriteQuery = useCallback(async (confirmed: boolean) => {
@@ -512,6 +545,14 @@ export const useCompletion = () => {
           } catch { /* debug_log itself failed, ignore */ }
         }
 
+        // ── Inject email instructions ──────────────────────────────────
+        const looksLikeEmailRequest = /\b(email|e-mail|mail|envoie|envoyer|send|message\s+à|write\s+to|rapport.*mail|mail.*rapport)\b/i.test(input);
+        if (emailEnabled) {
+          enrichedSystemPrompt = `${enrichedSystemPrompt ?? ""}\n\n${EMAIL_ACTION_INSTRUCTIONS}`.trimStart();
+        } else if (looksLikeEmailRequest) {
+          enrichedSystemPrompt = `${enrichedSystemPrompt ?? ""}\n\n${EMAIL_DISABLED_HINT}`.trimStart();
+        }
+
         try {
           // Use the fetchAIResponse function with signal
           for await (const chunk of fetchAIResponse({
@@ -563,9 +604,56 @@ export const useCompletion = () => {
           inputRef.current?.focus();
         }, 100);
 
-        // Detect and execute SQL blocks from AI response
+        // Detect and execute SQL blocks FIRST, then compose email with results
+        let sqlReadResults: SqlQueryResult[] = [];
         if (fullResponse) {
-          processDbQueries(fullResponse);
+          sqlReadResults = await processDbQueries(fullResponse);
+        }
+
+        // ── Detect email action from AI response ────────────────────────
+        if (fullResponse && fullResponse.includes("LAMU_EMAIL")) {
+          const emailJsonStr = extractJsonAfterMarker(fullResponse, "LAMU_EMAIL:");
+          if (emailJsonStr) {
+            try {
+              const raw = JSON.parse(emailJsonStr) as {
+                to?: string; subject?: string; body?: string;
+              };
+
+              // Enrich email body with SQL results if available
+              let emailBody = (raw.body || "").replace(/\\n/g, "\n");
+              if (sqlReadResults.length > 0) {
+                const resultsText = sqlReadResults
+                  .filter((r) => r.executed && r.data)
+                  .map((r) => r.data)
+                  .join("\n\n");
+                if (resultsText) {
+                  emailBody += `\n\n--- Données extraites ---\n\n${resultsText}`;
+                }
+              }
+
+              const toQuery = raw.to || "";
+              let toEmail = "";
+              let toName = "";
+              if (toQuery.includes("@")) {
+                toEmail = toQuery;
+              } else {
+                try {
+                  const contact = await invoke<{ full_name: string; email: string } | null>(
+                    "contacts_resolve", { name: toQuery }
+                  );
+                  if (contact) { toEmail = contact.email; toName = contact.full_name; }
+                } catch { /* contact resolution is best-effort */ }
+              }
+              setPendingEmailDraft({
+                to_name: toName,
+                to_email: toEmail,
+                to_query: toQuery,
+                subject: raw.subject || "",
+                body: emailBody,
+                autoSend: false,
+              });
+            } catch { /* malformed JSON — ignore */ }
+          }
         }
 
         // Save the conversation after successful completion
@@ -1389,5 +1477,7 @@ export const useCompletion = () => {
     clearDbResults,
     rerunQuery,
     dbIntegrations,
+    pendingEmailDraft,
+    setPendingEmailDraft,
   };
 };

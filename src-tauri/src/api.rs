@@ -1,6 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
 use futures_util::StreamExt;
-use reqwest::multipart::{Form, Part};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -22,7 +21,7 @@ fn get_app_endpoint() -> Result<String, String> {
     #[cfg(debug_assertions)]
     { return Ok("http://localhost:3000".to_string()); }
     #[cfg(not(debug_assertions))]
-    { Err("Backend URL not configured. Set APP_ENDPOINT at build time: APP_ENDPOINT=https://api.lamuka.com cargo tauri build".to_string()) }
+    { Err("Backend URL not configured. Set APP_ENDPOINT at build time: APP_ENDPOINT=https://api.lamu.lamuka-tech.com cargo tauri build".to_string()) }
 }
 
 fn get_api_access_key() -> Result<String, String> {
@@ -121,9 +120,11 @@ pub struct Model {
     name: String,
     id: String,
     model: String,
-    description: String,
-    modality: String,
-    #[serde(rename = "isAvailable")]
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    modality: Option<String>,
+    #[serde(rename = "isAvailable", default)]
     is_available: bool,
 }
 
@@ -421,6 +422,7 @@ async fn fetch_api_response_config(
 }
 
 fn map_api_error_message(error_rules: &[ApiConfigError], sources: &[String]) -> String {
+    // Try to match a specific error rule first
     for source in sources {
         for rule in error_rules {
             if !rule.includes.is_empty() && source.contains(&rule.includes) {
@@ -429,20 +431,15 @@ fn map_api_error_message(error_rules: &[ApiConfigError], sources: &[String]) -> 
         }
     }
 
-    if let Some(default_rule) = error_rules
-        .iter()
-        .find(|rule| rule.includes.trim().is_empty())
-    {
-        return default_rule.error.clone();
-    }
+    // No specific rule matched — include the actual error for debugging
+    let detail = sources.first().cloned().unwrap_or_default();
+    let short_detail = if detail.len() > 200 { format!("{}…", &detail[..200]) } else { detail };
 
-    error_rules
-        .first()
-        .map(|rule| rule.error.clone())
-        .unwrap_or_else(|| {
-            "Something went wrong. Please try switching to a different model or contact support."
-                .to_string()
-        })
+    if !short_detail.is_empty() {
+        format!("AI provider error: {}", short_detail)
+    } else {
+        "Something went wrong. Please try switching to a different model or contact support.".to_string()
+    }
 }
 
 fn decode_audio_base64(audio_base64: &str) -> Result<Vec<u8>, String> {
@@ -467,37 +464,76 @@ async fn perform_user_audio_transcription(
     audio_bytes: &[u8],
     language: Option<&str>,
 ) -> Result<String, String> {
-    let audio_part = Part::bytes(audio_bytes.to_vec())
-        .file_name("audio.wav")
-        .mime_str("audio/wav")
-        .map_err(|e| format!("Failed to prepare audio payload: {}", e))?;
+    // Build multipart body manually — reqwest's auto-generated boundary
+    // (hex-with-hyphens) is rejected by some STT providers (Groq, etc.).
+    let boundary = format!(
+        "----LamuFormBoundary{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    );
 
-    let mut form = Form::new()
-        .part("file", audio_part)
-        .text("model", model.to_string());
+    let mut body: Vec<u8> = Vec::new();
 
-    // Inject language hint when provided (Whisper BCP-47 codes)
+    // ── file part (audio) ────────────────────────────────────────────────
+    body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+    body.extend_from_slice(
+        b"Content-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\n",
+    );
+    body.extend_from_slice(b"Content-Type: audio/wav\r\n\r\n");
+    body.extend_from_slice(audio_bytes);
+    body.extend_from_slice(b"\r\n");
+
+    // ── model part ───────────────────────────────────────────────────────
+    body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"model\"\r\n\r\n");
+    body.extend_from_slice(model.as_bytes());
+    body.extend_from_slice(b"\r\n");
+
+    // ── language hint (Whisper BCP-47 codes) ─────────────────────────────
     if let Some(lang) = language {
         if !lang.is_empty() {
-            form = form.text("language", lang.to_string());
+            body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+            body.extend_from_slice(
+                b"Content-Disposition: form-data; name=\"language\"\r\n\r\n",
+            );
+            body.extend_from_slice(lang.as_bytes());
+            body.extend_from_slice(b"\r\n");
         }
     }
 
+    // ── extra fields from backend config ─────────────────────────────────
     if let Some(extra_headers) = headers {
         for header in extra_headers {
             let key = header.key.trim();
             if key.is_empty() {
                 continue;
             }
-
-            form = form.text(key.to_string(), header.value.clone());
+            body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+            body.extend_from_slice(
+                format!(
+                    "Content-Disposition: form-data; name=\"{}\"\r\n\r\n",
+                    key
+                )
+                .as_bytes(),
+            );
+            body.extend_from_slice(header.value.as_bytes());
+            body.extend_from_slice(b"\r\n");
         }
     }
 
+    // ── closing boundary ─────────────────────────────────────────────────
+    body.extend_from_slice(format!("--{}--\r\n", boundary).as_bytes());
+
     let response = client
         .post(url)
+        .header(
+            "Content-Type",
+            format!("multipart/form-data; boundary={}", boundary),
+        )
         .bearer_auth(token)
-        .multipart(form)
+        .body(body)
         .send()
         .await
         .map_err(|e| format!("Transcription request failed to send: {}", e))?;
@@ -682,9 +718,34 @@ pub async fn chat_stream_response(
         ) {
             // Swap model in request body for the fallback provider
             let mut fb_body = request_body.clone();
-            if let Some(fb_model) = &api_config.fallback_model {
-                if let Some(obj) = fb_body.as_object_mut() {
+            if let Some(obj) = fb_body.as_object_mut() {
+                if let Some(fb_model) = &api_config.fallback_model {
                     obj.insert("model".to_string(), serde_json::Value::String(fb_model.clone()));
+                }
+                // ALWAYS strip images from fallback requests — fallback is degraded mode,
+                // sending large base64 screenshots causes binary garbage in responses
+                if let Some(msgs) = obj.get_mut("messages").and_then(|m| m.as_array_mut()) {
+                    for msg in msgs.iter_mut() {
+                        if let Some(obj_inner) = msg.as_object_mut() {
+                            let is_array = obj_inner.get("content")
+                                .map(|c| c.is_array())
+                                .unwrap_or(false);
+                            if is_array {
+                                let content = obj_inner.get("content").unwrap().clone();
+                                if let Some(arr) = content.as_array() {
+                                    let text: String = arr.iter()
+                                        .filter(|c| c.get("type").and_then(|t| t.as_str()) == Some("text"))
+                                        .filter_map(|c| c.get("text").and_then(|t| t.as_str()))
+                                        .collect::<Vec<_>>()
+                                        .join("\n");
+                                    obj_inner.insert(
+                                        "content".to_string(),
+                                        serde_json::Value::String(text),
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
             }
             let fb_result = client
@@ -853,6 +914,8 @@ pub async fn chat_stream_response(
         tauri::async_runtime::spawn({
             let activity_app = app.clone();
             let activity_model = api_config.model.clone();
+            let activity_customer_email = api_config.customer_email.clone();
+            let activity_customer_name = api_config.customer_name.clone();
             let activity_app_version = app.package_info().version.to_string();
             
             // If no usage metrics were captured from the stream, estimate tokens
@@ -875,6 +938,8 @@ pub async fn chat_stream_response(
                     activity_model,
                     activity_app_version,
                     activity_type.to_string(),
+                    activity_customer_email,
+                    activity_customer_name,
                 )
                 .await;
             }
@@ -890,6 +955,8 @@ async fn user_activity_with_type(
     configured_model: String,
     app_version: String,
     activity_type: String,
+    customer_email: Option<String>,
+    customer_name: Option<String>,
 ) -> Result<(), String> {
     let app_endpoint = match get_app_endpoint() {
         Ok(value) => value,
@@ -927,6 +994,8 @@ async fn user_activity_with_type(
         "app_version": app_version,
         "ai_model": ai_model,
         "activity_type": activity_type,
+        "customer_email": customer_email,
+        "customer_name": customer_name,
     });
 
     if let Some(metrics) = activity_metrics {
@@ -974,7 +1043,7 @@ pub async fn log_meeting_summary(
         activity_metrics
     };
     
-    user_activity_with_type(app, captured_metrics, model, app_version, "meeting_summary".to_string()).await
+    user_activity_with_type(app, captured_metrics, model, app_version, "meeting_summary".to_string(), None, None).await
 }
 
 #[tauri::command]
@@ -985,7 +1054,7 @@ pub async fn log_stt_transcription(
     activity_metrics: Option<serde_json::Value>,
 ) -> Result<(), String> {
     let app_version = app.package_info().version.to_string();
-    
+
     // If no usage metrics provided, estimate tokens from transcription text
     let captured_metrics = if activity_metrics.is_none() {
         let estimated_tokens = (transcription_text.len() as f64 / 4.0).ceil() as i64;
@@ -997,8 +1066,8 @@ pub async fn log_stt_transcription(
     } else {
         activity_metrics
     };
-    
-    user_activity_with_type(app, captured_metrics, model, app_version, "stt_transcription".to_string()).await
+
+    user_activity_with_type(app, captured_metrics, model, app_version, "stt_transcription".to_string(), None, None).await
 }
 
 async fn report_api_error(

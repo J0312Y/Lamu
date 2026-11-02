@@ -47,14 +47,14 @@ export const CreateEditProvider = ({
           className="w-full h-11 border-1 border-input/50 focus:border-primary/50 transition-colors"
         >
           <PlusIcon className="h-4 w-4 mr-2" />
-          Add Custom Provider
+          Ajouter un fournisseur personnalisé
         </Button>
       ) : (
         <Card className="p-4 border !bg-transparent border-input/50 ">
           <div className="flex justify-between items-center">
             <Header
-              title={editingProvider ? `Edit Provider` : "Add Custom Provider"}
-              description="Create a custom AI provider to use with your AI-powered applications."
+              title={editingProvider ? `Modifier le fournisseur` : "Ajouter un fournisseur personnalisé"}
+              description="Créez un fournisseur IA personnalisé à utiliser avec vos applications."
             />
 
             <div className="w-[120px]">
@@ -67,7 +67,7 @@ export const CreateEditProvider = ({
                       value: provider?.id || "AI Provider",
                     };
                   })}
-                placeholder={"Auto-fill"}
+                placeholder={"Remplissage auto"}
                 onChange={(value) => {
                   handleAutoFill(value);
                 }}
@@ -79,8 +79,8 @@ export const CreateEditProvider = ({
             {/* Basic Configuration */}
             <div className="space-y-1">
               <Header
-                title="Curl Command *"
-                description="The curl command to use with the AI provider."
+                title="Commande Curl *"
+                description="La commande curl à utiliser avec le fournisseur IA."
               />
               <Textarea
                 className={cn(
@@ -127,22 +127,19 @@ export const CreateEditProvider = ({
               <div className="bg-muted/50 p-4 rounded-lg space-y-4">
                 <div className="bg-card border p-3 rounded-lg">
                   <p className="text-sm font-medium text-primary mb-2">
-                    💡 Important: You can add custom variables or directly
-                    include your API keys/values
+                    💡 Important : Vous pouvez ajouter des variables personnalisées ou inclure directement vos clés API/valeurs
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    No need to enter variables separately when selecting the
-                    provider - you can embed them directly in the curl command
-                    (e.g., replace YOUR_API_KEY with your actual key or use{" "}
+                    Inutile de saisir les variables séparément lors de la sélection du fournisseur — vous pouvez les intégrer directement dans la commande curl (ex. : remplacez YOUR_API_KEY par votre clé réelle ou utilisez{" "}
                     <code className="bg-muted px-1 rounded text-xs">
                       {"{{MODEL}}"}
                     </code>{" "}
-                    for model name).
+                    pour le nom du modèle).
                   </p>
                 </div>
 
                 <h4 className="text-sm font-semibold text-foreground">
-                  ⚠️ Required Variables for AI Providers:
+                  ⚠️ Variables requises pour les fournisseurs IA :
                 </h4>
                 <div className="grid grid-cols-1 gap-3 text-sm">
                   <div className="flex items-center gap-3 p-3 bg-card border rounded-lg">
@@ -150,7 +147,7 @@ export const CreateEditProvider = ({
                       {"{{TEXT}}"}
                     </code>
                     <span className="text-foreground font-medium">
-                      → REQUIRED: User's text input
+                      → OBLIGATOIRE : Texte saisi par l'utilisateur
                     </span>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-card border rounded-lg">
@@ -158,8 +155,7 @@ export const CreateEditProvider = ({
                       {"{{IMAGE}}"}
                     </code>
                     <span className="text-muted-foreground">
-                      → Base64 image data (without data:image/jpeg;base64
-                      prefix)
+                      → Données image en Base64 (sans le préfixe data:image/jpeg;base64)
                     </span>
                   </div>
                   <div className="flex items-center gap-3 p-3 bg-card border rounded-lg">
@@ -167,33 +163,32 @@ export const CreateEditProvider = ({
                       {"{{SYSTEM_PROMPT}}"}
                     </code>
                     <span className="text-muted-foreground">
-                      → System prompt/instructions(optional)
+                      → Prompt système / instructions (optionnel)
                     </span>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    <strong className="text-foreground">Quick Setup:</strong>{" "}
-                    Replace{" "}
+                    <strong className="text-foreground">Configuration rapide :</strong>{" "}
+                    Remplacez{" "}
                     <code className="bg-muted px-1 rounded text-xs">
                       YOUR_API_KEY
                     </code>{" "}
-                    with your actual API key directly in the curl command.
+                    par votre clé API réelle directement dans la commande curl.
                   </p>
                   <p className="text-sm text-muted-foreground">
                     <strong className="text-foreground">
-                      Custom Variables:
+                      Variables personnalisées :
                     </strong>{" "}
-                    You can add your own variables using the same{" "}
+                    Vous pouvez ajouter vos propres variables en utilisant le même format{" "}
                     <code className="bg-muted px-1 rounded text-xs">
-                      {"{{VARIABLE_NAME}}"}
+                      {"{{NOM_VARIABLE}}"}
                     </code>{" "}
-                    format and they'll be available for configuration when you
-                    select this provider.
+                    et elles seront disponibles lors de la sélection de ce fournisseur.
                   </p>
                   <p className="text-xs text-muted-foreground italic">
-                    💡 Tip: Use the required variables (
+                    💡 Conseil : Utilisez les variables requises (
                     <code className="bg-muted px-1 rounded text-xs">
                       {"{{TEXT}}"}
                     </code>
@@ -201,11 +196,11 @@ export const CreateEditProvider = ({
                     <code className="bg-muted px-1 rounded text-xs">
                       {"{{SYSTEM_PROMPT}}"}
                     </code>
-                    ) for basic functionality. Add{" "}
+                    ) pour les fonctionnalités de base. Ajoutez{" "}
                     <code className="bg-muted px-1 rounded text-xs">
                       {"{{IMAGE}}"}
                     </code>{" "}
-                    only if your provider supports image input.
+                    uniquement si votre fournisseur supporte les images.
                   </p>
                 </div>
               </div>
@@ -215,7 +210,7 @@ export const CreateEditProvider = ({
           <div className="flex justify-between items-center space-x-2">
             <Header
               title="Streaming"
-              description="streaming is used to stream the response from the AI provider."
+              description="Le streaming permet de diffuser la réponse du fournisseur IA en temps réel."
             />
             <Switch
               checked={formData.streaming}
@@ -230,8 +225,8 @@ export const CreateEditProvider = ({
           {/* Response Configuration */}
           <div className="space-y-2">
             <Header
-              title="Response Content Path *"
-              description="The path to extract content from the API response."
+              title="Chemin du contenu de réponse *"
+              description="Le chemin pour extraire le contenu de la réponse API."
             />
 
             <TextInput
@@ -244,7 +239,7 @@ export const CreateEditProvider = ({
                 }))
               }
               error={errors.responseContentPath}
-              notes="The path to extract content from the API response. Examples: choices[0].message.content, text, candidates[0].content.parts[0].text"
+              notes="Le chemin pour extraire le contenu de la réponse API. Exemples : choices[0].message.content, text, candidates[0].content.parts[0].text"
             />
           </div>
 
@@ -254,7 +249,7 @@ export const CreateEditProvider = ({
               onClick={() => setShowForm(!showForm)}
               className="h-11 border-1 border-input/50 focus:border-primary/50 transition-colors"
             >
-              Cancel
+              Annuler
             </Button>
             <Button
               onClick={handleSave}
@@ -265,11 +260,11 @@ export const CreateEditProvider = ({
               )}
             >
               {errors.curl ? (
-                "Invalid cURL, try again"
+                "cURL invalide, réessayez"
               ) : (
                 <>
                   <SaveIcon className="h-4 w-4 mr-2" />
-                  {editingProvider ? "Update" : "Save"} Provider
+                  {editingProvider ? "Mettre à jour" : "Enregistrer"} le fournisseur
                 </>
               )}
             </Button>

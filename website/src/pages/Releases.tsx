@@ -23,13 +23,13 @@ const releases = [
   {
     version: '0.2.0',
     date: '29 Mai 2026',
-    tag: 'Derniere',
+    tag: 'Dernière',
     tagColor: '#4ade80',
     size: '~10MB',
     platforms: [
-      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.2.0 - macOS' },
-      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.2.0 - Windows' },
-      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.2.0 - Linux' },
+      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.2.0 - macOS' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.2.0 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.2.0 - Linux' },
     ],
     highlights: ['Application web', 'Helpdesk IA', 'Multi-canal', 'Licence par email'],
   },
@@ -38,33 +38,33 @@ const releases = [
     date: '15 Avril 2026',
     size: '~10MB',
     platforms: [
-      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - macOS' },
-      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - Windows' },
-      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.9 - Linux' },
+      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.9 - macOS' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.9 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.9 - Linux' },
     ],
-    highlights: ['Capture audio systeme', 'ElevenLabs STT', 'Integrations DB', 'Email vocal'],
+    highlights: ['Capture audio système', 'ElevenLabs STT', 'Intégrations DB', 'Email vocal'],
   },
   {
     version: '0.1.8',
     date: '20 Mars 2026',
     size: '~11MB',
     platforms: [
-      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - macOS' },
-      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - Windows' },
-      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.8 - Linux' },
+      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.8 - macOS' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.8 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.8 - Linux' },
     ],
-    highlights: ['Overlay deplacable', "Mode capture d'ecran auto", 'Groq STT'],
+    highlights: ['Overlay déplaçable', "Mode capture d'écran auto", 'Groq STT'],
   },
   {
     version: '0.1.7',
-    date: '10 Fevrier 2026',
+    date: '10 Février 2026',
     size: '~11MB',
     platforms: [
-      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - macOS' },
-      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - Windows' },
-      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka.com?subject=Telecharger v0.1.7 - Linux' },
+      { name: 'macOS', icon: Apple, formats: ['.dmg'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.7 - macOS' },
+      { name: 'Windows', icon: WindowsIcon, formats: ['.msi', '.exe'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.7 - Windows' },
+      { name: 'Linux', icon: LinuxIcon, formats: ['.deb', '.rpm', '.AppImage'], href: 'mailto:support@lamuka-tech.com?subject=Télécharger v0.1.7 - Linux' },
     ],
-    highlights: ['API developpeur', 'Google Gemini & Mistral', 'Refonte du tableau de bord'],
+    highlights: ['API développeur', 'Google Gemini & Mistral', 'Refonte du tableau de bord'],
   },
 ]
 
@@ -83,7 +83,7 @@ export default function Releases() {
             Toutes les <span className="gradient-text">Versions</span>
           </h1>
           <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
-            Telechargez n'importe quelle version de Lamu pour votre plateforme.
+            Téléchargez n'importe quelle version de Lamu pour votre plateforme.
           </p>
         </motion.div>
       </section>
@@ -97,7 +97,7 @@ export default function Releases() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <h2 style={{ fontSize: 22, fontWeight: 800 }}>v{releases[0].version}</h2>
-                <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: 100, padding: '2px 10px', fontSize: 11, fontWeight: 700, color: '#4ade80' }}>Derniere Version</span>
+                <span style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', borderRadius: 100, padding: '2px 10px', fontSize: 11, fontWeight: 700, color: '#4ade80' }}>Dernière Version</span>
               </div>
               <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', marginBottom: 12 }}>{releases[0].date} · {releases[0].size}</p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -107,7 +107,7 @@ export default function Releases() {
               </div>
             </div>
             <Link to="/downloads" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', fontWeight: 600, padding: '12px 24px', borderRadius: 10, fontSize: 14, textDecoration: 'none' }}>
-              <Download size={15} /> Telecharger la Derniere
+              <Download size={15} /> Télécharger la Dernière
             </Link>
           </motion.div>
           <div style={{ textAlign: 'right' }}>

@@ -35,7 +35,7 @@ export const Audio = ({
               setEnableVAD(!enableVAD);
             }}
             className="cursor-pointer"
-            title="Toggle voice input"
+            title="Activer/désactiver la saisie vocale"
           >
             <MicIcon className="h-4 w-4" />
           </Button>
@@ -52,7 +52,7 @@ export const Audio = ({
       >
         <div className="text-sm select-none">
           <div className="font-semibold text-orange-600 mb-1">
-            Speech Provider Configuration Required
+            Configuration du fournisseur vocal requise
           </div>
           <p className="text-muted-foreground">
             {!speechProviderStatus ? (
@@ -60,13 +60,13 @@ export const Audio = ({
                 <div className="mt-2 flex flex-row gap-1 items-center text-orange-600">
                   <InfoIcon size={16} />
                   {selectedSttProvider.provider ? null : (
-                    <p>PROVIDER IS MISSING</p>
+                    <p>FOURNISSEUR MANQUANT</p>
                   )}
                 </div>
 
                 <span className="block mt-2">
-                  Please go to settings and configure your speech provider to
-                  enable voice input.
+                  Veuillez aller dans les paramètres et configurer votre fournisseur vocal
+                  pour activer la saisie vocale.
                 </span>
               </>
             ) : null}

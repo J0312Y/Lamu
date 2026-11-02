@@ -1,24 +1,5 @@
-import { useState, createContext, useContext, useCallback } from 'react'
-
-interface ConfirmOptions {
-  title: string
-  message: string
-  confirmText?: string
-  cancelText?: string
-  danger?: boolean
-}
-
-interface ConfirmContextType {
-  confirm: (options: ConfirmOptions) => Promise<boolean>
-}
-
-const ConfirmContext = createContext<ConfirmContextType>({ confirm: () => Promise.resolve(false) })
-
-let _globalConfirm: ((options: ConfirmOptions) => Promise<boolean>) | null = null
-export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
-  if (_globalConfirm) return _globalConfirm(options)
-  return Promise.resolve(window.confirm(options.message))
-}
+import { useState, useCallback, useEffect } from 'react'
+import { ConfirmContext, setConfirmHandler, type ConfirmOptions } from './confirm-api'
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<{
@@ -33,7 +14,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  _globalConfirm = showConfirm
+  useEffect(() => { setConfirmHandler(showConfirm); return () => setConfirmHandler(null) }, [showConfirm])
 
   const close = (result: boolean) => {
     state.resolve?.(result)
@@ -110,5 +91,3 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     </ConfirmContext.Provider>
   )
 }
-
-export function useConfirm() { return useContext(ConfirmContext) }

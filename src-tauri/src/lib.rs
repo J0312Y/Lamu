@@ -3,6 +3,7 @@ mod activate;
 mod app_config;
 mod api;
 mod capture;
+mod computer_use;
 mod contacts;
 mod db;
 mod detection;
@@ -209,6 +210,7 @@ pub fn run() {
             knowledge::kb_remove_webhook,
             knowledge::kb_post_webhook,
             knowledge::kb_export_csv,
+            knowledge::kb_sync_to_cloud,
             knowledge::kb_set_document_access,
             knowledge::kb_add_shopify,
             knowledge::kb_add_salesforce,
@@ -250,6 +252,11 @@ pub fn run() {
             knowledge::kb_add_database,
             knowledge::kb_database_query,
             knowledge::kb_database_get_schema,
+            knowledge::kb_database_list_databases,
+            knowledge::kb_database_switch,
+            knowledge::kb_database_list_tables,
+            knowledge::kb_database_describe_table,
+            knowledge::kb_database_execute_write,
             // Google Calendar
             knowledge::kb_connect_calendar,
             knowledge::kb_calendar_upcoming,
@@ -272,6 +279,17 @@ pub fn run() {
             // Email sending
             email::email_send,
             email::email_test_connection,
+            // Computer Use
+            computer_use::computer_use_set_enabled,
+            computer_use::computer_use_is_enabled,
+            computer_use::computer_use_screenshot,
+            computer_use::computer_use_screenshot_region,
+            computer_use::computer_use_mouse_move,
+            computer_use::computer_use_mouse_click,
+            computer_use::computer_use_type_text,
+            computer_use::computer_use_key_press,
+            computer_use::computer_use_scroll,
+            computer_use::computer_use_screen_size,
         ])
         .setup(|app| {
             sqlx::any::install_default_drivers();

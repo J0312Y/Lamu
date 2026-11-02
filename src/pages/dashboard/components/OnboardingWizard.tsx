@@ -131,7 +131,7 @@ export const OnboardingWizard = () => {
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
       <DialogContent className="max-w-sm p-0 overflow-hidden">
         <DialogHeader className="px-5 pt-5 pb-0">
-          <DialogTitle className="sr-only">Onboarding Lamu</DialogTitle>
+          <DialogTitle className="sr-only">Démarrage Lamu</DialogTitle>
         </DialogHeader>
 
         {/* Progress dots */}

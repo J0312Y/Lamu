@@ -32,32 +32,32 @@ export const useMenuItems = () => {
   }[] = [
     {
       icon: HomeIcon,
-      label: "Dashboard",
+      label: "Tableau de bord",
       href: "/dashboard",
     },
     {
       icon: MessagesSquare,
-      label: "Chats",
+      label: "Conversations",
       href: "/chats",
     },
     {
       icon: WandSparkles,
-      label: "System prompts",
+      label: "Prompts système",
       href: "/system-prompts",
     },
     {
       icon: Settings,
-      label: "App Settings",
+      label: "Paramètres",
       href: "/settings",
     },
     {
       icon: MessageSquareTextIcon,
-      label: "Responses",
+      label: "Réponses",
       href: "/responses",
     },
     {
       icon: MonitorIcon,
-      label: "Screenshot",
+      label: "Capture d'écran",
       href: "/screenshot",
     },
     {
@@ -67,18 +67,18 @@ export const useMenuItems = () => {
     },
     {
       icon: SquareSlashIcon,
-      label: "Cursor & Shortcuts",
+      label: "Curseur & Raccourcis",
       href: "/shortcuts",
     },
 
     {
       icon: BookOpenIcon,
-      label: "Knowledge Base",
+      label: "Base de connaissances",
       href: "/knowledge",
     },
     {
       icon: ActivityIcon,
-      label: "KB Activity",
+      label: "Activité KB",
       href: "/activity",
     },
     {
@@ -88,7 +88,7 @@ export const useMenuItems = () => {
     },
     {
       icon: BriefcaseIcon,
-      label: "Interview Prep",
+      label: "Prépa entretien",
       href: "/interview-prep",
     },
     {
@@ -98,12 +98,12 @@ export const useMenuItems = () => {
     },
     {
       icon: FileTextIcon,
-      label: "CV & Cover Letter",
+      label: "CV & Lettre de motivation",
       href: "/cv-generator",
     },
     {
       icon: Code,
-      label: "Dev space",
+      label: "Espace dev",
       href: "/dev-space",
     },
   ];
@@ -113,19 +113,19 @@ export const useMenuItems = () => {
       ? [
           {
             icon: MailIcon,
-            label: "Contact Support",
+            label: "Contacter le support",
             href: "mailto:support@lamuka-tech.com",
           },
         ]
       : []),
     {
       icon: BugIcon,
-      label: "Report a bug",
+      label: "Signaler un bug",
       href: "mailto:support@lamuka-tech.com",
     },
     {
       icon: PowerIcon,
-      label: "Quit Lamu",
+      label: "Quitter Lamu",
       action: async () => {
         await invoke("exit_app");
       },
@@ -138,9 +138,9 @@ export const useMenuItems = () => {
     link: string;
   }[] = [
     {
-      title: "Website",
+      title: "Site web",
       icon: GlobeIcon,
-      link: "https://lamuka.com",
+      link: "https://lamu.lamuka-tech.com",
     },
   ];
 

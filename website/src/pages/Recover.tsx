@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { KeyRound, Mail, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || 'https://api.lamu.lamuka-tech.com'
 
 export default function Recover() {
   const [email, setEmail]   = useState('')
@@ -101,7 +101,7 @@ export default function Recover() {
         )}
 
         <div style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>
-          Toujours bloqué ? <a href="mailto:support@lamuka.com" style={{ color: '#818cf8', textDecoration: 'none' }}>support@lamuka.com</a>
+          Toujours bloqué ? <a href="mailto:support@lamuka-tech.com" style={{ color: '#818cf8', textDecoration: 'none' }}>support@lamuka-tech.com</a>
         </div>
       </motion.div>
 

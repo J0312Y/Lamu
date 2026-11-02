@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
@@ -40,7 +40,11 @@ body.theme-dark{
   background:#0F172A;color:#E2E8F0
 }
 /* Inputs */
-body.theme-dark input,body.theme-dark select,body.theme-dark textarea{background:#0F172A;border-color:#1F2937;color:#E2E8F0}
+body.theme-dark input,body.theme-dark select,body.theme-dark textarea{background:#0F172A;border-color:#1F2937;color:#E2E8F0;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+body.theme-dark input:hover,body.theme-dark select:hover,body.theme-dark textarea:hover{border-color:#334155}
+body.theme-dark input:focus,body.theme-dark select:focus,body.theme-dark textarea:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(249,115,22,.15)}
+body.theme-dark select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 24 24' stroke='%2394A3B8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+body.theme-dark input::placeholder,body.theme-dark textarea::placeholder{color:#475569}
 /* Structure */
 body.theme-dark header,body.theme-dark #side-nav{background:#0B1120!important;border-color:#1F2937!important}
 body.theme-dark .page-full,body.theme-dark .app-body,body.theme-dark .main-scroll{background:#0F172A}
@@ -150,37 +154,46 @@ body.theme-dark .modal-footer{border-color:#1F2937}
 .ring-item svg{flex-shrink:0}
 
 /* ─ Login ─────────────────────────────────────────────────────── */
-#login-screen{display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg)}
-.login-card{background:var(--white);border-radius:20px;box-shadow:0 8px 40px rgba(30,43,74,0.12);padding:44px 40px;width:380px}
+#login-screen{display:flex;align-items:center;justify-content:center;height:100vh;background:linear-gradient(135deg,var(--bg) 0%,#E2E8F0 100%)}
+.login-card{background:var(--white);border-radius:24px;box-shadow:0 12px 48px rgba(30,43,74,0.12),0 0 0 1px rgba(30,43,74,.04);padding:48px 44px;width:400px;animation:cmScaleIn .35s cubic-bezier(.4,0,.2,1)}
 .login-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px}
 .logo-badge{width:40px;height:40px;border-radius:12px;background:var(--navy);display:flex;align-items:center;justify-content:center;color:var(--orange);font-size:18px;font-weight:900}
 .login-logo h2{font-size:20px;font-weight:800;color:var(--navy)}
 .login-logo span{font-size:11px;color:var(--muted);display:block}
 .login-card h3{font-size:22px;font-weight:700;margin-bottom:6px}
 .login-card p{color:var(--muted);font-size:13px;margin-bottom:28px}
-.form-group{margin-bottom:16px}
-.form-group label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
-input,select,textarea{width:100%;background:#F8FAFC;border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:11px 14px;font-size:14px;outline:none;transition:border-color .2s;font-family:inherit}
-input:focus,select:focus,textarea:focus{border-color:var(--orange);background:var(--white)}
-textarea{resize:vertical;min-height:100px}
-select option{background:var(--white)}
+.form-group{margin-bottom:18px;position:relative}
+.form-group label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+input,select,textarea{width:100%;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius-sm);color:var(--text);padding:11px 14px;font-size:14px;outline:none;transition:all .25s cubic-bezier(.4,0,.2,1);font-family:inherit;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+input:hover,select:hover,textarea:hover{border-color:var(--muted2)}
+input:focus,select:focus,textarea:focus{border-color:var(--orange);background:var(--white);box-shadow:0 0 0 3px rgba(249,115,22,.1)}
+input::placeholder,textarea::placeholder{color:var(--muted2);font-weight:400}
+textarea{resize:vertical;min-height:100px;line-height:1.6}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 24 24' stroke='%238892A4' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-size:14px;padding-right:38px;cursor:pointer}
+select:focus{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 24 24' stroke='%23F97316' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+select option{background:var(--white);padding:8px}
+input[type="checkbox"],input[type="radio"]{width:auto;box-shadow:none;margin:0}
 .error-msg{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626;padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:16px;font-size:13px;display:none}
 
 /* ─ Buttons ───────────────────────────────────────────────────── */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 20px;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;transition:all .18s;font-family:inherit;white-space:nowrap}
-.btn-primary{background:var(--navy);color:#fff}
-.btn-primary:hover{background:var(--navy-light)}
-.btn-orange{background:var(--orange);color:#fff;box-shadow:0 4px 14px rgba(249,115,22,.3)}
-.btn-orange:hover{background:#EA6A0A;transform:translateY(-1px)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 20px;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:600;transition:all .2s cubic-bezier(.4,0,.2,1);font-family:inherit;white-space:nowrap;position:relative;overflow:hidden}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-primary{background:var(--navy);color:#fff;box-shadow:0 2px 8px rgba(30,43,74,.2)}
+.btn-primary:hover{background:var(--navy-light);box-shadow:0 4px 14px rgba(30,43,74,.25);transform:translateY(-1px)}
+.btn-orange{background:linear-gradient(135deg,#F97316,#EA6A0A);color:#fff;box-shadow:0 4px 14px rgba(249,115,22,.3)}
+.btn-orange:hover{box-shadow:0 6px 20px rgba(249,115,22,.4);transform:translateY(-1px)}
 .btn-full{width:100%}
 .btn-sm{padding:7px 14px;font-size:12px}
 .btn-xs{padding:5px 11px;font-size:11px;border-radius:7px}
 .btn-ghost{background:transparent;color:var(--muted);border:1.5px solid var(--border)}
-.btn-ghost:hover{border-color:var(--navy);color:var(--navy)}
+.btn-ghost:hover{border-color:var(--navy);color:var(--navy);background:rgba(30,43,74,.03)}
 .btn-outline-orange{background:transparent;color:var(--orange);border:1.5px solid var(--orange)}
-.btn-outline-orange:hover{background:var(--orange-bg)}
+.btn-outline-orange:hover{background:var(--orange-bg);box-shadow:0 2px 8px rgba(249,115,22,.12)}
 .btn-danger{background:#FEF2F2;color:#DC2626;border:1.5px solid #FECACA}
-.btn-danger:hover{background:#FEE2E2}
+.btn-danger:hover{background:#FEE2E2;border-color:#F87171;box-shadow:0 2px 8px rgba(220,38,38,.1)}
+.btn-success{background:#F0FDF4;color:#16A34A;border:1.5px solid #BBF7D0}
+.btn-success:hover{background:#DCFCE7;border-color:#4ADE80;box-shadow:0 2px 8px rgba(22,163,74,.1)}
 
 /* ─ App Shell ─────────────────────────────────────────────────── */
 #app{display:none;flex-direction:column;height:100vh}
@@ -454,14 +467,12 @@ body.theme-dark .dash-quick-link:hover{border-color:var(--orange);color:var(--or
 .tbl-actions{display:flex;gap:6px}
 
 /* ─ Modal ─────────────────────────────────────────────────────── */
-.modal-overlay{position:fixed;inset:0;background:rgba(30,43,74,0.35);backdrop-filter:blur(4px);z-index:1000;display:none;align-items:center;justify-content:center}
+.modal-overlay{position:fixed;inset:0;background:rgba(30,43,74,0.35);backdrop-filter:blur(6px);z-index:1000;display:none;align-items:center;justify-content:center;animation:cmFadeIn .2s ease}
 .modal-overlay.open{display:flex}
-.modal{background:var(--white);border-radius:20px;padding:28px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(30,43,74,0.2)}
-.modal h3{font-size:17px;font-weight:800;color:var(--navy);margin-bottom:22px}
-.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:22px;padding-top:20px;border-top:1px solid var(--border)}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.form-group{margin-bottom:16px}
-.form-group label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:7px}
+.modal{background:var(--white);border-radius:20px;padding:32px;width:520px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(30,43,74,0.2);animation:cmScaleIn .25s cubic-bezier(.4,0,.2,1)}
+.modal h3{font-size:18px;font-weight:800;color:var(--navy);margin-bottom:24px;display:flex;align-items:center;gap:10px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
 /* ─ Dashboard KPI row — styles moved to modern block above ───── */
 /* ─ Ring progress ─────────────────────────────────────────────── */
@@ -494,7 +505,7 @@ body.theme-dark .dash-quick-link:hover{border-color:var(--orange);color:var(--or
 .settings-section-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--navy);margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)}
 .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .settings-grid-3{grid-template-columns:1fr 1fr 1fr}
-.field-hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
+.field-hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;letter-spacing:.01em}
 /* SMTP test row */
 .smtp-test-row{display:flex;align-items:center;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
 .smtp-test-row input{max-width:280px}
@@ -520,12 +531,14 @@ body.theme-dark .dash-quick-link:hover{border-color:var(--orange);color:var(--or
 .cn-info{flex:1;min-width:0}
 .cn-name{font-size:13px;font-weight:600;color:var(--navy)}
 .cn-desc{font-size:11px;color:var(--muted);margin-top:2px}
-.cn-toggle{position:relative;display:inline-block;width:42px;height:24px;flex-shrink:0}
+.cn-toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
 .cn-toggle input{opacity:0;width:0;height:0;position:absolute}
-.cn-slider{position:absolute;inset:0;background:#D1D5DB;border-radius:24px;cursor:pointer;transition:background .2s}
-.cn-slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
-.cn-toggle input:checked+.cn-slider{background:var(--orange)}
-.cn-toggle input:checked+.cn-slider:before{transform:translateX(18px)}
+.cn-slider{position:absolute;inset:0;background:#D1D5DB;border-radius:24px;cursor:pointer;transition:all .25s cubic-bezier(.4,0,.2,1)}
+.cn-slider:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:all .25s cubic-bezier(.4,0,.2,1);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.cn-toggle input:checked+.cn-slider{background:linear-gradient(135deg,#F97316,#EA6A0A)}
+.cn-toggle input:checked+.cn-slider:before{transform:translateX(20px)}
+.cn-toggle:hover .cn-slider{box-shadow:0 0 0 3px rgba(0,0,0,.04)}
+.cn-toggle:hover input:checked+.cn-slider{box-shadow:0 0 0 3px rgba(249,115,22,.12)}
 
 /* Dark mode settings */
 body.theme-dark .settings-section{background:#111827}
@@ -605,6 +618,11 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
 .empty-state{text-align:center;padding:40px;color:var(--muted)}
 .truncate{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @keyframes slideIn{from{transform:translateX(100px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes toastSlideIn{from{transform:translateX(40px) scale(.95);opacity:0}to{transform:translateX(0) scale(1);opacity:1}}
+@keyframes toastSlideOut{from{transform:translateX(0) scale(1);opacity:1}to{transform:translateX(40px) scale(.95);opacity:0}}
+@keyframes cmFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes cmFadeOut{from{opacity:1}to{opacity:0}}
+@keyframes cmScaleIn{from{transform:scale(.9) translateY(10px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
 .ws-dot{width:8px;height:8px;border-radius:50%;background:#EF4444;display:inline-block;margin-left:8px;vertical-align:middle}
 </style>
 </head>
@@ -617,14 +635,14 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div class="logo-badge">
         <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAEgUlEQVR42s1Xz0tcRxyfmfdWL1Zz8FINHvxBlgqudQM9KFuNKXRrLrEHD+JPGrvEXjwKCZik4NGDNdiSoihC/APSLdSt1lyjdUFlRb0YoYE0EK0X9+2b6XzGN7sb3X3uSpo6MOzsd+bN9/v9fH+OSf7nYWbbYM54H0y4MzLt0TMENRjj3Lbfp6aMGYYQnAs5sgoA1vqAz+fz+nz1n8qlhxDQKM2PZfIbKxpd+zMajcZO83hHAL0B1Kempia7u7sHMiF0wSFmZmZ+6uvrC8ES6UKYKQEYE8K2HebfxuPWsTzD5VliS2vgvGEYp2xra3hducOmuBPrnp6ekOaVRADOBicB7Gtra5uSeVySqCMpMc0TBomEjcscgDPTMxsD1ueioMBTUF9f/wnMoXkyLcCJ3ZXNqaM5heZgEon8Tufn5xnWoAFGrJ89+4VhYp3FydPNiwPU4ZHkeToMPc4HSkMpsSKOjIwYsViMtrd/zUGD9Q4P/yGhUEhBsLGxwYuLPzoXiXQeyeg467mEaM0XFiI0EPjc3NnZkWgkSFNTk/nkyc8M8i0uLrKjoyOCubz8B3PiPcfoyCrAifg6St68+Ztubm7S4+NjdfnW1hbd399XZ8LhMI3H4wQzHP41j2h5F6KMmRDeDjg7Ojr47dvtvLGx0dze3qbr6+uJq1fLxdu3B3RpaYlVVFSo85FIhB0cHNpFRUVK0HwSKHNxHKmdpfxgYGCADw0NcTAHQKurq3RrK0Y6Ozs5JtYrKyvUMJjKIzChDt0L14KUMxJy5843KmahuWTORkdHlfMFg0Fl9Pv37yVpfr9flJQUJ++wrIQrIqZL7BKPx1TeLh3OgM0BO7TFuHt3kPv9DUKvHz+eYAsLv5nXrnlJa2srl8KJQCCQjI68TIAMp+O8trbW09vba8zOziIzkUePvucvXqwkJiZ+sGVuIZhYg4Y9nJmenmZdXV0Gvk3lCTt/E3yIwbKUTgVbW9tXXCYZS2pvSxRQSpW9r1/3m4OD3xkyWxNMrEHDHs5I7blEwca3uAN3ZasXppsDwoFgw1u32ricBKEGb4fDweb9/f3KCbG+efMLMTw8bDc0NIgrV0qEk3LohZ3QydcKCZ3hEOc3brSoP3A46ZjJm8Hc2aMPHjw0y8rKhIwefl4omufnLZosw44gFKEGb5+bm1MCYA3Nsffy5T4dGxtjNTU1QpZeVTvyjgI3RJBgEOcItb29PYLZ3NzMAbvU3Kirq5NKCbK7u0vLy8s9T5+mqmgOAuSQupwRDH4p63sBwUTMgwbYq6qqBByusLCQeL1eUVpaKjSSmXiYboUiGwoYskpy6RPKNi0tLRwOB5sDdmheXV0tnj9fTuiGJdVNuRcjKxef0NExOTmpcMUaNN1DjI+P21pz1BMwT3NG60xX7NaSuaXqXFs1t5bM0D0b+vZXr/56XVlZ+bH06M/kxwm5b/MsA3daVlwmmQRPe3souuwRkHyQlvWDhErmheiMJWrT4KUfKmZKoxMCWmf8/gdt+Y/6bs3rcj1MLsXT7FI8Tj/0+BciRhCq33TJrwAAAABJRU5ErkJggg==" alt="Lamu" width="24" height="24" style="border-radius:6px"/>
       </div>
-      <div><h2>Lamu Admin</h2><span>Management Console</span></div>
+      <div><h2>Lamu Admin</h2><span>Console d'administration</span></div>
     </div>
-    <h3>Sign In</h3>
-    <p>Enter your credentials to access the dashboard</p>
+    <h3>Connexion</h3>
+    <p>Entrez vos identifiants pour accéder au tableau de bord</p>
     <div class="error-msg" id="login-error"></div>
-    <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="admin" autocomplete="username"/></div>
-    <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/></div>
-    <button class="btn btn-orange btn-full" style="margin-top:4px;padding:13px;font-size:15px" onclick="login()">Sign In →</button>
+    <div class="form-group"><label>Nom d'utilisateur</label><input type="text" id="login-user" placeholder="admin" autocomplete="username"/></div>
+    <div class="form-group"><label>Mot de passe</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/></div>
+    <button class="btn btn-orange btn-full" style="margin-top:4px;padding:13px;font-size:15px" onclick="login()">Se connecter →</button>
   </div>
 </div>
 
@@ -640,10 +658,10 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <span class="name">Lamu</span>
     </a>
     <div class="h-right">
-      <button class="h-icon-btn" title="Toggle sidebar" onclick="toggleSidebar()" type="button" id="sidebar-toggle-btn">
+      <button class="h-icon-btn" title="Afficher/masquer la barre latérale" onclick="toggleSidebar()" type="button" id="sidebar-toggle-btn">
         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16" /><path d="M4 12h10" /><path d="M4 18h16" /></svg>
       </button>
-      <button class="h-icon-btn" title="Toggle theme" onclick="toggleTheme()" type="button" id="theme-toggle-btn">
+      <button class="h-icon-btn" title="Changer le thème" onclick="toggleTheme()" type="button" id="theme-toggle-btn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="theme-icon"><path d="M12 3v2"/><path d="M12 19v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/><circle cx="12" cy="12" r="5"/></svg>
       </button>
       <span class="ws-dot" id="ws-status" title="WebSocket déconnecté"></span>
@@ -708,16 +726,16 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
 
   <!-- ── Side Navigation ──────────────────────────────────────────── -->
   <div id="side-nav">
-    <div class="nav-section-label">Main</div>
+    <div class="nav-section-label">Principal</div>
     <button class="nav-item active" onclick="showPage('dashboard')" data-page="dashboard" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       Dashboard
     </button>
 
-    <div class="nav-section-label">Content</div>
+    <div class="nav-section-label">Contenu</div>
     <button class="nav-item" onclick="showPage('models')" data-page="models" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-      AI Models
+      Modèles IA
     </button>
     <button class="nav-item" onclick="showPage('prompts')" data-page="prompts" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -725,38 +743,38 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     </button>
     <button class="nav-item" onclick="showPage('kb')" data-page="kb" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      Knowledge Base
+      Base de connaissances
     </button>
 
-    <div class="nav-section-label">Business</div>
+    <div class="nav-section-label">Commercial</div>
     <button class="nav-item" onclick="showPage('plans')" data-page="plans" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       Plans
     </button>
     <button class="nav-item" onclick="showPage('licenses')" data-page="licenses" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      Licenses
+      Licences
     </button>
     <button class="nav-item" onclick="showPage('payments')" data-page="payments" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
       Paiements
     </button>
 
-    <div class="nav-section-label">Users</div>
+    <div class="nav-section-label">Utilisateurs</div>
     <button class="nav-item" onclick="showPage('users')" data-page="users" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      Users
+      Utilisateurs
     </button>
     <button class="nav-item" onclick="showPage('trials')" data-page="trials" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      Trial Users
+      Essais gratuits
     </button>
     <button class="nav-item" onclick="showPage('conversations')" data-page="conversations" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/></svg>
       Conversations
     </button>
 
-    <div class="nav-section-label">System</div>
+    <div class="nav-section-label">Système</div>
     <button class="nav-item" onclick="showPage('audit')" data-page="audit" type="button">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       Audit Logs
@@ -1076,7 +1094,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           </div>
           <div class="form-group" style="margin:0">
             <label>Email de support (affiché)</label>
-            <input id="s-support-email-address" type="email" placeholder="support@lamuka.com" />
+            <input id="s-support-email-address" type="email" placeholder="support@lamuka-tech.com" />
           </div>
           <div class="form-group" style="margin:0">
             <label>Préfixe clé de licence</label>
@@ -1187,11 +1205,11 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           <div class="settings-grid">
             <div class="form-group" style="margin:0;grid-column:1/-1">
               <label>URL de l'API (Fallback)</label>
-              <input id="s-ai-fallback-url" type="text" placeholder="https://openrouter.ai/api/v1/chat/completions" />
+              <input id="s-ai-fallback-url" type="text" placeholder="https://api.groq.com/openai/v1/chat/completions" oninput="updateFallbackState()" />
             </div>
             <div class="form-group" style="margin:0">
               <label>Clé API (Fallback)</label>
-              <input id="s-ai-fallback-key" type="password" placeholder="sk-or-v1-xxxxxxxxxxxx" />
+              <input id="s-ai-fallback-key" type="password" placeholder="gsk_xxxxxxxxxxxx" oninput="updateFallbackState()" />
             </div>
             <div class="form-group" style="margin:0">
               <label>Modèle (Fallback)</label>
@@ -1300,7 +1318,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           </div>
           <div class="form-group" style="margin:0">
             <label>Utilisateur (email)</label>
-            <input id="s-smtp-user" type="text" placeholder="noreply@lamuka.com" />
+            <input id="s-smtp-user" type="text" placeholder="noreply@lamuka-tech.com" />
           </div>
           <div class="form-group" style="margin:0">
             <label>Mot de passe</label>
@@ -1308,7 +1326,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           </div>
           <div class="form-group" style="margin:0;grid-column:1/-1">
             <label>Expéditeur (From)</label>
-            <input id="s-smtp-from" type="text" placeholder="Lamuka &lt;noreply@lamuka.com&gt;" />
+            <input id="s-smtp-from" type="text" placeholder="Lamu &lt;noreply@lamuka-tech.com&gt;" />
           </div>
         </div>
         <div class="smtp-test-row">
@@ -1337,7 +1355,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           <div class="email-tpl-body">
             <div class="form-group" style="margin:0 0 10px">
               <label>Sujet</label>
-              <input id="s-email-subject-license" type="text" placeholder="🎉 Votre licence Lamuka {{plan_name}} est prête" />
+              <input id="s-email-subject-license" type="text" placeholder="🎉 Votre licence Lamu {{plan_name}} est prête" />
             </div>
             <div class="form-group" style="margin:0">
               <label>Template HTML <span class="field-hint" style="display:inline">(laisser vide = template par défaut)</span></label>
@@ -1356,7 +1374,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           <div class="email-tpl-body" style="display:none">
             <div class="form-group" style="margin:0 0 10px">
               <label>Sujet</label>
-              <input id="s-email-subject-recover" type="text" placeholder="Récupération de votre licence Lamuka" />
+              <input id="s-email-subject-recover" type="text" placeholder="Récupération de votre licence Lamu" />
             </div>
             <div class="form-group" style="margin:0">
               <label>Template HTML <span class="field-hint" style="display:inline">(laisser vide = template par défaut)</span></label>
@@ -1375,12 +1393,12 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
           <div class="email-tpl-body" style="display:none">
             <div class="form-group" style="margin:0 0 10px">
               <label>Email de destination (boîte support)</label>
-              <input id="s-support-email" type="email" placeholder="support@lamuka.com" />
+              <input id="s-support-email" type="email" placeholder="support@lamuka-tech.com" />
               <div class="field-hint">Les messages des clients seront transmis à cet email. Laisser vide pour désactiver.</div>
             </div>
             <div class="form-group" style="margin:0 0 10px">
               <label>Sujet accusé de réception</label>
-              <input id="s-email-subject-support-reply" type="text" placeholder="Nous avons bien reçu votre message — Lamuka Support" />
+              <input id="s-email-subject-support-reply" type="text" placeholder="Nous avons bien reçu votre message — Lamu Support" />
             </div>
             <div class="form-group" style="margin:0">
               <label>Template HTML <span class="field-hint" style="display:inline">(laisser vide = template par défaut)</span></label>
@@ -1855,8 +1873,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <!-- ── Models page ─────────────────────────────────────────────── -->
   <div class="page-full" id="page-models">
     <div class="page-full-header">
-      <div><div class="page-full-title">AI Models</div><div class="page-full-sub">Manage models available to users</div></div>
-      <button class="btn btn-orange btn-sm" onclick="openModelModal()">+ Add Model</button>
+      <div><div class="page-full-title">Modèles IA</div><div class="page-full-sub">Gérez les modèles disponibles pour les utilisateurs</div></div>
+      <button class="btn btn-orange btn-sm" onclick="openModelModal()">+ Ajouter un modèle</button>
     </div>
     <div id="models-grid" class="model-grid"></div>
   </div>
@@ -1864,8 +1882,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <!-- ── Prompts page ────────────────────────────────────────────── -->
   <div class="page-full" id="page-prompts">
     <div class="page-full-header">
-      <div><div class="page-full-title">System Prompts</div><div class="page-full-sub">Built-in prompts shown in the Lamu app</div></div>
-      <button class="btn btn-orange btn-sm" onclick="openPromptModal()">+ Add Prompt</button>
+      <div><div class="page-full-title">Prompts Système</div><div class="page-full-sub">Prompts intégrés affichés dans l'application Lamu</div></div>
+      <button class="btn btn-orange btn-sm" onclick="openPromptModal()">+ Ajouter un prompt</button>
     </div>
     <div class="card">
       <table class="tbl">
@@ -1878,7 +1896,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <!-- ── KB page ────────────────────────────────────────────────── -->
   <div class="page-full" id="page-kb">
     <div class="page-full-header">
-      <div><div class="page-full-title">Knowledge Base</div><div class="page-full-sub">Documents indexed for AI context</div></div>
+      <div><div class="page-full-title">Base de Connaissances</div><div class="page-full-sub">Documents indexés pour le contexte IA</div></div>
     </div>
     <div class="card">
       <table class="tbl">
@@ -1891,13 +1909,13 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <!-- ── Licenses page ──────────────────────────────────────────── -->
   <div class="page-full" id="page-licenses">
     <div class="page-full-header">
-      <div><div class="page-full-title">Licenses</div><div class="page-full-sub">Generate and manage customer license keys</div></div>
+      <div><div class="page-full-title">Licences</div><div class="page-full-sub">Générez et gérez les clés de licence client</div></div>
       <div class="page-actions">
         <input class="table-search" type="search" placeholder="Rechercher licence…" oninput="licenseSearch=this.value; renderLicensesTable()" />
-        <button class="btn btn-ghost btn-sm" onclick="exportLicenses()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Export CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportLicenses()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Exporter CSV</button>
         <button class="btn btn-ghost btn-sm" onclick="exportLicensesExcel()"><svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Excel</button>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-license-modal').classList.add('open')">↓ Import LMKA-</button>
-        <button class="btn btn-orange btn-sm" onclick="openLicenseModal()">+ Generate License</button>
+        <button class="btn btn-orange btn-sm" onclick="openLicenseModal()">+ Générer une licence</button>
       </div>
     </div>
     <div class="card">
@@ -1911,15 +1929,15 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <!-- ── Users page ─────────────────────────────────────────────── -->
   <div class="page-full" id="page-users">
     <div class="page-full-header">
-      <div><div class="page-full-title">Admin Users</div><div class="page-full-sub">Dashboard access management</div></div>
+      <div><div class="page-full-title">Administrateurs</div><div class="page-full-sub">Gestion des accès au tableau de bord</div></div>
       <div class="page-actions">
         <input class="table-search" type="search" placeholder="Rechercher utilisateur…" oninput="userSearch=this.value; renderUsersTable()" />
       </div>
-      <button class="btn btn-orange btn-sm" onclick="openUserModal()">+ Add User</button>
+      <button class="btn btn-orange btn-sm" onclick="openUserModal()">+ Ajouter un utilisateur</button>
     </div>
     <div class="card">
       <table class="tbl">
-        <thead><tr><th class="sortable" onclick="sortUsers('username')">User</th><th class="sortable" onclick="sortUsers('email')">Email</th><th class="sortable" onclick="sortUsers('role')">Role</th><th class="sortable" onclick="sortUsers('last_login')">Last Login</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th class="sortable" onclick="sortUsers('username')">Utilisateur</th><th class="sortable" onclick="sortUsers('email')">Email</th><th class="sortable" onclick="sortUsers('role')">Rôle</th><th class="sortable" onclick="sortUsers('last_login')">Dernière connexion</th><th>Statut</th><th>Actions</th></tr></thead>
         <tbody id="users-body"></tbody>
       </table>
     </div>
@@ -1930,7 +1948,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     <div class="page-full-header">
       <div>
         <div class="page-full-title">Conversations</div>
-        <div class="page-full-sub" id="conv-header-sub">Loading…</div>
+        <div class="page-full-sub" id="conv-header-sub">Chargement…</div>
       </div>
       <div class="page-actions">
         <button class="btn btn-ghost btn-sm" onclick="loadConversations()">↻ Refresh</button>
@@ -1938,7 +1956,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     </div>
     <div class="card" style="margin-bottom:14px">
       <table class="tbl">
-        <thead><tr><th>Title</th><th>Messages</th><th>Source</th><th>Last Active</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Titre</th><th>Messages</th><th>Source</th><th>Dernière activité</th><th>Actions</th></tr></thead>
         <tbody id="conversations-body"></tbody>
       </table>
     </div>
@@ -1947,10 +1965,10 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <div>
-            <div class="page-full-title" id="conv-thread-title" style="font-size:15px">Messages</div>
+            <div class="page-full-title" id="conv-thread-title" style="font-size:15px">Messages</div><!-- already French -->
             <div class="page-full-sub" id="conv-thread-sub"></div>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="closeThread()">✕ Close</button>
+          <button class="btn btn-ghost btn-sm" onclick="closeThread()">✕ Fermer</button>
         </div>
         <div id="conv-thread-messages" style="display:flex;flex-direction:column;gap:10px;max-height:500px;overflow-y:auto;padding:4px"></div>
       </div>
@@ -1961,7 +1979,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <div class="page-full" id="page-trials">
     <div class="page-full-header">
       <div>
-        <div class="page-full-title">Trial Users & Prospects</div>
+        <div class="page-full-title">Essais Gratuits & Prospects</div>
         <div class="page-full-sub" id="trials-sub">Chargement…</div>
       </div>
       <div class="page-actions">
@@ -2021,7 +2039,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     </div>
     <div class="card">
       <table class="tbl">
-        <thead><tr><th class="sortable" onclick="sortAudit('created_at')">Date</th><th class="sortable" onclick="sortAudit('ai_model')">Model</th><th class="sortable" onclick="sortAudit('app_version')">Version</th><th>Machine</th><th class="sortable" onclick="sortAudit('prompt_tokens')">Prompt</th><th class="sortable" onclick="sortAudit('completion_tokens')">Completion</th><th class="sortable" onclick="sortAudit('total_tokens')">Total</th></tr></thead>
+        <thead><tr><th class="sortable" onclick="sortAudit('created_at')">Date</th><th class="sortable" onclick="sortAudit('customer_email')">Utilisateur</th><th class="sortable" onclick="sortAudit('activity_type')">Type</th><th class="sortable" onclick="sortAudit('ai_model')">Modèle</th><th class="sortable" onclick="sortAudit('app_version')">Version</th><th>Machine</th><th class="sortable" onclick="sortAudit('prompt_tokens')">Prompt</th><th class="sortable" onclick="sortAudit('completion_tokens')">Completion</th><th class="sortable" onclick="sortAudit('total_tokens')">Total</th></tr></thead>
         <tbody id="audit-body"></tbody>
       </table>
     </div>
@@ -2085,8 +2103,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
   <div class="page-full" id="page-monitoring">
     <div class="page-full-header">
       <div>
-        <div class="page-full-title">System Monitoring</div>
-        <div class="page-full-sub">Provider health status — auto-refresh every 30s</div>
+        <div class="page-full-title">Monitoring Système</div>
+        <div class="page-full-sub">État de santé des fournisseurs — rafraîchissement auto toutes les 30s</div>
       </div>
       <div class="page-actions">
         <span id="monitoring-last-check" style="font-size:12px;color:var(--muted)"></span>
@@ -2112,7 +2130,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div class="card" id="status-card-fallback">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div class="card-title">Fallback Provider</div>
-          <span id="status-badge-fallback" class="status-off">Not configured</span>
+          <span id="status-badge-fallback" class="status-off">Non configuré</span>
         </div>
         <div id="status-url-fallback" style="font-size:12px;color:var(--muted);margin-bottom:8px;word-break:break-all"></div>
         <div style="display:flex;gap:24px">
@@ -2130,11 +2148,11 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
         <thead>
           <tr>
             <th>Date</th>
-            <th>Provider</th>
-            <th>Status</th>
-            <th>Latency</th>
-            <th>Error</th>
-            <th>Duration</th>
+            <th>Fournisseur</th>
+            <th>Statut</th>
+            <th>Latence</th>
+            <th>Erreur</th>
+            <th>Durée</th>
           </tr>
         </thead>
         <tbody id="incidents-body"></tbody>
@@ -2676,7 +2694,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     <div class="form-group"><label>Redirect URI</label><input id="sso-redirect" placeholder="https://yourserver.com/api/sso/callback" /></div>
     <div class="form-row">
       <div class="form-group"><label>Auto-provision</label><select id="sso-auto"><option value="1">Oui</option><option value="0">Non</option></select></div>
-      <div class="form-group"><label>Rôle par défaut</label><select id="sso-role"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select></div>
+      <div class="form-group"><label>Rôle par défaut</label><select id="sso-role"><option value="viewer">Lecteur</option><option value="editor">Éditeur</option><option value="admin">Admin</option></select></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('sso-modal')">Annuler</button>
@@ -2795,7 +2813,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
 <!-- ── Import License Modal ────────────────────────────────────────────── -->
 <div class="modal-overlay" id="import-license-modal">
   <div class="modal">
-    <h3>Import Website License</h3>
+    <h3>Importer une licence du site</h3>
     <p style="font-size:13px;color:var(--muted);margin-bottom:20px">Register a license generated by the website payment (format: <span style="font-family:monospace;color:var(--navy)">LMKA-xxx</span>)</p>
     <div class="form-group"><label>License Key</label><input id="il-key" placeholder="LMKA-xxxxxxxx"/></div>
     <div class="form-row">
@@ -2805,8 +2823,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     <div class="form-group"><label>Phone (mobile money)</label><input id="il-phone" placeholder="+237 6XX XXX XXX"/></div>
     <div class="form-group"><label>Notes (optional)</label><input id="il-notes" placeholder="Payment reference, date, etc."/></div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('import-license-modal')">Cancel</button>
-      <button class="btn btn-orange" onclick="importLicense()">Import License</button>
+      <button class="btn btn-ghost" onclick="closeModal('import-license-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="importLicense()">Importer la licence</button>
     </div>
   </div>
 </div>
@@ -2857,7 +2875,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
 <!-- ── Modals ──────────────────────────────────────────────────────── -->
 <div class="modal-overlay" id="model-modal">
   <div class="modal">
-    <h3 id="model-modal-title">Add Model</h3>
+    <h3 id="model-modal-title">Ajouter un modèle</h3>
     <input type="hidden" id="model-edit-id"/>
     <div class="form-group"><label>Model ID (unique key)</label><input id="m-id" placeholder="e.g. gpt-4o"/></div>
     <div class="form-row">
@@ -2872,38 +2890,38 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div class="form-group"><label>Modality</label><select id="m-modality"><option value="text">text</option><option value="text+vision">text+vision</option></select></div>
       <div class="form-group"><label>Sort Order</label><input type="number" id="m-sort" value="0"/></div>
     </div>
-    <div class="form-group"><label>Status</label><select id="m-available"><option value="1">Available</option><option value="0">Disabled</option></select></div>
+    <div class="form-group"><label>Statut</label><select id="m-available"><option value="1">Disponible</option><option value="0">Désactivé</option></select></div>
     <div class="form-group">
       <label>Restrict to Plans <span style="font-size:11px;color:var(--muted);font-weight:400">(leave unchecked = available to all plans)</span></label>
       <div id="m-plan-checks" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:var(--sidebar,#F8FAFC);border:1px solid var(--border);border-radius:8px;min-height:36px"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('model-modal')">Cancel</button>
-      <button class="btn btn-orange" onclick="saveModel()">Save Model</button>
+      <button class="btn btn-ghost" onclick="closeModal('model-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveModel()">Enregistrer</button>
     </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="prompt-modal">
   <div class="modal">
-    <h3 id="prompt-modal-title">Add Prompt</h3>
+    <h3 id="prompt-modal-title">Ajouter un prompt</h3>
     <input type="hidden" id="prompt-edit-id"/>
     <div class="form-group"><label>Title</label><input id="p-title" placeholder="Professional Assistant"/></div>
     <div class="form-group"><label>System Prompt</label><textarea id="p-prompt" style="min-height:160px"></textarea></div>
     <div class="form-row">
       <div class="form-group"><label>Sort Order</label><input type="number" id="p-sort" value="0"/></div>
-      <div class="form-group"><label>Status</label><select id="p-active"><option value="1">Active</option><option value="0">Inactive</option></select></div>
+      <div class="form-group"><label>Statut</label><select id="p-active"><option value="1">Actif</option><option value="0">Inactif</option></select></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('prompt-modal')">Cancel</button>
-      <button class="btn btn-orange" onclick="savePrompt()">Save Prompt</button>
+      <button class="btn btn-ghost" onclick="closeModal('prompt-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="savePrompt()">Enregistrer</button>
     </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="license-modal">
   <div class="modal">
-    <h3>Generate License Key</h3>
+    <h3>Générer une clé de licence</h3>
     <div class="form-row">
       <div class="form-group"><label>Customer Name</label><input id="l-name" placeholder="John Doe"/></div>
       <div class="form-group"><label>Email</label><input type="email" id="l-email" placeholder="john@example.com"/></div>
@@ -2917,7 +2935,7 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
       <div class="form-group"><label>WhatsApp (ex: 243990000000)</label><input type="tel" id="l-whatsapp" placeholder="243990000000"/></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('license-modal')">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal('license-modal')">Annuler</button>
       <button class="btn btn-orange" onclick="saveLicense()">Generate Key</button>
     </div>
   </div>
@@ -2933,8 +2951,8 @@ body.theme-dark .notif-close:hover{background:#1E293B;color:#E2E8F0}
     <div class="form-group"><label>Email</label><input type="email" id="u-email" placeholder="admin2@company.com"/></div>
     <div class="form-group"><label>Password</label><input type="password" id="u-password" placeholder="••••••••"/></div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('user-modal')">Cancel</button>
-      <button class="btn btn-orange" onclick="saveUser()">Create User</button>
+      <button class="btn btn-ghost" onclick="closeModal('user-modal')">Annuler</button>
+      <button class="btn btn-orange" onclick="saveUser()">Créer l'utilisateur</button>
     </div>
   </div>
 </div>
@@ -2986,7 +3004,7 @@ async function login() {
   if (!u || !p) { err.textContent = 'Please enter username and password'; err.style.display = 'block'; return; }
   const r = await fetch(BASE + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
   const d = await r.json();
-  if (!r.ok) { err.textContent = d.error || 'Login failed'; err.style.display = 'block'; return; }
+  if (!r.ok) { err.textContent = d.error || 'Échec de la connexion'; err.style.display = 'block'; return; }
   TOKEN = d.token;
   localStorage.setItem('lamu_admin_token', TOKEN);
   onLogin(d.username, d.role);
@@ -3081,7 +3099,7 @@ function renderAuditTable() {
   const rows = LAST_AUDIT_DATA.filter(item => {
     const search = auditSearch.trim().toLowerCase();
     if (!search) return true;
-    return [item.ai_model, item.app_version, item.machine_id, item.prompt_tokens, item.completion_tokens, item.total_tokens, item.created_at]
+    return [item.ai_model, item.app_version, item.machine_id, item.customer_email, item.customer_name, item.activity_type, item.prompt_tokens, item.completion_tokens, item.total_tokens, item.created_at]
       .some(value => String(value || '').toLowerCase().includes(search));
   });
   const sorted = sortRows(rows, currentAuditSort);
@@ -3089,13 +3107,15 @@ function renderAuditTable() {
   tbody.innerHTML = sorted.length ? sorted.map(item => `
     <tr>
       <td class="text-muted text-sm">${item.created_at ? new Date(item.created_at).toLocaleString('fr-FR') : '—'}</td>
+      <td>${item.customer_email ? `<span style="font-weight:600">${esc(item.customer_email)}</span>${item.customer_name ? `<br><span class="text-muted text-sm">${esc(item.customer_name)}</span>` : ''}` : '<span class="text-muted">—</span>'}</td>
+      <td><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500;background:rgba(99,102,241,0.12);color:#818cf8">${esc(item.activity_type || 'api_call')}</span></td>
       <td>${esc(item.ai_model)}</td>
       <td>${esc(item.app_version)}</td>
-      <td>${esc(item.machine_id)}</td>
+      <td class="text-muted text-sm" title="${esc(item.machine_id)}">${esc((item.machine_id || '').slice(0, 12))}</td>
       <td class="text-muted">${fmt(item.prompt_tokens)}</td>
       <td class="text-muted">${fmt(item.completion_tokens)}</td>
       <td class="text-muted">${fmt(item.total_tokens)}</td>
-    </tr>`).join('') : '<tr><td colspan="7" class="empty-state">No audit events found</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="9" class="empty-state">Aucun événement d\u2019audit</td></tr>';
 }
 
 function sortAudit(key) {
@@ -3297,7 +3317,7 @@ async function dismissNotification(type, id, idx) {
 }
 
 async function clearAllNotifications() {
-  if (!confirm('Supprimer toutes les notifications ?')) return;
+  if (!await confirmModal('Supprimer toutes les notifications ?', { title: 'Notifications', confirmText: 'Tout supprimer', type: 'danger' })) return;
   await api('/notifications/clear', { method: 'DELETE' }).catch(() => {});
   _notifData = [];
   updateNotifBadge();
@@ -3350,7 +3370,7 @@ async function loadNotifPage() {
   set('np-info', info);
   set('np-success', success);
   document.getElementById('notif-page-sub').textContent =
-    `${notifPageData.length} notification${notifPageData.length !== 1 ? 's' : ''} — ${errors} erreur${errors !== 1 ? 's' : ''}, ${warnings} warning${warnings !== 1 ? 's' : ''}`;
+    `${notifPageData.length} notification${notifPageData.length !== 1 ? 's' : ''} — ${errors} erreur${errors !== 1 ? 's' : ''}, ${warnings} avertissement${warnings !== 1 ? 's' : ''}`;
 
   renderNotifPageTable();
 }
@@ -3408,7 +3428,7 @@ async function deleteNotifPageItem(type, id) {
 }
 
 async function clearAllNotifPage() {
-  if (!confirm('Supprimer toutes les notifications ?')) return;
+  if (!await confirmModal('Supprimer toutes les notifications ?', { title: 'Notifications', confirmText: 'Tout supprimer', type: 'danger' })) return;
   await api('/notifications/clear', { method: 'DELETE' });
   notifPageData = [];
   renderNotifPageTable();
@@ -3814,7 +3834,7 @@ function renderPlans(plans) {
       <div class="plan-actions">
         <button class="btn btn-ghost btn-xs" style="flex:1" onclick="editPlan(${JSON.stringify(p).replace(/"/g,'&quot;')})"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifier</button>
         <button class="btn btn-outline-orange btn-xs" onclick="showPage('licenses')" title="Voir les licences"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></button>
-        ${Number(p.license_count) === 0 ? `<button class="btn btn-danger btn-xs" onclick="deletePlan('${esc(p.id)}')">✕</button>` : ''}
+        <button class="btn btn-danger btn-xs" onclick="deletePlan('${esc(p.id)}', ${Number(p.license_count) || 0})">✕</button>
       </div>
     </div>`;
   }).join('');
@@ -3895,15 +3915,18 @@ async function savePlan() {
     is_active: document.getElementById('pl-active').value === '1',
     features,
   };
-  if (!body.id || !body.name) { alert('ID et nom sont obligatoires'); return; }
+  if (!body.id || !body.name) { showToast('ID et nom sont obligatoires', 'warning'); return; }
   const r = await api(editId ? `/plans/${encodeURIComponent(editId)}` : '/plans', { method: editId ? 'PUT' : 'POST', body: JSON.stringify(body) });
-  if (r?.ok) { closeModal('plan-modal'); loadPlans(); } else alert(r?.error || 'Erreur');
+  if (r?.ok) { closeModal('plan-modal'); loadPlans(); showToast('Plan sauvegardé', 'success'); } else showToast(r?.error || 'Erreur', 'error');
 }
 
-async function deletePlan(id) {
-  if (!confirm('Supprimer ce plan ?')) return;
+async function deletePlan(id, licenseCount) {
+  const msg = licenseCount > 0
+    ? `Ce plan a <b>${licenseCount} licence(s) active(s)</b>. Les licences seront dissociées du plan.<br><br>Supprimer quand même ?`
+    : 'Supprimer ce plan ?';
+  if (!await confirmModal(msg, { title: 'Supprimer le plan', confirmText: 'Supprimer', type: 'danger' })) return;
   const r = await api('/plans/' + encodeURIComponent(id), { method: 'DELETE' });
-  if (r?.ok) loadPlans(); else alert(r?.error || 'Erreur');
+  if (r?.ok) { loadPlans(); showToast('Plan supprimé', '', 'success'); } else showToast('Erreur', r?.error || 'Impossible de supprimer le plan', 'error');
 }
 
 /* ══ Models ════════════════════════════════════════════════════════════ */
@@ -3913,12 +3936,12 @@ async function loadModels() {
   const data = await api('/models');
   const container = document.getElementById('models-grid');
   const models = data?.models || [];
-  if (!models.length) { container.innerHTML = '<div class="empty-state">No models yet. Click + Add Model to get started.</div>'; return; }
+  if (!models.length) { container.innerHTML = '<div class="empty-state">Aucun modèle. Cliquez sur + Ajouter un modèle pour commencer.</div>'; return; }
   container.innerHTML = models.map(m => `
     <div class="model-card">
       <div class="mc-top">
         <span class="mc-badge ${PROV_CLASS[m.provider] || 'pb-other'}">${provLogoImg(m.provider)}${esc(m.provider)}</span>
-        <span class="${m.is_available ? 'status-on' : 'status-off'}">${m.is_available ? 'Active' : 'Off'}</span>
+        <span class="${m.is_available ? 'status-on' : 'status-off'}">${m.is_available ? 'Actif' : 'Inactif'}</span>
       </div>
       <div class="mc-name">${esc(m.name)}</div>
       <div class="mc-desc">${esc(m.description || '')}</div>
@@ -3927,15 +3950,15 @@ async function loadModels() {
       <div class="mc-footer">
         <span style="font-size:11px;color:var(--muted);background:#F8FAFC;padding:3px 8px;border-radius:5px;border:1px solid var(--border)">${esc(m.modality)}</span>
         <div class="tbl-actions">
-          <button class="btn btn-ghost btn-xs" onclick="editModel(${JSON.stringify(m).replace(/"/g,'&quot;')})">Edit</button>
-          <button class="btn btn-danger btn-xs" onclick="deleteModel('${esc(m.id)}')">Delete</button>
+          <button class="btn btn-ghost btn-xs" onclick="editModel(${JSON.stringify(m).replace(/"/g,'&quot;')})">Modifier</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteModel('${esc(m.id)}')">Supprimer</button>
         </div>
       </div>
     </div>`).join('');
 }
 
 function openModelModal(m) {
-  document.getElementById('model-modal-title').textContent = m ? 'Edit Model' : 'Add Model';
+  document.getElementById('model-modal-title').textContent = m ? 'Modifier le modèle' : 'Ajouter un modèle';
   document.getElementById('model-edit-id').value = m?.id || '';
   document.getElementById('m-id').value = m?.id || '';
   document.getElementById('m-id').disabled = !!m;
@@ -3983,13 +4006,13 @@ async function saveModel() {
     // null = all plans, comma-separated = restricted
     allowed_plan_ids: checkedPlans.length ? checkedPlans.join(',') : null,
   };
-  if (!body.id || !body.name || !body.model) { alert('ID, name, and model string are required'); return; }
+  if (!body.id || !body.name || !body.model) { showToast('ID, nom et modèle sont obligatoires', 'warning'); return; }
   const r = await api(editId ? `/models/${encodeURIComponent(editId)}` : '/models', { method: editId ? 'PUT' : 'POST', body: JSON.stringify(body) });
-  if (r?.ok) { closeModal('model-modal'); loadModels(); } else alert(r?.error || 'Error saving');
+  if (r?.ok) { closeModal('model-modal'); loadModels(); showToast('Modèle sauvegardé', 'success'); } else showToast(r?.error || 'Erreur lors de la sauvegarde', 'error');
 }
 
 async function deleteModel(id) {
-  if (!confirm('Delete this model?')) return;
+  if (!await confirmModal('Supprimer ce modèle ?', { title: 'Supprimer le modèle', confirmText: 'Supprimer', type: 'danger' })) return;
   const r = await api('/models/' + encodeURIComponent(id), { method: 'DELETE' });
   if (r?.ok) loadModels();
 }
@@ -4003,22 +4026,22 @@ async function loadPrompts() {
     <tr>
       <td class="fw-7">${esc(p.title)}</td>
       <td class="text-muted text-sm truncate" style="max-width:320px">${esc(p.prompt)}</td>
-      <td><span class="${p.is_active ? 'status-on' : 'status-off'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
+      <td><span class="${p.is_active ? 'status-on' : 'status-off'}">${p.is_active ? 'Actif' : 'Inactif'}</span></td>
       <td class="tbl-actions">
-        <button class="btn btn-ghost btn-xs" onclick="editPrompt(${JSON.stringify(p).replace(/"/g,'&quot;')})">Edit</button>
-        <button class="btn btn-danger btn-xs" onclick="deletePrompt(${p.id})">Delete</button>
+        <button class="btn btn-ghost btn-xs" onclick="editPrompt(${JSON.stringify(p).replace(/"/g,'&quot;')})">Modifier</button>
+        <button class="btn btn-danger btn-xs" onclick="deletePrompt(${p.id})">Supprimer</button>
       </td>
-    </tr>`).join('') : '<tr><td colspan="4" class="empty-state">No prompts found</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="4" class="empty-state">Aucun prompt trouvé</td></tr>';
 }
 
 function openPromptModal() {
-  document.getElementById('prompt-modal-title').textContent = 'Add Prompt';
+  document.getElementById('prompt-modal-title').textContent = 'Ajouter un prompt';
   ['prompt-edit-id','p-title','p-prompt'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('p-sort').value = 0; document.getElementById('p-active').value = '1';
   document.getElementById('prompt-modal').classList.add('open');
 }
 function editPrompt(p) {
-  document.getElementById('prompt-modal-title').textContent = 'Edit Prompt';
+  document.getElementById('prompt-modal-title').textContent = 'Modifier le prompt';
   document.getElementById('prompt-edit-id').value = p.id;
   document.getElementById('p-title').value = p.title;
   document.getElementById('p-prompt').value = p.prompt;
@@ -4029,11 +4052,11 @@ function editPrompt(p) {
 async function savePrompt() {
   const editId = document.getElementById('prompt-edit-id').value;
   const body = { title: document.getElementById('p-title').value.trim(), prompt: document.getElementById('p-prompt').value.trim(), sort_order: parseInt(document.getElementById('p-sort').value) || 0, is_active: document.getElementById('p-active').value === '1' };
-  if (!body.title || !body.prompt) { alert('Title and prompt required'); return; }
+  if (!body.title || !body.prompt) { showToast('Titre et prompt sont obligatoires', 'warning'); return; }
   const r = await api(editId ? `/prompts/${editId}` : '/prompts', { method: editId ? 'PUT' : 'POST', body: JSON.stringify(body) });
-  if (r?.ok) { closeModal('prompt-modal'); loadPrompts(); } else alert(r?.error || 'Error');
+  if (r?.ok) { closeModal('prompt-modal'); loadPrompts(); showToast('Prompt sauvegardé', 'success'); } else showToast(r?.error || 'Erreur', 'error');
 }
-async function deletePrompt(id) { if (!confirm('Delete?')) return; const r = await api('/prompts/' + id, { method: 'DELETE' }); if (r?.ok) loadPrompts(); }
+async function deletePrompt(id) { if (!await confirmModal('Supprimer ce prompt ?', { title: 'Supprimer le prompt', confirmText: 'Supprimer', type: 'danger' })) return; const r = await api('/prompts/' + id, { method: 'DELETE' }); if (r?.ok) loadPrompts(); }
 
 /* ══ KB ════════════════════════════════════════════════════════════════ */
 async function loadKb() {
@@ -4046,10 +4069,10 @@ async function loadKb() {
       <td><span class="mc-badge pb-other">${esc(d.type)}</span></td>
       <td class="text-muted">${fmt(d.chars)} chars</td>
       <td class="text-muted text-sm">${fmtDate(d.created_at || d.createdAt)}</td>
-      <td><button class="btn btn-danger btn-xs" onclick="deleteKb('${d.id}')">Delete</button></td>
-    </tr>`).join('') : '<tr><td colspan="5" class="empty-state">No documents indexed</td></tr>';
+      <td><button class="btn btn-danger btn-xs" onclick="deleteKb('${d.id}')">Supprimer</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty-state">Aucun document indexé</td></tr>';
 }
-async function deleteKb(id) { if (!confirm('Remove this document?')) return; const r = await api('/kb/' + id, { method: 'DELETE' }); if (r?.ok) loadKb(); }
+async function deleteKb(id) { if (!await confirmModal('Supprimer ce document ?', { title: 'Supprimer le document', confirmText: 'Supprimer', type: 'danger' })) return; const r = await api('/kb/' + id, { method: 'DELETE' }); if (r?.ok) loadKb(); }
 
 /* ══ Licenses ══════════════════════════════════════════════════════════ */
 const PLAN_CLS = { basic: 'pb-gemini', pro: 'pb-groq', enterprise: 'pb-anthropic' };
@@ -4079,9 +4102,9 @@ function renderLicensesTable() {
       <td class="tbl-actions">
         <button class="btn btn-ghost btn-xs" onclick="toggleLic(${l.id})">${l.is_active ? 'Disable' : 'Enable'}</button>
         ${l.customer_email ? `<button class="btn btn-ghost btn-xs" title="Renvoyer la clé par email" onclick="resendLicenseEmail('${esc(l.license_key)}')"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg></button>` : ''}
-        <button class="btn btn-danger btn-xs" onclick="deleteLic(${l.id})">Delete</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteLic(${l.id})">Supprimer</button>
       </td>
-    </tr>`).join('') : '<tr><td colspan="7" class="empty-state">No licenses yet</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="7" class="empty-state">Aucune licence</td></tr>';
 }
 function openLicenseModal() {
   ['l-name','l-email','l-expires','l-whatsapp'].forEach(id => document.getElementById(id).value = '');
@@ -4100,21 +4123,21 @@ async function saveLicense() {
   const waPhone = document.getElementById('l-whatsapp').value.trim();
   const body = { customer_name: document.getElementById('l-name').value.trim(), customer_email: document.getElementById('l-email').value.trim(), plan: document.getElementById('l-plan').value, max_requests: parseInt(document.getElementById('l-maxreq').value) || 1000, expires_at: document.getElementById('l-expires').value || null, whatsapp_phone: waPhone || null };
   const r = await api('/licenses', { method: 'POST', body: JSON.stringify(body) });
-  if (r?.ok) { alert('✓ License: ' + r.license_key); closeModal('license-modal'); loadLicenses(); loadDashboard(); }
-  else alert(r?.error || 'Error');
+  if (r?.ok) { showToast('Licence créée', r.license_key, 'success'); closeModal('license-modal'); loadLicenses(); loadDashboard(); }
+  else showToast(r?.error || 'Erreur', 'error');
 }
-async function toggleLic(id) { await api('/licenses/' + id + '/toggle', { method: 'PUT' }); loadLicenses(); }
-async function deleteLic(id) { if (!confirm('Delete this license?')) return; await api('/licenses/' + id, { method: 'DELETE' }); loadLicenses(); }
+async function toggleLic(id) { await api('/licenses/' + id + '/toggle', { method: 'PUT' }); loadLicenses(); showToast('Statut de la licence mis à jour', 'success'); }
+async function deleteLic(id) { if (!await confirmModal('Supprimer cette licence ?', { title: 'Supprimer la licence', confirmText: 'Supprimer', type: 'danger' })) return; await api('/licenses/' + id, { method: 'DELETE' }); loadLicenses(); showToast('Licence supprimée', '', 'success'); }
 
 async function resendLicenseEmail(licenseKey) {
-  if (!confirm(`Renvoyer la clé "${licenseKey}" par email au client ?`)) return;
+  if (!await confirmModal(`Renvoyer la clé <b>${licenseKey}</b> par email au client ?`, { title: 'Renvoyer par email', confirmText: 'Envoyer', type: 'info' })) return;
   const r = await fetch('/api/license/resend-email', {
     method: 'POST',
     headers: authH(),
     body: JSON.stringify({ license_key: licenseKey }),
   }).then(r => r.json()).catch(() => ({ error: 'Erreur réseau' }));
-  if (r?.ok) alert('✓ Email renvoyé avec succès');
-  else alert('✗ ' + (r?.error || 'Erreur'));
+  if (r?.ok) showToast('Email renvoyé', 'La clé a été renvoyée au client', 'success');
+  else showToast('Échec de l\'envoi', r?.error || 'Erreur', 'error');
 }
 
 /* ══ Payments ══════════════════════════════════════════════════════════════ */
@@ -4186,7 +4209,7 @@ function renderPaymentsTable() {
       <td class="text-muted text-sm">${p.created_at ? fmtDate(p.created_at) : '—'}</td>
       <td class="tbl-actions">
         ${p.customer_email && p.license_key ? `<button class="btn btn-ghost btn-xs" onclick="resendLicenseEmail('${esc(p.license_key)}')" title="Renvoyer email"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg></button>` : ''}
-        ${p.license_key ? `<button class="btn btn-ghost btn-xs" title="Clé: ${esc(p.license_key)}" onclick="navigator.clipboard.writeText('${esc(p.license_key)}').then(()=>alert('Copié !'))"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></button>` : ''}
+        ${p.license_key ? `<button class="btn btn-ghost btn-xs" title="Clé: ${esc(p.license_key)}" onclick="navigator.clipboard.writeText('${esc(p.license_key)}').then(()=>showToast('Copié !','success'))"><svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></button>` : ''}
       </td>
     </tr>`;
   }).join('') : '<tr><td colspan="7" class="empty-state">Aucune transaction</td></tr>';
@@ -4224,7 +4247,7 @@ function renderUsersTable() {
         <button class="btn btn-ghost btn-xs" onclick="toggleUser(${u.id})">${u.is_active ? 'Disable' : 'Enable'}</button>
         <button class="btn btn-outline-orange btn-xs" onclick="changePassword(${u.id})">Reset Pwd</button>
       </td>
-    </tr>`).join('') : '<tr><td colspan="6" class="empty-state">No users</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="6" class="empty-state">Aucun utilisateur</td></tr>';
 }
 function openUserModal() {
   ['u-username','u-email','u-password'].forEach(id => document.getElementById(id).value = '');
@@ -4232,16 +4255,16 @@ function openUserModal() {
 }
 async function saveUser() {
   const body = { username: document.getElementById('u-username').value.trim(), email: document.getElementById('u-email').value.trim(), password: document.getElementById('u-password').value, role: document.getElementById('u-role').value };
-  if (!body.username || !body.email || !body.password) { alert('All fields required'); return; }
+  if (!body.username || !body.email || !body.password) { showToast('Tous les champs sont obligatoires', 'warning'); return; }
   const r = await api('/users', { method: 'POST', body: JSON.stringify(body) });
-  if (r?.ok) { closeModal('user-modal'); loadUsers(); } else alert(r?.error || 'Error');
+  if (r?.ok) { closeModal('user-modal'); loadUsers(); showToast('Utilisateur créé', 'success'); } else showToast(r?.error || 'Erreur', 'error');
 }
 async function toggleUser(id) { await api('/users/' + id + '/toggle', { method: 'PUT' }); loadUsers(); }
 async function changePassword(id) {
   const pwd = prompt('New password:');
-  if (!pwd || pwd.length < 6) { alert('Min 6 characters'); return; }
+  if (!pwd || pwd.length < 6) { showToast('Le mot de passe doit contenir au moins 6 caractères', 'warning'); return; }
   const r = await api('/users/' + id + '/password', { method: 'PUT', body: JSON.stringify({ password: pwd }) });
-  if (r?.ok) alert('Password updated!'); else alert(r?.error || 'Error');
+  if (r?.ok) showToast('Mot de passe mis à jour', 'success'); else showToast(r?.error || 'Erreur', 'error');
 }
 
 /* ══ Trial Users ══════════════════════════════════════════════════════ */
@@ -4384,10 +4407,10 @@ async function loadConversations() {
       <td class="text-muted text-sm">${ts.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</td>
       <td class="tbl-actions">
         <button class="btn btn-ghost btn-xs" onclick="openThread('${esc(c.id)}','${esc(c.title)}',${c.message_count})">View</button>
-        <button class="btn btn-danger btn-xs" onclick="deleteConv('${esc(c.id)}')">Delete</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteConv('${esc(c.id)}')">Supprimer</button>
       </td>
     </tr>`;
-  }).join('') : '<tr><td colspan="5" class="empty-state">No conversations yet. Enable "Sync Conversations" in the app Settings to see live data here.</td></tr>';
+  }).join('') : '<tr><td colspan="5" class="empty-state">Aucune conversation. Activez « Sync Conversations » dans les Paramètres de l\u2019app pour voir les données ici.</td></tr>';
 }
 
 async function openThread(id, title, count) {
@@ -4424,16 +4447,16 @@ function closeThread() {
 }
 
 async function deleteConv(id) {
-  if (!confirm('Delete this conversation and all its messages?')) return;
+  if (!await confirmModal('Supprimer cette conversation et tous ses messages ?', { title: 'Supprimer la conversation', confirmText: 'Supprimer', type: 'danger' })) return;
   const r = await api('/conversations/' + encodeURIComponent(id), { method: 'DELETE' });
-  if (r?.ok) loadConversations(); else alert(r?.error || 'Error');
+  if (r?.ok) { loadConversations(); showToast('Conversation supprimée', 'success'); } else showToast(r?.error || 'Erreur', 'error');
 }
 
 /* ══ License Import ════════════════════════════════════════════════════ */
 async function importLicense() {
   const key = document.getElementById('il-key').value.trim();
-  if (!key) { alert('License key is required'); return; }
-  if (!key.startsWith('LMKA-')) { alert('Website licenses must start with LMKA-'); return; }
+  if (!key) { showToast('La clé de licence est obligatoire', 'warning'); return; }
+  if (!key.startsWith('LMKA-')) { showToast('Les licences du site doivent commencer par LMKA-', 'warning'); return; }
   const body = {
     license_key: key,
     customer_name: document.getElementById('il-name').value.trim(),
@@ -4443,11 +4466,11 @@ async function importLicense() {
   };
   const r = await api('/licenses/import', { method: 'POST', body: JSON.stringify(body) });
   if (r?.ok) {
-    alert('✓ License imported: ' + r.license_key);
+    showToast('Licence importée', r.license_key, 'success');
     closeModal('import-license-modal');
     loadLicenses();
     loadDashboard();
-  } else alert(r?.error || 'Error importing license');
+  } else showToast('Erreur d\'import', r?.error || 'Erreur lors de l\'import', 'error');
 }
 
 /* ══ Settings ══════════════════════════════════════════════════════════ */
@@ -4459,7 +4482,17 @@ function updateFallbackState() {
     fields.style.pointerEvents = enabled ? 'auto' : 'none';
   }
   const badge = document.getElementById('fallback-status-badge');
-  if (badge && !enabled) { badge.textContent = 'Désactivé'; badge.className = 'status-off'; }
+  if (badge) {
+    const url = (document.getElementById('s-ai-fallback-url')?.value || '').trim();
+    const key = (document.getElementById('s-ai-fallback-key')?.value || '').trim();
+    if (!enabled) {
+      badge.textContent = 'Désactivé'; badge.className = 'status-off';
+    } else if (url && key) {
+      badge.textContent = 'Actif'; badge.className = 'status-on';
+    } else {
+      badge.textContent = 'Non configuré'; badge.className = 'status-off';
+    }
+  }
 }
 
 function updateProviderBadges(s) {
@@ -4472,9 +4505,15 @@ function updateProviderBadges(s) {
   const fb = document.getElementById('fallback-status-badge');
   if (fb) {
     const on = s.ai_fallback_enabled === '1';
-    const configured = on && !!(s.ai_fallback_url || '') && !!(s.ai_fallback_key || '');
-    fb.textContent = !on ? 'Désactivé' : configured ? 'Configuré' : 'Non configuré';
-    fb.className = configured ? 'status-on' : 'status-off';
+    const hasUrl = !!(s.ai_fallback_url || '');
+    const hasKey = !!(s.ai_fallback_key || '');
+    if (!on) {
+      fb.textContent = 'Désactivé'; fb.className = 'status-off';
+    } else if (hasUrl && hasKey) {
+      fb.textContent = 'Actif'; fb.className = 'status-on';
+    } else {
+      fb.textContent = 'Non configuré'; fb.className = 'status-off';
+    }
   }
 }
 
@@ -4698,16 +4737,16 @@ async function saveSettings() {
   };
   try {
     const r = await api('/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
-    if (r?.ok) alert('✓ Paramètres sauvegardés !'); else alert(r?.error || 'Erreur lors de la sauvegarde');
+    if (r?.ok) showToast('Paramètres sauvegardés', 'success'); else showToast(r?.error || 'Erreur lors de la sauvegarde', 'error');
   } catch (err) {
     console.error('saveSettings error:', err);
-    alert('Erreur JS : ' + err.message);
+    showToast('Erreur JS', err.message, 'error');
   }
 }
 
 async function testSmtp() {
   const to = document.getElementById('s-smtp-test-email').value.trim();
-  if (!to) { alert('Entrez un email de test'); return; }
+  if (!to) { showToast('Entrez un email de test', 'warning'); return; }
   const body = {
     host: document.getElementById('s-smtp-host').value.trim(),
     port: document.getElementById('s-smtp-port').value.trim(),
@@ -4720,8 +4759,8 @@ async function testSmtp() {
   btn.textContent = 'Test en cours…'; btn.disabled = true;
   const r = await api('/settings/test-smtp', { method: 'POST', body: JSON.stringify(body) });
   btn.textContent = 'Envoyer email test'; btn.disabled = false;
-  if (r?.ok) alert('✓ Email de test envoyé à ' + to);
-  else alert('✗ Erreur SMTP : ' + (r?.error || 'Connexion refusée'));
+  if (r?.ok) showToast('Email de test envoyé', to, 'success');
+  else showToast('Erreur SMTP', r?.error || 'Connexion refusée', 'error');
 }
 
 /* ══ Helpers ═══════════════════════════════════════════════════════════ */
@@ -4747,7 +4786,7 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 function exportLicenses() {
-  if (!LAST_LICENSES_DATA?.length) { alert('Aucune licence à exporter. Chargez la page Licenses d\'abord.'); return; }
+  if (!LAST_LICENSES_DATA?.length) { showToast('Aucune licence à exporter', 'Chargez la page Licences d\'abord', 'warning'); return; }
   const rows = [];
   rows.push(['License Key','Customer Name','Customer Email','Plan','Max Requests','Status','Expires At','Created At'].map(csvEscape).join(','));
   LAST_LICENSES_DATA.forEach(l => {
@@ -4765,7 +4804,7 @@ function exportLicenses() {
   downloadCsv('lamu-licenses.csv', rows);
 }
 function exportPayments() {
-  if (!LAST_PAYMENTS_DATA?.length) { alert('Aucune transaction à exporter. Chargez la page Paiements d\'abord.'); return; }
+  if (!LAST_PAYMENTS_DATA?.length) { showToast('Aucune transaction à exporter', 'Chargez la page Paiements d\'abord', 'warning'); return; }
   const rows = [];
   rows.push(['Transaction ID','Customer Name','Customer Email','Plan','Amount','Currency','Status','Date','License Key'].map(csvEscape).join(','));
   LAST_PAYMENTS_DATA.forEach(p => {
@@ -4786,12 +4825,15 @@ function exportPayments() {
 const exportLicensesExcel = exportLicenses;
 const exportPaymentsExcel = exportPayments;
 function exportAuditCsv() {
-  if (!LAST_AUDIT_DATA?.length) { alert('Aucune donnée d\'audit à exporter. Chargez la page Audit d\'abord.'); return; }
+  if (!LAST_AUDIT_DATA?.length) { showToast('Aucune donnée d\'audit à exporter', 'Chargez la page Audit d\'abord', 'warning'); return; }
   const rows = [];
-  rows.push(['Date','Model','Version','Machine','Prompt Tokens','Completion Tokens','Total Tokens'].map(csvEscape).join(','));
+  rows.push(['Date','Utilisateur','Email','Type','Model','Version','Machine','Prompt Tokens','Completion Tokens','Total Tokens'].map(csvEscape).join(','));
   LAST_AUDIT_DATA.forEach(item => {
     rows.push([
       item.created_at || '',
+      item.customer_name || '',
+      item.customer_email || '',
+      item.activity_type || 'api_call',
       item.ai_model || '',
       item.app_version || '',
       item.machine_id || '',
@@ -4803,12 +4845,15 @@ function exportAuditCsv() {
   downloadCsv('lamu-audit.csv', rows);
 }
 function exportAuditExcel() {
-  if (!LAST_AUDIT_DATA?.length) { alert('Aucune donnée d\'audit à exporter. Chargez la page Audit d\'abord.'); return; }
+  if (!LAST_AUDIT_DATA?.length) { showToast('Aucune donnée d\'audit à exporter', 'Chargez la page Audit d\'abord', 'warning'); return; }
   const rows = [];
-  rows.push(['Date','Model','Version','Machine','Prompt Tokens','Completion Tokens','Total Tokens'].map(csvEscape).join(','));
+  rows.push(['Date','Utilisateur','Email','Type','Model','Version','Machine','Prompt Tokens','Completion Tokens','Total Tokens'].map(csvEscape).join(','));
   LAST_AUDIT_DATA.forEach(item => {
     rows.push([
       item.created_at || '',
+      item.customer_name || '',
+      item.customer_email || '',
+      item.activity_type || 'api_call',
       item.ai_model || '',
       item.app_version || '',
       item.machine_id || '',
@@ -4884,7 +4929,7 @@ function renderMonitoringStatus(data) {
     const urlEl = document.getElementById('status-url-' + p);
 
     if (!s) {
-      badge.textContent = p === 'fallback' ? 'Not configured' : 'No data';
+      badge.textContent = p === 'fallback' ? 'Non configuré' : 'Aucune donnée';
       badge.className = 'status-off';
       return;
     }
@@ -4903,7 +4948,7 @@ function renderMonitoringStatus(data) {
   const tbody = document.getElementById('incidents-body');
   const incidents = data.incidents || [];
   if (!incidents.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No incidents recorded</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aucun incident enregistré</td></tr>';
     return;
   }
   tbody.innerHTML = incidents.map(i => {
@@ -4930,7 +4975,7 @@ async function triggerHealthCheck() {
   btn.disabled = false;
   btn.textContent = '\u26A1 Check Now';
   if (r && r.ok) { await loadMonitoring(); showToast('Health check completed'); }
-  else showToast('Health check failed', 'error');
+  else showToast('Échec du health check', 'error');
 }
 
 /* showToast is defined once at the end of the file — handles both 2-arg (msg, type) and 3-arg (title, message, type) calls */
@@ -5115,8 +5160,8 @@ async function saveWidgetConfig() {
   };
   try {
     const r = await api('/settings', { method: 'PUT', body: JSON.stringify({ settings }) });
-    if (r?.ok) alert('Widget config sauvegardee !'); else alert(r?.error || 'Erreur');
-  } catch (e) { alert('Erreur: ' + e.message); }
+    if (r?.ok) showToast('Configuration du widget sauvegardée', 'success'); else showToast(r?.error || 'Erreur', 'error');
+  } catch (e) { showToast('Erreur', e.message, 'error'); }
 }
 function updateWidgetPreview() {
   const color    = document.getElementById('wc-color').value || '#6366f1';
@@ -5360,7 +5405,7 @@ async function saveSlaPolicy() {
 }
 
 async function deleteSlaPolicy(id) {
-  if (!confirm('Supprimer cette politique SLA ?')) return;
+  if (!await confirmModal('Supprimer cette politique SLA ?', { title: 'Supprimer la politique', confirmText: 'Supprimer', type: 'danger' })) return;
   try {
     await fetch(API_BASE + '/sla/policies/' + id, { method: 'DELETE', headers: authHeaders() });
     showToast('Politique supprimée', 'success');
@@ -5536,7 +5581,7 @@ async function toggleWorkflow(id, active) {
 }
 
 async function deleteWorkflow(id) {
-  if (!confirm('Supprimer ce workflow ?')) return;
+  if (!await confirmModal('Supprimer ce workflow ?', { title: 'Supprimer le workflow', confirmText: 'Supprimer', type: 'danger' })) return;
   await api('/workflows/' + id, { method: 'DELETE' });
   loadWorkflowsPage();
 }
@@ -5600,7 +5645,7 @@ async function saveDashboard() {
 }
 
 async function deleteDashboard(id) {
-  if (!confirm('Supprimer ce dashboard ?')) return;
+  if (!await confirmModal('Supprimer ce dashboard ?', { title: 'Supprimer le dashboard', confirmText: 'Supprimer', type: 'danger' })) return;
   await api('/dashboards/' + id, { method: 'DELETE' });
   loadDashboardsPage();
 }
@@ -5689,13 +5734,13 @@ async function runAbTest(id) {
 }
 
 async function applyAbTest(id) {
-  if (!confirm('Appliquer le prompt gagnant à l\'agent ?')) return;
+  if (!await confirmModal('Appliquer le prompt gagnant à l\u2019agent ?', { title: 'Appliquer le prompt', confirmText: 'Appliquer', type: 'info' })) return;
   await api('/ab-tests/' + id + '/apply', { method: 'POST' });
   showToast('A/B Test', 'Prompt gagnant appliqué', 'success');
 }
 
 async function deleteAbTest(id) {
-  if (!confirm('Supprimer ce test ?')) return;
+  if (!await confirmModal('Supprimer ce test ?', { title: 'Supprimer le test A/B', confirmText: 'Supprimer', type: 'danger' })) return;
   await api('/ab-tests/' + id, { method: 'DELETE' });
   loadAbTestsPage();
 }
@@ -5883,7 +5928,7 @@ async function toggleSso(id, enabled) {
 }
 
 async function deleteSso(id) {
-  if (!confirm('Supprimer cette config SSO ?')) return;
+  if (!await confirmModal('Supprimer cette config SSO ?', { title: 'Supprimer la config SSO', confirmText: 'Supprimer', type: 'danger' })) return;
   await api('/sso/configs/' + id, { method: 'DELETE' });
   loadSsoPage();
 }
@@ -5915,7 +5960,7 @@ async function createTag() {
 }
 
 async function deleteTag(id) {
-  if (!confirm('Supprimer ce tag ?')) return;
+  if (!await confirmModal('Supprimer ce tag ?', { title: 'Supprimer le tag', confirmText: 'Supprimer', type: 'danger' })) return;
   await api('/tags/' + id, { method: 'DELETE' });
   loadTagsPage();
 }
@@ -5962,7 +6007,7 @@ async function saveCustomField() {
 }
 
 async function deleteField(id) {
-  if (!confirm('Supprimer ce champ ?')) return;
+  if (!await confirmModal('Supprimer ce champ ?', { title: 'Supprimer le champ', confirmText: 'Supprimer', type: 'danger' })) return;
   await api('/helpdesk/fields/' + id, { method: 'DELETE' });
   loadCustomFieldsPage();
 }
@@ -6015,8 +6060,42 @@ async function saveDefaultLang() {
   showToast('Langues', 'Langue par défaut : ' + lang.toUpperCase(), 'success');
 }
 
+/* ══ Confirm Modal (replaces native confirm()) ═══════════════════════ */
+function confirmModal(message, { title = 'Confirmation', confirmText = 'Confirmer', cancelText = 'Annuler', type = 'warning' } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;animation:cmFadeIn .2s ease';
+    const accentColors = { warning: '#F59E0B', danger: '#EF4444', info: '#3B82F6', success: '#22C55E' };
+    const accent = accentColors[type] || accentColors.warning;
+    const iconSvgs = {
+      warning: `<svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      danger: `<svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
+      info: `<svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+      success: `<svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+    };
+    overlay.innerHTML = `
+      <div style="background:var(--white);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.25);max-width:420px;width:90%;padding:28px 28px 22px;animation:cmScaleIn .25s cubic-bezier(.4,0,.2,1)">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+          <div style="width:44px;height:44px;border-radius:12px;background:${accent}15;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iconSvgs[type] || iconSvgs.warning}</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text)">${title}</div>
+        </div>
+        <div style="font-size:14px;color:var(--muted);line-height:1.65;margin-bottom:24px;padding-left:2px">${message}</div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button id="cm-cancel" style="padding:9px 20px;border-radius:10px;border:1.5px solid var(--border);background:var(--white);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s">${cancelText}</button>
+          <button id="cm-confirm" style="padding:9px 20px;border-radius:10px;border:none;background:${accent};color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;box-shadow:0 2px 8px ${accent}40">${confirmText}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = (val) => { overlay.style.animation = 'cmFadeOut .15s ease forwards'; setTimeout(() => overlay.remove(), 150); resolve(val); };
+    overlay.querySelector('#cm-cancel').onclick = () => close(false);
+    overlay.querySelector('#cm-confirm').onclick = () => close(true);
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(false); });
+    document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(false); document.removeEventListener('keydown', esc); } });
+    overlay.querySelector('#cm-confirm').focus();
+  });
+}
+
 function showToast(titleOrMsg, messageOrType, typeArg) {
-  // Support both 2-arg (msg, type) and 3-arg (title, message, type) calling conventions
   let title, message, type;
   if (typeArg !== undefined) {
     title = titleOrMsg; message = messageOrType; type = typeArg;
@@ -6029,17 +6108,31 @@ function showToast(titleOrMsg, messageOrType, typeArg) {
   if (!container) {
     container = document.createElement('div');
     container.id = 'toast-container';
-    container.style.cssText = 'position:fixed;top:70px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+    container.style.cssText = 'position:fixed;top:70px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;max-width:400px';
     document.body.appendChild(container);
   }
-  const colors = { info: '#3B82F6', warning: '#F59E0B', success: '#22C55E', error: '#EF4444' };
+  const icons = {
+    success: '<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#22C55E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error: '<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    warning: '<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    info: '<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+  const bgColors = { success: 'rgba(34,197,94,.08)', error: 'rgba(239,68,68,.08)', warning: 'rgba(245,158,11,.08)', info: 'rgba(59,130,246,.08)' };
+  const borderColors = { success: '#22C55E', error: '#EF4444', warning: '#F59E0B', info: '#3B82F6' };
   const toast = document.createElement('div');
-  toast.style.cssText = `pointer-events:auto;background:var(--white);border-left:4px solid ${colors[type]||colors.info};border-radius:10px;padding:12px 16px;box-shadow:0 4px 24px rgba(0,0,0,.12);max-width:340px;animation:slideIn .3s ease;font-size:13px`;
-  toast.innerHTML = message
-    ? `<div style="font-weight:700;margin-bottom:2px;color:var(--navy)">${title}</div><div style="color:var(--muted)">${message}</div>`
-    : `<div style="font-weight:700;color:var(--navy)">${title}</div>`;
+  toast.style.cssText = `pointer-events:auto;background:var(--white);border:1.5px solid ${borderColors[type]||borderColors.info};border-radius:14px;padding:14px 18px;box-shadow:0 8px 32px rgba(0,0,0,.15);max-width:380px;animation:toastSlideIn .35s cubic-bezier(.4,0,.2,1);display:flex;align-items:flex-start;gap:12px;backdrop-filter:blur(12px)`;
+  const closeBtn = `<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:10px;background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:2px">&times;</button>`;
+  toast.style.position = 'relative';
+  toast.innerHTML = `
+    <div style="flex-shrink:0;margin-top:1px">${icons[type]||icons.info}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:13px;color:var(--text);margin-bottom:${message ? '3px' : '0'}">${title}</div>
+      ${message ? `<div style="font-size:12px;color:var(--muted);line-height:1.5;word-break:break-word">${message}</div>` : ''}
+    </div>
+    ${closeBtn}`;
   container.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(() => toast.remove(), 300); }, 5000);
+  const duration = type === 'error' ? 8000 : type === 'warning' ? 6000 : 4000;
+  setTimeout(() => { toast.style.animation = 'toastSlideOut .3s ease forwards'; setTimeout(() => toast.remove(), 300); }, duration);
 }
 </script>
 </body>

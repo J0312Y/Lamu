@@ -24,8 +24,8 @@ export const AutoScrollToggle = () => {
   return (
     <div className="space-y-4">
       <Header
-        title="Auto-Scroll Behavior"
-        description="Control whether responses automatically scroll to the bottom. This setting applies immediately and controls whether responses automatically scroll to the latest content as it streams"
+        title="Défilement automatique"
+        description="Contrôlez si les réponses défilent automatiquement vers le bas. Ce paramètre s'applique immédiatement et contrôle si les réponses défilent automatiquement vers le dernier contenu au fil du flux"
         isMainTitle
       />
 
@@ -33,12 +33,12 @@ export const AutoScrollToggle = () => {
         <div className="flex items-center space-x-3">
           <div>
             <Label className="text-sm font-medium">
-              {autoScroll ? "Auto-Scroll Enabled" : "Auto-Scroll Disabled"}
+              {autoScroll ? "Défilement automatique activé" : "Défilement automatique désactivé"}
             </Label>
             <p className="text-xs text-muted-foreground mt-1">
               {autoScroll
-                ? "Responses will automatically scroll to the bottom as they arrive"
-                : "Responses will stay at your current scroll position"}
+                ? "Les réponses défileront automatiquement vers le bas à leur arrivée"
+                : "Les réponses resteront à votre position de défilement actuelle"}
             </p>
           </div>
         </div>
@@ -46,10 +46,10 @@ export const AutoScrollToggle = () => {
           checked={autoScroll}
           onCheckedChange={handleSwitchChange}
           disabled={locked}
-          title={`Toggle to ${!autoScroll ? "enable" : "disable"} auto-scroll`}
-          aria-label={`Toggle to ${
-            autoScroll ? "disable" : "enable"
-          } auto-scroll`}
+          title={`Basculer pour ${!autoScroll ? "activer" : "désactiver"} le défilement automatique`}
+          aria-label={`Basculer pour ${
+            autoScroll ? "désactiver" : "activer"
+          } le défilement automatique`}
         />
       </div>
     </div>

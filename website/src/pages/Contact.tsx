@@ -3,7 +3,7 @@ import { Mail, MessageSquare, Clock, KeyRound, Send, CheckCircle, X } from 'luci
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API = import.meta.env.VITE_API_URL || 'https://api.lamu.lamuka-tech.com'
 
 type Topic = { key: string; icon: React.ElementType; title: string; desc: string; form: boolean; href?: string; internal?: boolean }
 
@@ -34,8 +34,8 @@ function ContactForm({ topic, onClose }: { topic: Topic; onClose: () => void }) 
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'Erreur')
       setDone(true)
-    } catch (err: any) {
-      setError(err.message || 'Une erreur est survenue')
+    } catch (err) {
+      setError((err instanceof Error && err.message) || 'Une erreur est survenue')
     } finally {
       setLoading(false)
     }

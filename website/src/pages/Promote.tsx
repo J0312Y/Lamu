@@ -11,15 +11,15 @@ const stagger = { show: { transition: { staggerChildren: 0.1, delayChildren: 0.1
 const copyTexts = [
   {
     label: 'Court (Twitter / X)',
-    text: "Lamu est l'assistant IA invisible que j'attendais. ~10MB, IA integree ou vos propres cles API, completement indetectable en visio. Integrations DB, email vocal, simulateur d'entretien et bien plus. lamuka.com",
+    text: "Lamu est l'assistant IA invisible que j'attendais. ~10MB, IA intégrée ou vos propres clés API, complètement indétectable en visio. Intégrations DB, email vocal, simulateur d'entretien et bien plus. lamu.lamuka-tech.com",
   },
   {
     label: 'Moyen (LinkedIn / Blog)',
-    text: "J'utilise Lamu — un assistant IA ultra-rapide et axe confidentialite, construit avec Tauri et Rust. Seulement ~10MB, demarrage en moins de 100ms, IA integree avec GPT-4, Claude, Gemini (ou vos propres cles API), et completement invisible dans Zoom et Google Meet. Il integre aussi vos bases de donnees MySQL/PostgreSQL, un email vocal avec approbation, un simulateur d'entretien avec scoring IA et un generateur de CV. Si vous privilegiez la confidentialite et la performance, c'est l'outil qu'il vous faut. lamuka.com",
+    text: "J'utilise Lamu — un assistant IA ultra-rapide et axé confidentialité, construit avec Tauri et Rust. Seulement ~10MB, démarrage en moins de 100ms, IA intégrée avec GPT-4, Claude, Gemini (ou vos propres clés API), et complètement invisible dans Zoom et Google Meet. Il intègre aussi vos bases de données MySQL/PostgreSQL, un email vocal avec approbation, un simulateur d'entretien avec scoring IA et un générateur de CV. Si vous privilégiez la confidentialité et la performance, c'est l'outil qu'il vous faut. lamu.lamuka-tech.com",
   },
   {
     label: 'Long (Newsletter / Article)',
-    text: "Lamu est un assistant IA de bureau pas comme les autres. Construit avec Tauri et Rust — pas Electron — il fait 27x moins que les alternatives avec seulement ~10MB. Il fonctionne entierement en local avec stockage SQLite, utilise automatiquement les meilleurs modeles IA (GPT-4, Claude, Gemini et plus) ou vos propres cles API, et l'overlay est completement indetectable dans Zoom, Google Meet, Teams et tous les logiciels de partage d'ecran. Il supporte l'entree vocale via Whisper, ElevenLabs et 7 autres moteurs STT. En plus de l'assistance en reunion, Lamu offre des integrations DB (MySQL/PostgreSQL) avec requetes en langage naturel, un email vocal avec countdown d'approbation, un simulateur d'entretien avec scoring IA, un generateur de CV et lettre de motivation, une base de connaissances RAG et des statistiques d'utilisation. Le plan gratuit inclut toutes les fonctionnalites de base, et les plans Pro et Enterprise debloquent les fonctionnalites premium. lamuka.com",
+    text: "Lamu est un assistant IA de bureau pas comme les autres. Construit avec Tauri et Rust — pas Electron — il fait 27x moins que les alternatives avec seulement ~10MB. Il fonctionne entièrement en local avec stockage SQLite, utilise automatiquement les meilleurs modèles IA (GPT-4, Claude, Gemini et plus) ou vos propres clés API, et l'overlay est complètement indétectable dans Zoom, Google Meet, Teams et tous les logiciels de partage d'écran. Il supporte l'entrée vocale via Whisper, ElevenLabs et 7 autres moteurs STT. En plus de l'assistance en réunion, Lamu offre des intégrations DB (MySQL/PostgreSQL) avec requêtes en langage naturel, un email vocal avec countdown d'approbation, un simulateur d'entretien avec scoring IA, un générateur de CV et lettre de motivation, une base de connaissances RAG et des statistiques d'utilisation. Le plan gratuit inclut toutes les fonctionnalités de base, et les plans Pro et Enterprise débloquent les fonctionnalités premium. lamu.lamuka-tech.com",
   },
 ]
 
@@ -36,7 +36,7 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
         <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>{label}</span>
         <button onClick={copy} style={{ display: 'flex', alignItems: 'center', gap: 6, background: copied ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.06)', border: `1px solid ${copied ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.1)'}`, borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: copied ? '#4ade80' : 'rgba(255,255,255,0.7)', transition: 'all 0.2s' }}>
           <Copy size={12} />
-          {copied ? 'Copie !' : 'Copier'}
+          {copied ? 'Copié !' : 'Copier'}
         </button>
       </div>
       <p style={{ padding: '16px 18px', fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, margin: 0 }}>{text}</p>
@@ -46,11 +46,11 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
 
 const stats = [
   { value: '~10MB', label: "Taille de l'app" },
-  { value: '27x', label: "Plus leger qu'Electron" },
-  { value: '<100ms', label: 'Temps de demarrage' },
-  { value: '120+', label: 'Modeles IA' },
+  { value: '27x', label: "Plus léger qu'Electron" },
+  { value: '<100ms', label: 'Temps de démarrage' },
+  { value: '120+', label: 'Modèles IA' },
   { value: '9+', label: 'Moteurs STT' },
-  { value: '100%', label: 'Local & Prive' },
+  { value: '100%', label: 'Local & Privé' },
 ]
 
 export default function Promote() {
@@ -68,7 +68,7 @@ export default function Promote() {
             Faites Passer le Mot<br /><span className="gradient-text">Gagnez Ensemble</span>
           </motion.h1>
           <motion.p variants={fadeUp} style={{ fontSize: 17, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
-            Textes prets a copier, statistiques cles et arguments pour vous aider a promouvoir Lamu aupres de votre audience.
+            Textes prêts à copier, statistiques clés et arguments pour vous aider à promouvoir Lamu auprès de votre audience.
           </motion.p>
         </motion.div>
       </section>
@@ -76,7 +76,7 @@ export default function Promote() {
       {/* Key stats */}
       <section style={{ padding: '0 24px 80px' }}>
         <div style={{ maxWidth: 860, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 16, letterSpacing: 0.5 }}>STATISTIQUES CLES A PARTAGER</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 16, letterSpacing: 0.5 }}>STATISTIQUES CLÉS À PARTAGER</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: 10 }}>
             {stats.map((s, i) => (
               <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
@@ -94,7 +94,7 @@ export default function Promote() {
         <div style={{ maxWidth: 860, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <FileText size={18} color="#818cf8" />
-            <h2 style={{ fontSize: 20, fontWeight: 700 }}>Descriptions Pretes a Copier</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700 }}>Descriptions Prêtes à Copier</h2>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {copyTexts.map(t => <CopyBlock key={t.label} label={t.label} text={t.text} />)}
@@ -107,16 +107,16 @@ export default function Promote() {
         <div style={{ maxWidth: 860, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <Megaphone size={18} color="#fbbf24" />
-            <h2 style={{ fontSize: 20, fontWeight: 700 }}>Arguments Cles</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700 }}>Arguments Clés</h2>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 10 }}>
             {[
               { point: 'Construit avec Tauri + Rust', detail: "Pas Electron — c'est pourquoi il fait 10MB au lieu de 270MB." },
-              { point: 'Completement invisible', detail: "L'overlay est exclu de la capture video sur toutes les plateformes." },
-              { point: 'IA multi-modeles', detail: 'IA integree avec routage intelligent sur 120+ modeles, ou connectez vos propres cles API.' },
-              { point: 'Stockage 100% local', detail: 'Toutes les donnees de conversation restent sur l\'appareil dans SQLite. Zero telemetrie.' },
-              { point: 'Integrations puissantes', detail: 'Bases de donnees MySQL/PostgreSQL, email vocal, simulateur d\'entretien, generateur de CV, base de connaissances RAG.' },
-              { point: 'Gratuit pour commencer', detail: 'Plan gratuit avec toutes les fonctionnalites de base. Plans Pro et Enterprise pour plus de messages.' },
+              { point: 'Complètement invisible', detail: "L'overlay est exclu de la capture vidéo sur toutes les plateformes." },
+              { point: 'IA multi-modèles', detail: 'IA intégrée avec routage intelligent sur 120+ modèles, ou connectez vos propres clés API.' },
+              { point: 'Stockage 100% local', detail: 'Toutes les données de conversation restent sur l\'appareil dans SQLite. Zéro télémétrie.' },
+              { point: 'Intégrations puissantes', detail: 'Bases de données MySQL/PostgreSQL, email vocal, simulateur d\'entretien, générateur de CV, base de connaissances RAG.' },
+              { point: 'Gratuit pour commencer', detail: 'Plan gratuit avec toutes les fonctionnalités de base. Plans Pro et Enterprise pour plus de messages.' },
             ].map((tp, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
                 style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '16px 18px' }}>
@@ -133,15 +133,15 @@ export default function Promote() {
         <div style={{ maxWidth: 860, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <Image size={18} color="#22d3ee" />
-            <h2 style={{ fontSize: 20, fontWeight: 700 }}>Ressources Media</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700 }}>Ressources Média</h2>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 28, textAlign: 'center' }}>
             <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 24 }}>
-              Besoin de logos, captures d'ecran, videos de demo ou bannieres pour votre contenu ?<br />
+              Besoin de logos, captures d'écran, vidéos de démo ou bannières pour votre contenu ?<br />
               Envoyez-nous un email et nous vous enverrons un kit media complet.
             </p>
-            <a href="mailto:support@lamuka.com?subject=Demande de Kit Media" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', fontWeight: 600, padding: '12px 24px', borderRadius: 10, fontSize: 14, textDecoration: 'none' }}>
-              <Mail size={15} /> Demander le Kit Media
+            <a href="mailto:support@lamuka-tech.com?subject=Demande de Kit Média" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', fontWeight: 600, padding: '12px 24px', borderRadius: 10, fontSize: 14, textDecoration: 'none' }}>
+              <Mail size={15} /> Demander le Kit Média
             </a>
           </div>
         </div>

@@ -79,7 +79,7 @@ export const ShortcutRecorder = ({
       if (isMoveWindow) {
         if (["up", "down", "left", "right"].includes(mainKey)) {
           setError(
-            "Arrow keys are automatic for Move Window. Only set modifiers."
+            "Les touches fléchées sont automatiques pour Déplacer la fenêtre. Définissez uniquement les modificateurs."
           );
           return;
         }
@@ -87,7 +87,7 @@ export const ShortcutRecorder = ({
           setRecordedKeys(keys);
           setError("");
         } else {
-          setError("Must include at least one modifier (Cmd/Ctrl/Alt/Shift)");
+          setError("Doit inclure au moins un modificateur (Cmd/Ctrl/Alt/Shift)");
         }
       } else {
         if (!["control", "alt", "shift", "meta"].includes(mainKey)) {
@@ -99,7 +99,7 @@ export const ShortcutRecorder = ({
           setError("");
         } else {
           setError(
-            "Must include at least one modifier (Cmd/Ctrl/Alt/Shift) and one key"
+            "Doit inclure au moins un modificateur (Cmd/Ctrl/Alt/Shift) et une touche"
           );
         }
       }
@@ -135,8 +135,8 @@ export const ShortcutRecorder = ({
     if (recordedKeys.length < minKeys) {
       setError(
         isMoveWindow
-          ? "Move Window needs at least one modifier"
-          : "Shortcut must have at least one modifier and one key"
+          ? "Déplacer la fenêtre nécessite au moins un modificateur"
+          : "Le raccourci doit avoir au moins un modificateur et une touche"
       );
       return;
     }
@@ -147,7 +147,7 @@ export const ShortcutRecorder = ({
     if (!isMoveWindow) {
       // Validate with frontend
       if (!validateShortcutKey(shortcutKey)) {
-        setError("Invalid shortcut combination");
+        setError("Combinaison de raccourci invalide");
         return;
       }
 
@@ -158,11 +158,11 @@ export const ShortcutRecorder = ({
         });
 
         if (!isValid) {
-          setError("This shortcut combination is not supported");
+          setError("Cette combinaison de raccourci n'est pas prise en charge");
           return;
         }
       } catch (e) {
-        setError("Failed to validate shortcut");
+        setError("Échec de la validation du raccourci");
         return;
       }
     }
@@ -179,7 +179,7 @@ export const ShortcutRecorder = ({
   const displayKey =
     recordedKeys.length > 0
       ? formatShortcutKeyForDisplay(recordedKeys.join("+"))
-      : "Waiting for keys...";
+      : "En attente de touches...";
 
   return (
     <div className="flex flex-col gap-2 w-full">
@@ -201,20 +201,20 @@ export const ShortcutRecorder = ({
           variant="default"
           onClick={handleSave}
           disabled={disabled || recordedKeys.length < minKeys}
-          title="Save shortcut"
+          title="Enregistrer le raccourci"
         >
           <Check className="h-4 w-4" />
-          Save
+          Enregistrer
         </Button>
         <Button
           size="sm"
           variant="outline"
           onClick={handleCancel}
           disabled={disabled}
-          title="Cancel"
+          title="Annuler"
         >
           <X className="h-4 w-4" />
-          Cancel
+          Annuler
         </Button>
       </div>
 
@@ -223,14 +223,14 @@ export const ShortcutRecorder = ({
       {isRecording && !error && (
         <p className="text-xs text-muted-foreground">
           {isMoveWindow
-            ? "Press modifier keys (e.g., Cmd+Shift). Arrow keys work automatically."
-            : "Press a key combination now (e.g., Cmd+Shift+K)"}
+            ? "Appuyez sur des touches modificatrices (ex. : Cmd+Shift). Les touches fléchées fonctionnent automatiquement."
+            : "Appuyez maintenant sur une combinaison de touches (ex. : Cmd+Shift+K)"}
         </p>
       )}
 
       {recordedKeys.length >= minKeys && !error && (
         <p className="text-xs text-green-600">
-          ✓ Shortcut captured! Click "Save" to apply.
+          ✓ Raccourci capturé ! Cliquez sur « Enregistrer » pour appliquer.
         </p>
       )}
     </div>

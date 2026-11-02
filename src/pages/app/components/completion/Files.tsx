@@ -78,7 +78,7 @@ export const Files = ({
                 variant="ghost"
                 onClick={() => setIsFilesPopoverOpen(false)}
                 className="cursor-pointer"
-                title="Close"
+                title="Fermer"
               >
                 <XIcon className="h-4 w-4" />
               </Button>
@@ -118,7 +118,7 @@ export const Files = ({
                       variant="default"
                       className="absolute top-2 right-2 h-6 w-6 cursor-pointer"
                       onClick={() => removeFile(file.id)}
-                      title="Remove image"
+                      title="Supprimer l'image"
                     >
                       <XIcon className="h-3 w-3" />
                     </Button>

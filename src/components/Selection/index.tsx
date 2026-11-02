@@ -30,7 +30,7 @@ export const Selection = ({
       >
         {isLoading ? (
           <div className="flex items-center gap-2">
-            Loading... <Loader2 className="w-4 h-4 animate-spin" />
+            Chargement… <Loader2 className="w-4 h-4 animate-spin" />
           </div>
         ) : (
           <SelectValue
@@ -43,7 +43,7 @@ export const Selection = ({
         {options?.filter((provider) => provider.isCustom).length > 0 && (
           <div className="border-b border-input/50 pb-2">
             <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
-              Custom AI Providers
+              Fournisseurs IA personnalisés
             </div>
             {options
               ?.filter((provider) => provider.isCustom)

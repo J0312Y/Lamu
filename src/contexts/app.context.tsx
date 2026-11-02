@@ -264,6 +264,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // Set the flag to true so that we don't change the mode again
       localStorage.setItem("auto-configs-enabled", "true");
     }
+
   };
 
   useEffect(() => {
@@ -438,6 +439,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // ── Trial status from backend ─────────────────────────────────────────
       // The backend records `first_seen_at` per instance_id; we cache the result
       // locally so the app keeps working while offline.
+      let trialIsActive = !trialExpired; // fallback to cached state
       try {
         const storedName = safeLocalStorage.getItem(STORAGE_KEYS.USER_NAME) || "";
         const trial = await invoke<{ trial_expires_at: number; is_trial_active: boolean }>(
@@ -447,12 +449,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setTrialExpiresAt(trial.trial_expires_at);
         setTrialExpired(!trial.is_trial_active);
         safeLocalStorage.setItem(STORAGE_KEYS.TRIAL_EXPIRES_AT, String(trial.trial_expires_at));
+        trialIsActive = trial.is_trial_active;
       } catch {
         // "offline" or "invalid_response" — keep the cached value already in state
       }
 
       // Load license and data
       await getActiveLicenseStatus();
+
+      // ── Auto-enable/disable Lamu API after both trial + license are loaded ──
+      // Read the license status directly from Tauri (React state may not be updated yet)
+      if (isDevMode) {
+        // Dev mode: always enable Lamu API
+        setLamuApiEnabled(true);
+      } else {
+        let licenseIsActive = false;
+        try {
+          const lic: { is_active: boolean } = await invoke("validate_license_api");
+          licenseIsActive = lic.is_active;
+        } catch { /* keep false */ }
+
+        if (trialIsActive || licenseIsActive) {
+          setLamuApiEnabled(true);
+        } else {
+          setLamuApiEnabled(false);
+        }
+      }
 
       // Track app start
       try {
@@ -469,6 +491,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     loadData();
     initializeApp();
   }, []);
+
+  // Auto-enable/disable is handled at the end of initializeApp() below,
+  // NOT in a useEffect — to avoid toggling before trial/license status is loaded.
 
   // Handle customizable settings on state changes
   useEffect(() => {
@@ -576,27 +601,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const checkImageSupport = async () => {
       if (lamuApiEnabled) {
-        // For Lamu API, check the selected model's modality
-        try {
-          const storage = await invoke<{
-            selected_lamu_model?: string;
-          }>("secure_storage_get");
-
-          if (storage.selected_lamu_model) {
-            const model = JSON.parse(storage.selected_lamu_model);
-            const hasImageSupport =
-              model.modality?.includes("vision") ||
-              model.modality?.includes("image") ||
-              false;
-            setSupportsImages(hasImageSupport);
-          } else {
-            // No specific model selected — backend decides, assume images supported
-            setSupportsImages(true);
-          }
-        } catch (error) {
-          // On error, don't disable image features
-          setSupportsImages(true);
-        }
+        // Lamu API models (llama-4-scout, gemini-flash, etc.) all support
+        // images — always enable screenshot/attach features.
+        setSupportsImages(true);
       } else {
         // For custom AI providers, check if curl contains {{IMAGE}}
         const provider = allAiProviders.find(
@@ -746,26 +753,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     safeLocalStorage.setItem(STORAGE_KEYS.LAMU_API_ENABLED, String(enabled));
 
     if (enabled) {
-      try {
-        const storage = await invoke<{
-          selected_lamu_model?: string;
-        }>("secure_storage_get");
-
-        if (storage.selected_lamu_model) {
-          const model = JSON.parse(storage.selected_lamu_model);
-          const hasImageSupport =
-            model.modality?.includes("vision") ||
-            model.modality?.includes("image") ||
-            false;
-          setSupportsImages(hasImageSupport);
-        } else {
-          // No model selected, assume no image support
-          setSupportsImages(false);
-        }
-      } catch (error) {
-        console.debug("Failed to check Lamu model image support:", error);
-        setSupportsImages(false);
-      }
+      // Lamu API models all support images
+      setSupportsImages(true);
     } else {
       // Switching to regular provider - check if curl contains {{IMAGE}}
       const provider = allAiProviders.find(

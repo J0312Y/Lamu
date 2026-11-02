@@ -34,7 +34,7 @@ const SENSITIVITY_PRESETS = {
   low: {
     sensitivity_rms: 0.06,
     noise_gate_threshold: 0.02,
-    label: "Low",
+    label: "Faible",
     description: "Voix forte uniquement — bruit ambiant fort",
   },
   normal: {
@@ -46,7 +46,7 @@ const SENSITIVITY_PRESETS = {
   high: {
     sensitivity_rms: 0.02,
     noise_gate_threshold: 0.008,
-    label: "High",
+    label: "Élevée",
     description: "Capture les voix faibles — environnement silencieux",
   },
 } as const;
@@ -77,8 +77,8 @@ interface SettingsPanelProps {
   // Email
   emailEnabled: boolean;
   setEmailEnabled: (enabled: boolean) => void;
-  autoSendEmail: boolean;
-  setAutoSendEmail: (enabled: boolean) => void;
+  autoSendEmail?: boolean;
+  setAutoSendEmail?: (enabled: boolean) => void;
   // STT language
   sttLanguage: string;
   setSttLanguage: (lang: string) => void;
@@ -99,8 +99,6 @@ export const SettingsPanel = ({
   setRequireValidation,
   emailEnabled,
   setEmailEnabled,
-  autoSendEmail,
-  setAutoSendEmail,
   sttLanguage,
   setSttLanguage,
 }: SettingsPanelProps) => {
@@ -182,7 +180,7 @@ export const SettingsPanel = ({
       >
         <div className="flex items-center gap-2">
           <SettingsIcon className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Settings</span>
+          <span className="text-xs font-medium">Paramètres</span>
         </div>
         <ChevronDownIcon
           className={cn(
@@ -198,14 +196,14 @@ export const SettingsPanel = ({
           {/* Recording Settings Section */}
           <div className="space-y-3">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Recording
+              Enregistrement
             </h4>
 
             {/* Sensitivity Presets - Only for VAD mode */}
             {vadConfig.enabled && (
               <div className="space-y-2">
                 <Label className="text-xs font-medium">
-                  Speech Sensitivity
+                  Sensibilité vocale
                 </Label>
                 <div className="flex gap-2">
                   {(
@@ -231,7 +229,7 @@ export const SettingsPanel = ({
                 </div>
                 <p className="text-[10px] text-muted-foreground">
                   {currentPreset === "custom"
-                    ? "Custom sensitivity values"
+                    ? "Valeurs de sensibilité personnalisées"
                     : SENSITIVITY_PRESETS[currentPreset as SensitivityPreset]
                         .description}
                 </p>
@@ -242,7 +240,7 @@ export const SettingsPanel = ({
             {!vadConfig.enabled && (
               <div className="space-y-2">
                 <Label className="text-xs font-medium flex items-center justify-between">
-                  <span>Max Recording Duration</span>
+                  <span>Durée max d'enregistrement</span>
                   <span className="text-muted-foreground font-normal">
                     {Math.round(vadConfig.max_recording_duration_secs / 60)} min
                   </span>
@@ -266,7 +264,7 @@ export const SettingsPanel = ({
 
           {/* STT Language */}
           <div className="space-y-2">
-            <Label className="text-xs font-medium">STT Language</Label>
+            <Label className="text-xs font-medium">Langue STT</Label>
             <Select value={sttLanguage} onValueChange={setSttLanguage}>
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue />
@@ -280,23 +278,23 @@ export const SettingsPanel = ({
               </SelectContent>
             </Select>
             <p className="text-[10px] text-muted-foreground">
-              Hint to Whisper — helps accuracy for non-English speech
+              Indication pour Whisper — améliore la précision pour les langues non anglaises
             </p>
           </div>
 
           {/* Context Section */}
           <div className="space-y-3 pt-3 border-t border-border/50">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              AI Context
+              Contexte IA
             </h4>
 
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1">
-                <Label className="text-xs font-medium">Use System Prompt</Label>
+                <Label className="text-xs font-medium">Utiliser le prompt système</Label>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   {useSystemPrompt
-                    ? "Using default prompt from settings"
-                    : "Using custom context below"}
+                    ? "Utilise le prompt par défaut des paramètres"
+                    : "Utilise le contexte personnalisé ci-dessous"}
                 </p>
               </div>
               <Switch
@@ -315,12 +313,12 @@ export const SettingsPanel = ({
                   >
                     <SelectTrigger className="w-auto h-7 text-xs">
                       <WandIcon className="w-3 h-3 mr-1.5" />
-                      <SelectValue placeholder="Templates" />
+                      <SelectValue placeholder="Modèles" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
                         <SelectLabel className="text-xs py-1">
-                          Quick-fill a template
+                          Remplir depuis un modèle
                         </SelectLabel>
                         {PROMPT_TEMPLATES.map((template) => (
                           <SelectItem
@@ -336,7 +334,7 @@ export const SettingsPanel = ({
                   </Select>
                 </div>
                 <Textarea
-                  placeholder="Enter custom system prompt and context..."
+                  placeholder="Entrez un prompt système personnalisé et du contexte..."
                   value={contextContent}
                   onChange={(e) => setContextContent(e.target.value)}
                   className="min-h-24 resize-none text-xs"
@@ -348,14 +346,14 @@ export const SettingsPanel = ({
           {/* Meeting Mode Section */}
           <div className="space-y-3 pt-3 border-t border-border/50">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Meeting Mode
+              Mode réunion
             </h4>
 
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1">
-                <Label className="text-xs font-medium">Auto-enable on meeting apps</Label>
+                <Label className="text-xs font-medium">Activer auto sur les apps de réunion</Label>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Starts meeting mode when Zoom, Teams, etc. are detected
+                  Démarre le mode réunion quand Zoom, Teams, etc. sont détectés
                 </p>
               </div>
               <Switch
@@ -366,9 +364,9 @@ export const SettingsPanel = ({
 
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1">
-                <Label className="text-xs font-medium">Auto-speak responses</Label>
+                <Label className="text-xs font-medium">Lecture auto des réponses</Label>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
-                  Read AI responses aloud during meeting mode
+                  Lire les réponses IA à voix haute en mode réunion
                 </p>
               </div>
               <Switch
@@ -376,12 +374,28 @@ export const SettingsPanel = ({
                 onCheckedChange={toggleAutoSpeak}
               />
             </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <Label className="text-xs font-medium">Rejoindre auto depuis le calendrier</Label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Démarre le mode réunion quand un événement Google Calendar commence
+                </p>
+              </div>
+              <Switch
+                checked={JSON.parse(localStorage.getItem("lamu_auto_join_calendar") || "{}").enabled || false}
+                onCheckedChange={(checked) => {
+                  const config = JSON.parse(localStorage.getItem("lamu_auto_join_calendar") || "{}");
+                  localStorage.setItem("lamu_auto_join_calendar", JSON.stringify({ ...config, enabled: checked }));
+                }}
+              />
+            </div>
           </div>
 
           {/* Human-in-the-Loop Section */}
           <div className="space-y-3 pt-3 border-t border-border/50">
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Control
+              Contrôle
             </h4>
 
             <div className="flex items-center justify-between gap-4">
@@ -417,20 +431,7 @@ export const SettingsPanel = ({
               </div>
             )}
 
-            {emailEnabled && (
-              <div className="flex items-center justify-between gap-4 pl-3 border-l-2 border-blue-500/30">
-                <div className="flex-1">
-                  <Label className="text-xs font-medium">Envoi automatique</Label>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    Envoyer sans confirmation (sinon affiche un aperçu)
-                  </p>
-                </div>
-                <Switch
-                  checked={autoSendEmail}
-                  onCheckedChange={setAutoSendEmail}
-                />
-              </div>
-            )}
+            {/* Auto-send toggle removed — deferred to post-MVP */}
           </div>
 
           {/* Advanced Settings Toggle */}
@@ -440,7 +441,7 @@ export const SettingsPanel = ({
               className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => setShowAdvanced(!showAdvanced)}
             >
-              <span>Advanced Settings</span>
+              <span>Paramètres avancés</span>
               {showAdvanced ? (
                 <ChevronUpIcon className="w-3 h-3" />
               ) : (
@@ -455,7 +456,7 @@ export const SettingsPanel = ({
                   <>
                     <div className="space-y-2">
                       <Label className="text-xs font-medium flex items-center justify-between">
-                        <span>Speech Sensitivity (Raw)</span>
+                        <span>Sensibilité vocale (brut)</span>
                         <span className="text-muted-foreground font-normal">
                           {(vadConfig.sensitivity_rms * 1000).toFixed(1)}
                         </span>
@@ -477,7 +478,7 @@ export const SettingsPanel = ({
 
                     <div className="space-y-2">
                       <Label className="text-xs font-medium flex items-center justify-between">
-                        <span>Silence Duration</span>
+                        <span>Durée du silence</span>
                         <span className="text-muted-foreground font-normal">
                           {(
                             (vadConfig.silence_chunks * vadConfig.hop_size) /
@@ -500,7 +501,7 @@ export const SettingsPanel = ({
                         className="w-full"
                       />
                       <p className="text-[10px] text-muted-foreground">
-                        How long to wait after speech stops
+                        Temps d'attente après la fin de la parole
                       </p>
                     </div>
                   </>
@@ -509,7 +510,7 @@ export const SettingsPanel = ({
                 {/* Noise gate - both modes */}
                 <div className="space-y-2">
                   <Label className="text-xs font-medium flex items-center justify-between">
-                    <span>Noise Gate</span>
+                    <span>Porte de bruit</span>
                     <span className="text-muted-foreground font-normal">
                       {(vadConfig.noise_gate_threshold * 1000).toFixed(1)}
                     </span>
@@ -528,7 +529,7 @@ export const SettingsPanel = ({
                     className="w-full"
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    Filters background noise
+                    Filtre le bruit de fond
                   </p>
                 </div>
 
@@ -540,7 +541,7 @@ export const SettingsPanel = ({
                   className="w-full text-xs"
                 >
                   <RotateCcwIcon className="w-3 h-3 mr-1.5" />
-                  Reset to Defaults
+                  Réinitialiser par défaut
                 </Button>
               </div>
             )}

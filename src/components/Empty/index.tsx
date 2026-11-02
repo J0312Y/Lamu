@@ -12,11 +12,13 @@ export const Empty = ({
   title,
   description,
   isLoading = false,
+  action,
 }: {
   icon: React.ElementType;
   title: string;
   description: string;
   isLoading?: boolean;
+  action?: React.ReactNode;
 }) => {
   const Icon = icon;
   return isLoading ? (
@@ -31,6 +33,7 @@ export const Empty = ({
         </EmptyMedia>
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription className="-mt-2">{description}</EmptyDescription>
+        {action}
       </EmptyHeader>
     </EmptyComponent>
   );

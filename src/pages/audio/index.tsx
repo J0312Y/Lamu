@@ -8,23 +8,23 @@ const getOsInstructions = () => {
   switch (platform) {
     case "macos":
       return {
-        mic: "System Preferences → Sound → Input",
-        audio: "System Preferences → Sound → Output",
+        mic: "Préférences Système → Son → Entrée",
+        audio: "Préférences Système → Son → Sortie",
       };
     case "windows":
       return {
-        mic: "Settings → System → Sound → Input",
-        audio: "Settings → System → Sound → Output",
+        mic: "Paramètres → Système → Son → Entrée",
+        audio: "Paramètres → Système → Son → Sortie",
       };
     case "linux":
       return {
-        mic: "Sound Settings → Input Devices",
-        audio: "Sound Settings → Output Devices",
+        mic: "Paramètres Son → Périphériques d'entrée",
+        audio: "Paramètres Son → Périphériques de sortie",
       };
     default:
       return {
-        mic: "your system's sound settings",
-        audio: "your system's sound settings",
+        mic: "les paramètres son de votre système",
+        audio: "les paramètres son de votre système",
       };
   }
 };
@@ -34,24 +34,22 @@ const Audio = () => {
 
   return (
     <PageLayout
-      title="Audio Settings"
-      description="Configure your audio input and output devices for voice interaction and system audio capture."
+      title="Paramètres audio"
+      description="Configurez vos périphériques audio d'entrée et de sortie pour l'interaction vocale et la capture audio système."
     >
       <AudioSelection />
 
       <div className="text-xs text-amber-600 bg-amber-500/10 p-3 rounded-md mb-4 space-y-2">
         <p>
-          <strong>⚠️ If selected devices don't work:</strong> Please verify your
-          default system audio settings. Go to{" "}
-          <strong>{osInstructions.mic}</strong> for microphone and{" "}
-          <strong>{osInstructions.audio}</strong> for speakers/headphones.
-          Ensure the correct devices are set as default in your operating
-          system.
+          <strong>⚠️ Si les périphériques sélectionnés ne fonctionnent pas :</strong> Vérifiez vos
+          paramètres audio système par défaut. Accédez à{" "}
+          <strong>{osInstructions.mic}</strong> pour le microphone et{" "}
+          <strong>{osInstructions.audio}</strong> pour les haut-parleurs/écouteurs.
+          Assurez-vous que les bons périphériques sont définis par défaut dans votre système d'exploitation.
         </p>
         <p className="text-amber-600/80">
-          <strong>Note:</strong> If the selected device fails or is unavailable,
-          Lamu will automatically fall back to your system's default audio
-          devices.
+          <strong>Note :</strong> Si le périphérique sélectionné est défaillant ou indisponible,
+          Lamu basculera automatiquement sur les périphériques audio par défaut de votre système.
         </p>
       </div>
     </PageLayout>

@@ -7,8 +7,8 @@ export const AIProviders = (settings: UseSettingsReturn) => {
   return (
     <div id="ai-providers" className="space-y-3">
       <Header
-        title="AI Providers"
-        description="Select your preferred AI service provider to get started."
+        title="Fournisseurs IA"
+        description="Sélectionnez votre fournisseur de service IA préféré pour commencer."
         isMainTitle
       />
 

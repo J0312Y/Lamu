@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X } from 'lucide-react'
 
 const navLinks = [
-  { label: 'Telechargements', href: '/downloads' },
-  { label: 'Fonctionnalites', href: '/#features' },
+  { label: 'Fonctionnalités', href: '/#features' },
   { label: 'Pourquoi Lamu ?', href: '/#why' },
   { label: 'Tarifs', href: '/pricing' },
+  { label: 'Changelog', href: '/changelog' },
   { label: 'Affiliation', href: '/affiliate' },
 ]
 
@@ -22,9 +22,12 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  useEffect(() => {
+  // Close the mobile menu on navigation (state adjusted during render, not in an effect)
+  const [lastLocationKey, setLastLocationKey] = useState(location.key)
+  if (location.key !== lastLocationKey) {
+    setLastLocationKey(location.key)
     setMobileOpen(false)
-  }, [location])
+  }
 
   return (
     <>
@@ -58,7 +61,7 @@ export function Navbar() {
           {/* CTA */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }} className="hidden-mobile">
             <a
-              href="mailto:support@lamuka.com?subject=Billing"
+              href="mailto:support@lamuka-tech.com?subject=Billing"
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 500, padding: '7px 14px', borderRadius: 8, textDecoration: 'none', transition: 'all 0.2s' }}
               onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = '#fff'; (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.1)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.7)'; (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(255,255,255,0.06)' }}
@@ -104,17 +107,27 @@ export function Navbar() {
             transition={{ duration: 0.2 }}
             style={{ position: 'fixed', top: 60, left: 0, right: 0, zIndex: 49, background: 'rgba(0,0,0,0.97)', borderBottom: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 4 }}
           >
-            {navLinks.map(link => (
-              <a key={link.label} href={link.href} style={{ padding: '10px 8px', color: 'rgba(255,255,255,0.7)', fontSize: 15, textDecoration: 'none', borderRadius: 8, transition: 'color 0.2s' }}>
-                {link.label}
-              </a>
-            ))}
+            {navLinks.map(link => {
+              const isHash = link.href.startsWith('/#')
+              const active = isHash
+                ? location.pathname === '/' && location.hash === link.href.slice(1)
+                : location.pathname === link.href
+              return isHash ? (
+                <a key={link.label} href={link.href} style={{ padding: '10px 8px', color: active ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: 15, fontWeight: active ? 600 : 400, textDecoration: 'none', borderRadius: 8, background: active ? 'rgba(255,255,255,0.06)' : 'transparent', transition: 'color 0.2s' }}>
+                  {link.label}
+                </a>
+              ) : (
+                <Link key={link.label} to={link.href} style={{ padding: '10px 8px', color: active ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: 15, fontWeight: active ? 600 : 400, textDecoration: 'none', borderRadius: 8, background: active ? 'rgba(255,255,255,0.06)' : 'transparent', transition: 'color 0.2s' }}>
+                  {link.label}
+                </Link>
+              )
+            })}
             <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '8px 0' }} />
             <Link to="/app" style={{ padding: '12px 16px', background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.4)', color: '#818cf8', fontSize: 14, fontWeight: 600, borderRadius: 10, textDecoration: 'none', textAlign: 'center' }}>
               App Web
             </Link>
             <Link to="/downloads" style={{ padding: '12px 16px', background: '#fff', color: '#000', fontSize: 14, fontWeight: 600, borderRadius: 10, textDecoration: 'none', textAlign: 'center' }}>
-              Telecharger Lamu
+              Télécharger Lamu
             </Link>
           </motion.div>
         )}
@@ -131,14 +144,23 @@ export function Navbar() {
 }
 
 function NavLink({ href, label }: { href: string; label: string }) {
+  const location = useLocation()
   const isExternal = href.startsWith('http')
+  const isHash = href.startsWith('/#')
+  const isActive = isHash
+    ? location.pathname === '/' && location.hash === href.slice(1)
+    : location.pathname === href
+
+  const baseColor = isActive ? '#fff' : 'rgba(255,255,255,0.6)'
+  const baseBg = isActive ? 'rgba(255,255,255,0.08)' : 'transparent'
+
   const props = isExternal ? { href, target: '_blank', rel: 'noreferrer' } : { href }
   return (
     <a
       {...props}
-      style={{ padding: '6px 12px', color: 'rgba(255,255,255,0.6)', fontSize: 14, textDecoration: 'none', borderRadius: 8, transition: 'all 0.2s', fontWeight: 450 }}
-      onMouseEnter={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.color = '#fff'; el.style.background = 'rgba(255,255,255,0.06)' }}
-      onMouseLeave={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.color = 'rgba(255,255,255,0.6)'; el.style.background = 'transparent' }}
+      style={{ padding: '6px 12px', color: baseColor, fontSize: 14, textDecoration: 'none', borderRadius: 8, transition: 'all 0.2s', fontWeight: isActive ? 600 : 450, background: baseBg }}
+      onMouseEnter={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.color = '#fff'; el.style.background = 'rgba(255,255,255,0.08)' }}
+      onMouseLeave={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.color = baseColor; el.style.background = baseBg }}
     >
       {label}
     </a>

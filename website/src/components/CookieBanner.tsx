@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react'
 
-type CookieConsent = 'all' | 'essential' | null
-
-function getConsent(): CookieConsent {
-  const v = localStorage.getItem('lamu_cookie_consent')
-  if (v === 'all' || v === 'essential') return v
-  return null
-}
+import { getConsent, saveConsent, loadAnalytics } from '../lib/analytics'
 
 export function CookieBanner() {
   const [visible, setVisible] = useState(false)
@@ -24,7 +18,7 @@ export function CookieBanner() {
   const accept = (level: 'all' | 'essential') => {
     setClosing(true)
     setTimeout(() => {
-      localStorage.setItem('lamu_cookie_consent', level)
+      saveConsent(level)
       setVisible(false)
       setClosing(false)
       if (level === 'all') loadAnalytics()
@@ -212,23 +206,4 @@ export function CookieBanner() {
       `}</style>
     </>
   )
-}
-
-function loadAnalytics() {
-  const GA_ID = import.meta.env.VITE_GA_ID
-  if (!GA_ID) return
-  const script = document.createElement('script')
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`
-  script.async = true
-  document.head.appendChild(script)
-  script.onload = () => {
-    ;(window as any).dataLayer = (window as any).dataLayer || []
-    function gtag(...args: any[]) { (window as any).dataLayer.push(args) }
-    gtag('js', new Date())
-    gtag('config', GA_ID, { anonymize_ip: true })
-  }
-}
-
-export function initCookieConsent() {
-  if (getConsent() === 'all') loadAnalytics()
 }

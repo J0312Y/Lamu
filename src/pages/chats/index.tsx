@@ -1,7 +1,7 @@
-import { Badge, Input, Card, Empty } from "@/components";
+import { Badge, Input, Card, Empty, Button } from "@/components";
 import { useHistory } from "@/hooks";
 import { PageLayout } from "@/layouts";
-import { MessageCircleIcon, Search } from "lucide-react";
+import { MessageCircleIcon, Search, PlusIcon } from "lucide-react";
 import moment from "moment";
 import { useNavigate } from "react-router-dom";
 
@@ -26,18 +26,35 @@ const Dashboard = () => {
     moment(b).diff(moment(a))
   );
 
+  const handleNewConversation = () => {
+    const id = crypto.randomUUID();
+    navigate(`/chats/view/${id}`);
+  };
+
   return (
     <PageLayout
-      title="All conversations"
-      description="View all your conversations"
+      title="Toutes les conversations"
+      description="Consultez toutes vos conversations"
+      rightSlot={
+        <Button onClick={handleNewConversation} className="h-8 text-sm gap-1.5">
+          <PlusIcon className="size-4" />
+          Nouvelle conversation
+        </Button>
+      }
     >
       <>
         {conversations.conversations.length === 0 ? (
           <Empty
             isLoading={conversations.isLoading}
             icon={MessageCircleIcon}
-            title="No conversations found"
-            description="Start a new conversation to get started"
+            title="Aucune conversation trouvée"
+            description="Commencez une nouvelle conversation pour démarrer"
+            action={
+              <Button onClick={handleNewConversation} className="mt-3 gap-1.5">
+                <PlusIcon className="size-4" />
+                Démarrer une conversation
+              </Button>
+            }
           />
         ) : (
           <div className="flex flex-col gap-6 pb-8">
@@ -45,7 +62,7 @@ const Dashboard = () => {
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search conversations..."
+                placeholder="Rechercher des conversations…"
                 className="pl-9 focus-visible:ring-0 focus-visible:ring-offset-0"
                 value={conversations.search}
                 onChange={(e) => conversations.setSearch(e.target.value)}
@@ -79,7 +96,7 @@ const Dashboard = () => {
                           </p>
                           <div className="flex items-center gap-1">
                             <Badge variant="outline" className="text-xs">
-                              {doc.messages.length} messages
+                              {doc.messages.length} message{doc.messages.length !== 1 ? "s" : ""}
                             </Badge>
                             <Badge variant="outline" className="text-xs">
                               {moment(doc.updatedAt).format("hh:mm A")}

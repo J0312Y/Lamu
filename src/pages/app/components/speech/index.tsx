@@ -60,10 +60,11 @@ import { TalkTimeAnalytics } from "./TalkTimeAnalytics";
 import { SoundbitesPanel } from "./SoundbitesPanel";
 import { TemplateSelector } from "./TemplateSelector";
 import { AgendaBuilder } from "./AgendaBuilder";
-import { useSystemAudioType, useKnowledgeBase } from "@/hooks";
+import { useSystemAudioType, useKnowledgeBase, useAutoJoinCalendar } from "@/hooks";
 import { useApp } from "@/contexts";
 import { GetLicense } from "@/components";
 import { cn } from "@/lib/utils";
+import { checkAutoPurge } from "@/lib/compliance";
 
 export const SystemAudio = (props: useSystemAudioType) => {
   const {
@@ -174,6 +175,20 @@ export const SystemAudio = (props: useSystemAudioType) => {
 
   const { hasPlanFeature, supportsImages, isBlocked } = useApp();
   const kb = useKnowledgeBase();
+
+  // Auto-join calendar meetings
+  useAutoJoinCalendar({
+    meetingModeActive,
+    toggleMeetingMode,
+    startCapture,
+    setPlaybookContext,
+    capturing,
+  });
+
+  // Auto-purge check on mount (SOC 2 / HIPAA compliance)
+  useEffect(() => {
+    checkAutoPurge().catch(() => {});
+  }, []);
 
   // View mode toggle
   const [conversationMode, setConversationMode] = useState(false);
@@ -299,11 +314,11 @@ export const SystemAudio = (props: useSystemAudioType) => {
   };
 
   const getButtonTitle = () => {
-    if (setupRequired) return "Setup required - Click for instructions";
-    if (error && !setupRequired) return `Error: ${error}`;
-    if (isProcessing) return "Transcribing audio...";
-    if (capturing) return "Stop system audio capture";
-    return "Start system audio capture";
+    if (setupRequired) return "Configuration requise - Cliquez pour les instructions";
+    if (error && !setupRequired) return `Erreur : ${error}`;
+    if (isProcessing) return "Transcription audio...";
+    if (capturing) return "Arrêter la capture audio système";
+    return "Démarrer la capture audio système";
   };
 
   return (
@@ -348,11 +363,11 @@ export const SystemAudio = (props: useSystemAudioType) => {
                   <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <LockIcon className="size-4 text-primary" />
                   </div>
-                  <h3 className="font-semibold text-sm">Trial expired</h3>
+                  <h3 className="font-semibold text-sm">Essai terminé</h3>
                   <p className="text-xs text-muted-foreground">
-                    Your free trial has ended. Get a license to keep using the real-time overlay.
+                    Votre essai gratuit est terminé. Obtenez une licence pour continuer à utiliser l'overlay en temps réel.
                   </p>
-                  <GetLicense buttonText="Get License" buttonClassName="w-full" />
+                  <GetLicense buttonText="Obtenir une licence" buttonClassName="w-full" />
                 </div>
               </div>
             )}
@@ -396,7 +411,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                         "h-6 text-[10px] gap-1 px-2",
                         micCapturing && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
                       )}
-                      title={micCapturing ? "Stop microphone capture" : "Start microphone input"}
+                      title={micCapturing ? "Arrêter la capture micro" : "Démarrer l'entrée micro"}
                     >
                       {micCapturing
                         ? <MicOffIcon className="w-3 h-3" />
@@ -416,7 +431,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                         "h-6 text-[10px] gap-1 px-2",
                         screenshotImage && "bg-primary text-primary-foreground"
                       )}
-                      title="Capture screenshot to include with transcription"
+                      title="Capturer l'écran pour inclure avec la transcription"
                     >
                       {isCapturingScreenshot ? (
                         <LoaderIcon className="w-3 h-3 animate-spin" />
@@ -437,10 +452,10 @@ export const SystemAudio = (props: useSystemAudioType) => {
                         "h-6 text-[10px] gap-1 px-2",
                         clipboardContext && "bg-primary text-primary-foreground"
                       )}
-                      title={clipboardContext ? "Clipboard attached — click to clear" : "Paste clipboard as AI context"}
+                      title={clipboardContext ? "Presse-papiers attaché — cliquer pour effacer" : "Coller le presse-papiers comme contexte IA"}
                     >
                       <ClipboardPasteIcon className="w-3 h-3" />
-                      {clipboardContext ? "Pasted" : "Paste"}
+                      {clipboardContext ? "Collé" : "Coller"}
                     </Button>
                   )}
 
@@ -502,10 +517,10 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       variant="ghost"
                       onClick={exportConversation}
                       className="h-6 text-[10px] gap-1 px-2"
-                      title="Export conversation as Markdown"
+                      title="Exporter la conversation en Markdown"
                     >
                       <DownloadIcon className="w-3 h-3" />
-                      Export
+                      Exporter
                     </Button>
                   )}
 
@@ -516,7 +531,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       variant="ghost"
                       onClick={() => generateMeetingSummary(meetingTranscript)}
                       className="h-6 text-[10px] gap-1 px-2"
-                      title="Generate meeting summary"
+                      title="Générer le résumé de réunion"
                     >
                       <BookOpenIcon className="w-3 h-3" />
                       Summary
@@ -539,7 +554,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                         "h-6 text-[10px] gap-1 px-2",
                         coachingVisible && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
                       )}
-                      title="Get real-time coaching tip"
+                      title="Obtenir un conseil de coaching en temps réel"
                     >
                       <SparklesIcon className="w-3 h-3" />
                       Coach
@@ -630,7 +645,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       variant="ghost"
                       onClick={startNewConversation}
                       className="h-6 text-[10px] gap-1 px-2"
-                      title="Start a new conversation"
+                      title="Démarrer une nouvelle conversation"
                     >
                       <PlusIcon className="w-3 h-3" />
                       New
@@ -643,7 +658,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       size="icon"
                       variant="ghost"
                       className="h-6 w-6"
-                      title="Close"
+                      title="Fermer"
                       onClick={() => {
                         setIsPopoverOpen(false);
                         resizeWindow(false);
@@ -670,12 +685,12 @@ export const SystemAudio = (props: useSystemAudioType) => {
                     )}
                     title={
                       meetingModeActive
-                        ? "Meeting mode ON — always listening, auto-restarts after each response"
-                        : "Enable meeting mode — always-on automatic listening"
+                        ? "Mode réunion ON — écoute permanente, redémarre après chaque réponse"
+                        : "Activer le mode réunion — écoute automatique permanente"
                     }
                   >
                     <RadioIcon className="w-3 h-3" />
-                    {meetingModeActive ? "Live" : "Meeting"}
+                    {meetingModeActive ? "Live" : "Réunion"}
                     {meetingModeActive && meetingTranscript.length > 0 && (
                       <span className="ml-0.5 opacity-70">
                         ({meetingTranscript.length / 2 | 0})
@@ -742,10 +757,10 @@ export const SystemAudio = (props: useSystemAudioType) => {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-medium">
-                        Screenshot attached
+                        Capture d'écran jointe
                       </p>
                       <p className="text-[9px] text-muted-foreground">
-                        Will be sent with next transcription
+                        Sera envoyée avec la prochaine transcription
                       </p>
                     </div>
                     <Button
@@ -804,24 +819,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
                       />
                     )}
 
-                    {/* Email Draft Modal */}
-                    {pendingEmailDraft && (
-                      <EmailDraftModal
-                        draft={pendingEmailDraft}
-                        onSend={async (updated) => {
-                          await invoke("email_send", {
-                            req: {
-                              to_name: updated.to_name,
-                              to_email: updated.to_email,
-                              subject: updated.subject,
-                              body: updated.body,
-                            },
-                          });
-                          dismissEmailDraft();
-                        }}
-                        onDiscard={dismissEmailDraft}
-                      />
-                    )}
+                    {/* Email Draft Modal — moved outside ScrollArea for visibility */}
 
                     {/* SQL Results + Write Approval */}
                     {(pendingSqlWrite || (dbQueryResults && dbQueryResults.length > 0)) && (
@@ -1014,6 +1012,29 @@ export const SystemAudio = (props: useSystemAudioType) => {
             </>)}
           </div>
         </PopoverContent>
+      )}
+
+      {/* Email Draft Modal — fixed to bottom of overlay, above everything */}
+      {pendingEmailDraft && (
+        <div className="fixed bottom-0 left-0 right-0 z-[9999] p-2 bg-background/95 backdrop-blur-sm border-t border-blue-500/30 shadow-lg">
+          <EmailDraftModal
+            draft={pendingEmailDraft}
+            onSend={async (updated) => {
+              invoke("debug_log", { message: `[email_send] Sending to=${updated.to_email} subject="${updated.subject}"` }).catch(() => {});
+              await invoke("email_send", {
+                req: {
+                  to_name: updated.to_name,
+                  to_email: updated.to_email,
+                  subject: updated.subject,
+                  body: updated.body,
+                },
+              });
+              invoke("debug_log", { message: `[email_send] Success` }).catch(() => {});
+              dismissEmailDraft();
+            }}
+            onDiscard={dismissEmailDraft}
+          />
+        </div>
       )}
 
       {/* Action Confirm Modal */}

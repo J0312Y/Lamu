@@ -33,6 +33,8 @@ import {
   ChatFiles,
   AudioRecorder,
 } from ".";
+import { EmailDraftModal } from "@/pages/app/components/speech/EmailDraftModal";
+import { invoke } from "@tauri-apps/api/core";
 
 const View = () => {
   const { conversationId } = useParams();
@@ -86,12 +88,12 @@ const View = () => {
       isMainTitle={false}
       allowBackButton={true}
       title={messages?.title || ""}
-      description={`${messages?.messages.length} messages in this conversation`}
+      description={`${messages?.messages.length} messages dans cette conversation`}
       rightSlot={
         <div className="flex flex-row items-center gap-2">
           <Button
             variant="outline"
-            title="Open this conversation in overlay"
+            title="Ouvrir cette conversation dans l'overlay"
             className="text-[10px] lg:text-sm h-6 lg:h-8"
             onClick={() =>
               conversationId && handleAttachToOverlay(conversationId)
@@ -101,18 +103,18 @@ const View = () => {
             {isAttached ? (
               <>
                 <Check className="size-3 lg:size-4 text-green-600" />
-                Attached
+                Attaché
               </>
             ) : (
               <>
-                Open in Overlay{" "}
+                Ouvrir dans l'overlay{" "}
                 <MessageCircleReplyIcon className="size-3 lg:size-4" />
               </>
             )}
           </Button>
           <Button
             variant={"outline"}
-            title="Download conversation as markdown"
+            title="Télécharger la conversation en markdown"
             className="text-[10px] lg:text-sm h-6 lg:h-8"
             onClick={(e) => handleDownload(messages, e)}
             disabled={isDownloaded}
@@ -120,23 +122,23 @@ const View = () => {
             {isDownloaded ? (
               <>
                 <Check className="size-3 lg:size-4 text-green-600" />
-                Downloaded
+                Téléchargé
               </>
             ) : (
               <>
-                Download <Download className="size-3 lg:size-4" />
+                Télécharger <Download className="size-3 lg:size-4" />
               </>
             )}
           </Button>
           <Button
             variant="destructive"
-            title="Delete conversation"
+            title="Supprimer la conversation"
             onClick={() =>
               conversationId && handleDeleteConfirm(conversationId)
             }
             className="text-[10px] lg:text-sm h-6 lg:h-8"
           >
-            Delete <Trash2 className="size-3 lg:size-4" />
+            Supprimer <Trash2 className="size-3 lg:size-4" />
           </Button>
         </div>
       }
@@ -145,8 +147,8 @@ const View = () => {
         <Empty
           isLoading={false}
           icon={MessageCircleIcon}
-          title="No messages found"
-          description="Start a new message to get started"
+          title="Aucun message trouvé"
+          description="Commencez une nouvelle conversation pour démarrer"
         />
       ) : (
         <div className="flex flex-col gap-4 pb-24 px-2">
@@ -290,7 +292,7 @@ const View = () => {
 
                 <Textarea
                   ref={completion.inputRef}
-                  placeholder="Type a message..."
+                  placeholder="Tapez un message…"
                   className="pr-12 pl-2 resize-none pb-12 pt-3"
                   rows={2}
                   value={completion.input}
@@ -321,6 +323,29 @@ const View = () => {
           </div>
         </div>
       </div>
+
+      {/* Email Draft Modal */}
+      {completion.pendingEmailDraft && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <EmailDraftModal
+              draft={completion.pendingEmailDraft}
+              onSend={async (updated) => {
+                await invoke("email_send", {
+                  req: {
+                    to_name: updated.to_name,
+                    to_email: updated.to_email,
+                    subject: updated.subject,
+                    body: updated.body,
+                  },
+                });
+                completion.setPendingEmailDraft(null);
+              }}
+              onDiscard={() => completion.setPendingEmailDraft(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmationDialog

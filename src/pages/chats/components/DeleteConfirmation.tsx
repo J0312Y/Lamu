@@ -16,17 +16,17 @@ export const DeleteConfirmationDialog = ({
   return (
     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-background border rounded-lg p-6 max-w-md mx-4">
-        <h3 className="text-lg font-semibold mb-2">Delete Conversation</h3>
+        <h3 className="text-lg font-semibold mb-2">Supprimer la conversation</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Are you sure you want to delete this conversation? This action cannot
-          be undone.
+          Êtes-vous sûr de vouloir supprimer cette conversation ? Cette action
+          est irréversible.
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={cancelDelete}>
-            Cancel
+            Annuler
           </Button>
           <Button variant="destructive" onClick={confirmDelete}>
-            Delete
+            Supprimer
           </Button>
         </div>
       </div>

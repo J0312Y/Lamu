@@ -31,8 +31,6 @@ import { isWriteSql, extractSqlBlocks } from "@/lib/sqlUtils";
 import type { SqlQueryResult, PendingSqlWrite } from "@/lib/sqlUtils";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-/** Timeout for a single STT transcription request, in milliseconds. */
-const STT_TIMEOUT_MS = 30_000;
 
 /**
  * Extract the first complete JSON object that follows `marker:` in `text`.
@@ -114,6 +112,8 @@ export function useSystemAudio() {
   const globalShortcuts = useGlobalShortcuts();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const capturingRef = useRef(false);
+  useEffect(() => { capturingRef.current = capturing; }, [capturing]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAIProcessing, setIsAIProcessing] = useState(false);
   const [lastTranscription, setLastTranscription] = useState<string>("");
@@ -141,6 +141,8 @@ export function useSystemAudio() {
     createdAt: 0,
     updatedAt: 0,
   });
+  const conversationRef = useRef(conversation);
+  useEffect(() => { conversationRef.current = conversation; }, [conversation]);
 
   // Context management states
   const [useSystemPrompt, setUseSystemPrompt] = useState<boolean>(true);
@@ -250,6 +252,8 @@ export function useSystemAudio() {
     supportsImages,
     isBlocked,
   } = useApp();
+  const isBlockedRef = useRef(isBlocked);
+  useEffect(() => { isBlockedRef.current = isBlocked; }, [isBlocked]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef<boolean>(false);
@@ -308,6 +312,8 @@ export function useSystemAudio() {
   const [emailEnabled, setEmailEnabled] = useState<boolean>(
     () => safeLocalStorage.getItem("email_enabled") === "true"
   );
+  const emailEnabledRef = useRef(emailEnabled);
+  useEffect(() => { emailEnabledRef.current = emailEnabled; }, [emailEnabled]);
   // true = envoyer sans confirmation, false = montrer le modal de validation
   const [autoSendEmail, setAutoSendEmail] = useState<boolean>(
     () => safeLocalStorage.getItem("email_auto_send") === "true"
@@ -328,6 +334,8 @@ export function useSystemAudio() {
   const [requireValidation, setRequireValidationState] = useState<boolean>(
     () => safeLocalStorage.getItem("require_validation") === "true"
   );
+  const requireValidationRef = useRef(requireValidation);
+  useEffect(() => { requireValidationRef.current = requireValidation; }, [requireValidation]);
   const [pendingValidation, setPendingValidation] =
     useState<ValidationArtifact | null>(null);
   // Holds the resolver that resumes the pipeline after human approval
@@ -529,7 +537,7 @@ export function useSystemAudio() {
       try {
         speechUnlisten = await listen("speech-detected", async (event) => {
           try {
-            if (!capturing) return; // system audio only
+            if (!capturingRef.current) return; // system audio only
 
             const base64Audio = event.payload as string;
             // Convert to blob
@@ -540,7 +548,7 @@ export function useSystemAudio() {
             }
             const audioBlob = new Blob([bytes], { type: "audio/wav" });
 
-            if (isBlocked) {
+            if (isBlockedRef.current) {
               setError("Your free trial has expired. Get a license to continue.");
               return;
             }
@@ -564,26 +572,13 @@ export function useSystemAudio() {
             setSpeechInProgressMs(null);
             setInterimTranscription("");
 
-            // Add timeout wrapper for STT request (30 seconds)
-            const sttPromise = fetchSTT({
-              provider: providerConfig,
-              selectedProvider: selectedSttProvider,
-              audio: audioBlob,
-              language: sttLanguageRef.current !== "auto" ? sttLanguageRef.current : undefined,
-            });
-
-            const timeoutPromise = new Promise<string>((_, reject) => {
-              setTimeout(
-                () => reject(new Error(`Speech transcription timed out (${STT_TIMEOUT_MS / 1000}s)`)),
-                STT_TIMEOUT_MS
-              );
-            });
-
             try {
-              const transcription = await Promise.race([
-                sttPromise,
-                timeoutPromise,
-              ]);
+              const transcription = await fetchSTT({
+                provider: providerConfig,
+                selectedProvider: selectedSttProvider,
+                audio: audioBlob,
+                language: sttLanguageRef.current !== "auto" ? sttLanguageRef.current : undefined,
+              });
 
               if (transcription.trim()) {
                 setLastTranscription(transcription);
@@ -603,7 +598,7 @@ export function useSystemAudio() {
                   ? modeConfig?.systemPrompt || systemPrompt || DEFAULT_SYSTEM_PROMPT
                   : contextContent || DEFAULT_SYSTEM_PROMPT;
 
-                const previousMessages = conversation.messages.map((msg) => {
+                const previousMessages = conversationRef.current.messages.map((msg) => {
                   return { role: msg.role, content: msg.content };
                 });
 
@@ -630,7 +625,7 @@ export function useSystemAudio() {
                   screenshotForAI || autoScreenshotRef.current || undefined;
 
                 // ── Human-in-the-Loop: intercept if validation required ────
-                if (requireValidation) {
+                if (requireValidationRef.current) {
                   runtime.awaitValidation(runId, {
                     transcription,
                     systemPrompt: effectiveSystemPrompt,
@@ -680,8 +675,10 @@ export function useSystemAudio() {
                 setError("Received empty transcription");
               }
             } catch (sttError: any) {
-              console.error("STT Error:", sttError);
-              setError(sttError.message || "Failed to transcribe audio");
+              const errMsg = sttError.message || String(sttError);
+              console.error("STT Error:", errMsg);
+              invoke("debug_log", { message: `[STT] Error: ${errMsg}` }).catch(() => {});
+              setError(errMsg);
               setIsPopoverOpen(true);
             }
           } catch (err) {
@@ -704,7 +701,6 @@ export function useSystemAudio() {
     capturing,
     selectedSttProvider,
     allSttProviders,
-    conversation.messages.length,
   ]);
 
   // ── Mic speech: transcribe-only for meeting transcript ("me" role) ────────
@@ -946,7 +942,7 @@ export function useSystemAudio() {
 
         let fullResponse = "";
 
-        if (isBlocked) {
+        if (isBlockedRef.current) {
           setError("Your free trial has expired. Get a license to continue.");
           setIsAIProcessing(false);
           return;
@@ -970,9 +966,11 @@ export function useSystemAudio() {
         if (runId) runtime.startStep(runId, "prompt_build");
 
         // Inject email action instructions if email feature is enabled
-        invoke("debug_log", { message: `emailEnabled=${emailEnabled} transcription="${transcription}"` }).catch(() => {});
-        const looksLikeEmailRequest = /\b(email|e-mail|mail|envoie|envoyer|send|message\s+à|write\s+to)\b/i.test(transcription);
-        let effectivePrompt = emailEnabled
+        // Use ref to always get the latest value (avoids stale closure in useCallback)
+        const emailOn = emailEnabledRef.current;
+        invoke("debug_log", { message: `emailEnabled=${emailOn} transcription="${transcription}"` }).catch(() => {});
+        const looksLikeEmailRequest = /\b(email|e-mail|mail|envoie|envoyer|send|message\s+à|write\s+to|rapport.*mail|mail.*rapport)\b/i.test(transcription);
+        let effectivePrompt = emailOn
           ? `${prompt}\n\n${EMAIL_ACTION_INSTRUCTIONS}`
           : looksLikeEmailRequest
             ? `${prompt}\n\n${EMAIL_DISABLED_HINT}`
@@ -1080,6 +1078,7 @@ export function useSystemAudio() {
                     }
                   } catch (e) {
                     invoke("debug_log", { message: `[kb_database_get_schema] ${integ.name}: ${e}` }).catch(() => {});
+                    liveContextParts.push(`--- Base "${integ.name}" (${integ.provider}) --- Schéma non disponible. Lance: SHOW TABLES; pour découvrir les tables.`);
                   }
                 })
               );
@@ -1109,17 +1108,16 @@ export function useSystemAudio() {
                 const isPG = dbIntegrations.some((i) => i.provider === "postgres");
                 let sqlHints = `\n\n[INSTRUCTIONS BASE DE DONNÉES — OBLIGATOIRE]`;
                 sqlHints += `\nTu as un accès DIRECT aux bases de données suivantes : ${dbDetails}.`;
-                sqlHints += `\nLe schéma complet avec toutes les tables et colonnes est fourni ci-dessus. Tu CONNAIS la structure de la base.`;
                 sqlHints += `\nTu peux exécuter des requêtes SQL — le système exécutera automatiquement toute requête dans un bloc \`\`\`sql\`\`\`.`;
                 sqlHints += `\nRÈGLES :`;
-                sqlHints += `\n1. Quand l'utilisateur demande des données, ANALYSE le schéma fourni pour identifier la bonne table (même si l'utilisateur utilise un terme différent du nom de la table — ex: "commandes" peut correspondre à "orders", "order_items", "sales", etc.). Puis génère la requête SQL dans un bloc \`\`\`sql\`\`\`.`;
-                sqlHints += `\n2. Ne dis JAMAIS "je ne peux pas accéder à la base" ou "je ne peux pas afficher les données réelles" — tu PEUX via les blocs \`\`\`sql\`\`\`.`;
-                sqlHints += `\n3. Utilise UNIQUEMENT les tables et colonnes du schéma fourni. N'invente rien.`;
-                sqlHints += `\n4. Ne génère JAMAIS de requêtes sur information_schema. Tu as déjà le schéma complet.`;
-                sqlHints += `\n5. Pour les rapports : génère directement les requêtes SQL avec agrégations (COUNT, SUM, AVG, GROUP BY). Tu peux générer plusieurs blocs \`\`\`sql\`\`\` dans une même réponse.`;
-                sqlHints += `\n6. TRÈS IMPORTANT : N'invente JAMAIS de données fictives ou d'exemples. Génère UNIQUEMENT le(s) bloc(s) SQL et une brève explication de ce que la requête fait. Les résultats réels seront affichés automatiquement après exécution. Ne mets PAS de faux tableaux, faux chiffres ou données imaginaires dans ta réponse.`;
-                if (isMySQL) sqlHints += `\n6. MySQL : utilise DATABASE() au lieu du nom de la base dans les clauses WHERE.`;
-                if (isPG) sqlHints += `\n6. PostgreSQL : le schema par défaut est 'public'.`;
+                sqlHints += `\n1. Si le schéma est fourni ci-dessus, utilise UNIQUEMENT les noms exacts de tables et colonnes de ce schéma. N'invente PAS de noms de tables.`;
+                sqlHints += `\n2. Si le schéma n'est PAS disponible, lance d'abord \`\`\`sql\nSHOW TABLES;\n\`\`\` pour découvrir les tables, puis interroge.`;
+                sqlHints += `\n3. Ne dis JAMAIS "je ne peux pas accéder à la base" — tu PEUX via les blocs \`\`\`sql\`\`\`.`;
+                sqlHints += `\n4. Ne préfixe JAMAIS les tables avec le nom de la base (ex: utilise \`orders\` PAS \`dbname.orders\`). La connexion est déjà sur la bonne base.`;
+                sqlHints += `\n5. Pour les rapports : utilise les agrégations (COUNT, SUM, AVG, GROUP BY). Tu peux utiliser plusieurs blocs \`\`\`sql\`\`\`.`;
+                sqlHints += `\n6. N'invente JAMAIS de données fictives. Génère UNIQUEMENT les blocs SQL et une brève explication. Les résultats réels apparaissent après exécution.`;
+                if (isMySQL) sqlHints += `\n7. Syntaxe MySQL. Ne préfixe jamais les tables avec le nom de la base.`;
+                if (isPG) sqlHints += `\n7. PostgreSQL : le schema par défaut est 'public'.`;
                 promptWithContext += sqlHints;
               }
             }
@@ -1193,50 +1191,11 @@ export function useSystemAudio() {
         }
 
         if (fullResponse) {
-          // ── Detect email action from AI response ─────────────────────
-          const hasLamu = fullResponse.includes("LAMU_EMAIL");
-          invoke("debug_log", { message: `AI response length=${fullResponse.length} hasLAMU_EMAIL=${hasLamu} last100="${fullResponse.slice(-100).replace(/\n/g, "\\n")}"` }).catch(() => {});
-          // Handles: LAMU_EMAIL:{...} or LAMU_EMAIL: {...} or inside a code block
-          const emailJsonStr = extractJsonAfterMarker(fullResponse, "LAMU_EMAIL:");
-          if (emailJsonStr) {
-            try {
-              const raw = JSON.parse(emailJsonStr) as {
-                to?: string; subject?: string; body?: string;
-              };
-              // Resolve contact name to email
-              const toQuery = raw.to || "";
-              let toEmail = "";
-              let toName = "";
-              if (toQuery.includes("@")) {
-                toEmail = toQuery;
-              } else {
-                try {
-                  const contact = await invoke<{ full_name: string; email: string } | null>(
-                    "contacts_resolve", { name: toQuery }
-                  );
-                  if (contact) { toEmail = contact.email; toName = contact.full_name; }
-                } catch { /* contact resolution is best-effort */ }
-              }
-
-              // Toujours afficher le modal pour vérification avant envoi
-              // (même en mode auto-send — évite les envois sur mauvaise transcription)
-              setPendingEmailDraft({
-                to_name: toName,
-                to_email: toEmail,
-                to_query: toQuery,
-                subject: raw.subject || "",
-                body: (raw.body || "").replace(/\\n/g, "\n"),
-                autoSend: toEmail ? autoSendEmailRef.current : false,
-              });
-            } catch { /* malformed JSON — ignore */ }
-          }
-
           // ── Detect LAMU_ACTION ────────────────────────────────────────
           const actionJsonStr = extractJsonAfterMarker(fullResponse, "LAMU_ACTION:");
           if (actionJsonStr) {
             try {
               const raw = JSON.parse(actionJsonStr);
-              // Find integration name from connected integrations
               let integName = raw.integration ?? "";
               if (raw.integration_id) {
                 try {
@@ -1250,8 +1209,10 @@ export function useSystemAudio() {
             } catch { /* malformed JSON — ignore */ }
           }
 
-          // ── Detect SQL blocks in AI response → auto-execute reads, queue writes ──
+          // ── Detect SQL blocks → execute FIRST, then compose email with results ──
           const sqlBlocks = extractSqlBlocks(fullResponse);
+          let sqlReadResults: SqlQueryResult[] = [];
+
           if (sqlBlocks.length > 0) {
             try {
               const integrations = await invoke<Array<{ id: string; provider: string; name: string }>>("kb_list_integrations");
@@ -1263,7 +1224,7 @@ export function useSystemAudio() {
 
                 // Auto-execute read queries
                 if (reads.length > 0) {
-                  const readResults = await Promise.all(
+                  sqlReadResults = await Promise.all(
                     reads.map(async (sql): Promise<SqlQueryResult> => {
                       try {
                         const data = await invoke<string>("kb_database_query", {
@@ -1276,7 +1237,7 @@ export function useSystemAudio() {
                       }
                     })
                   );
-                  setDbQueryResults(readResults);
+                  setDbQueryResults(sqlReadResults);
                 }
 
                 // Queue first write for approval
@@ -1290,6 +1251,164 @@ export function useSystemAudio() {
                 }
               }
             } catch { /* best-effort — no integrations available */ }
+          }
+
+          // ── Detect email action from AI response ─────────────────────
+          // Done AFTER SQL execution so we can enrich the email body with real data
+          const hasLamu = fullResponse.includes("LAMU_EMAIL");
+          invoke("debug_log", { message: `[EMAIL] hasLAMU_EMAIL=${hasLamu} sqlResults=${sqlReadResults.length}` }).catch(() => {});
+          const emailJsonStr = extractJsonAfterMarker(fullResponse, "LAMU_EMAIL:");
+
+          if (emailJsonStr) {
+            try {
+              const raw = JSON.parse(emailJsonStr) as {
+                to?: string; subject?: string; body?: string;
+              };
+
+              // If SQL results are available, enrich the email body with real data
+              let emailBody = (raw.body || "").replace(/\\n/g, "\n");
+              if (sqlReadResults.length > 0) {
+                const resultsText = sqlReadResults
+                  .filter((r) => r.executed && r.data)
+                  .map((r) => r.data)
+                  .join("\n\n");
+                if (resultsText) {
+                  // Replace placeholder body with actual data
+                  emailBody = `${emailBody}\n\n--- Données extraites ---\n\n${resultsText}`;
+                }
+              }
+
+              // Resolve contact name to email
+              const toQuery = raw.to || "";
+              let toEmail = "";
+              let toName = "";
+              if (toQuery.includes("@")) {
+                toEmail = toQuery;
+              } else if (toQuery) {
+                // Try contacts_resolve first
+                try {
+                  const contact = await invoke<{ full_name: string; email: string } | null>(
+                    "contacts_resolve", { name: toQuery }
+                  );
+                  if (contact) { toEmail = contact.email; toName = contact.full_name; }
+                } catch { /* best-effort */ }
+
+                // If not resolved, try contacts_search (broader fuzzy match)
+                if (!toEmail) {
+                  try {
+                    const results = await invoke<Array<{ full_name: string; email: string }>>(
+                      "contacts_search", { query: toQuery, limit: 1 }
+                    );
+                    if (results.length > 0 && results[0].email) {
+                      toEmail = results[0].email;
+                      toName = results[0].full_name;
+                      invoke("debug_log", { message: `[EMAIL] Resolved via contacts_search: ${toEmail}` }).catch(() => {});
+                    }
+                  } catch { /* best-effort */ }
+                }
+              }
+
+              // If still not resolved, try to extract an email from the AI response
+              if (!toEmail) {
+                const emailMatch = fullResponse.match(/[\w.+-]+@[\w.-]+\.\w{2,}/);
+                if (emailMatch) {
+                  toEmail = emailMatch[0];
+                  invoke("debug_log", { message: `[EMAIL] Extracted email from AI response: ${toEmail}` }).catch(() => {});
+                }
+              }
+
+              invoke("debug_log", { message: `[EMAIL] Draft: to="${toEmail}" subject="${raw.subject}" bodyLen=${emailBody.length}` }).catch(() => {});
+              setPendingEmailDraft({
+                to_name: toName || toQuery, to_email: toEmail, to_query: toQuery,
+                subject: raw.subject || "", body: emailBody, autoSend: false,
+              });
+            } catch (jsonErr) {
+              invoke("debug_log", { message: `[EMAIL] JSON parse error: ${jsonErr}` }).catch(() => {});
+            }
+          } else if (emailEnabledRef.current &&
+            (/\b(email|e-mail|mail|envoie|envoyer|send|message\s+à|write\s+to|rapport.*mail|mail.*rapport)\b/i.test(transcription) ||
+             /\b(prépare.*email|prepare.*email|envoyer.*mail|email.*joel|mail.*joel|l'envoi|l.envoi)\b/i.test(fullResponse))) {
+            // Fallback: no LAMU_EMAIL marker but user asked for email
+            // Works with both extractSqlBlocks results AND LAMU_ACTION db_query results (shown inline)
+            invoke("debug_log", { message: `[EMAIL] Fallback triggered: sqlReadResults=${sqlReadResults.length}, hasInlineResults=${/=== Résultats/.test(fullResponse)}` }).catch(() => {});
+
+            const recipientMatch = transcription.match(
+              /(?:à|to|a)\s+([a-zà-ÿA-ZÀ-Ÿ]+(?:\s+[a-zà-ÿA-ZÀ-Ÿ]+)?)\s*$/i
+            ) || transcription.match(
+              /(?:à|to|a)\s+([a-zà-ÿA-ZÀ-Ÿ]+(?:\s+[a-zà-ÿA-ZÀ-Ÿ]+)?)/i
+            );
+            const toQuery = recipientMatch ? recipientMatch[1].trim() : "";
+            invoke("debug_log", { message: `[EMAIL] Fallback recipientMatch: toQuery="${toQuery}" transcription="${transcription}"` }).catch(() => {});
+
+            // Use sqlReadResults if available, otherwise use the full AI response (which contains inline results from LAMU_ACTION)
+            let emailBody: string;
+            if (sqlReadResults.length > 0) {
+              const resultsText = sqlReadResults
+                .filter((r) => r.executed && r.data)
+                .map((r) => r.data)
+                .join("\n\n");
+              const cleanedAIText = fullResponse
+                .replace(/```sql[\s\S]*?```/g, "")
+                .replace(/LAMU_ACTION:[\s\S]*$/gm, "")
+                .replace(/LAMU_EMAIL:[\s\S]*$/gm, "")
+                .trim();
+              emailBody = cleanedAIText ? `${cleanedAIText}\n\n${resultsText}` : resultsText;
+            } else {
+              // No sqlReadResults — use the AI response directly (it contains inline results from action system)
+              emailBody = fullResponse
+                .replace(/LAMU_ACTION:\{[\s\S]*?\}/g, "")
+                .replace(/LAMU_EMAIL:\{[\s\S]*?\}/g, "")
+                .trim();
+            }
+
+            let toEmail = "";
+            let toName = "";
+            if (toQuery.includes("@")) {
+              toEmail = toQuery;
+            } else if (toQuery) {
+              // Try contacts_resolve first
+              try {
+                const contact = await invoke<{ full_name: string; email: string } | null>(
+                  "contacts_resolve", { name: toQuery }
+                );
+                if (contact) { toEmail = contact.email; toName = contact.full_name; }
+              } catch { /* best-effort */ }
+
+              // If not resolved, try contacts_search (broader fuzzy match)
+              if (!toEmail) {
+                try {
+                  const results = await invoke<Array<{ full_name: string; email: string }>>(
+                    "contacts_search", { query: toQuery, limit: 1 }
+                  );
+                  if (results.length > 0 && results[0].email) {
+                    toEmail = results[0].email;
+                    toName = results[0].full_name;
+                    invoke("debug_log", { message: `[EMAIL] Resolved via contacts_search: ${toEmail}` }).catch(() => {});
+                  }
+                } catch { /* best-effort */ }
+              }
+            }
+
+            // If still not resolved, try to extract an email from the AI response
+            if (!toEmail) {
+              const emailMatch = fullResponse.match(/[\w.+-]+@[\w.-]+\.\w{2,}/);
+              if (emailMatch) {
+                toEmail = emailMatch[0];
+                invoke("debug_log", { message: `[EMAIL] Extracted email from AI response: ${toEmail}` }).catch(() => {});
+              }
+            }
+
+            // Generate subject from transcription (first ~60 chars, cleaned up)
+            const fallbackSubject = transcription
+              .replace(/\b(envoie|envoyer|send|mail|email|e-mail|par|à|to|un|une|le|la|les|de|du|des)\b/gi, "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 60) || "Rapport";
+
+            setPendingEmailDraft({
+              to_name: toName || toQuery, to_email: toEmail, to_query: toQuery,
+              subject: fallbackSubject, body: emailBody, autoSend: false,
+            });
           }
 
           // ── Detect LAMU_FILESEARCH and auto-execute ─────────────────
@@ -1904,7 +2023,7 @@ ${transcriptText}`;
     try {
       setError("");
 
-      if (isBlocked) {
+      if (isBlockedRef.current) {
         setError("Your free trial has expired. Get a license to continue using the overlay.");
         return;
       }

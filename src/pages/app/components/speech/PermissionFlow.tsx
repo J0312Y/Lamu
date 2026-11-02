@@ -86,8 +86,8 @@ export const PermissionFlow = ({
   const stateConfig = {
     checking: {
       icon: <LoaderIcon className="w-5 h-5 animate-spin" />,
-      title: "Checking Permissions",
-      description: "Verifying system audio access...",
+      title: "Vérification des permissions",
+      description: "Vérification de l'accès audio système...",
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
       textColor: "text-blue-800",
@@ -95,8 +95,8 @@ export const PermissionFlow = ({
     },
     granted: {
       icon: <CheckCircle2Icon className="w-5 h-5" />,
-      title: "Permission Granted",
-      description: "Starting capture...",
+      title: "Permission accordée",
+      description: "Démarrage de la capture...",
       bgColor: "bg-green-50",
       borderColor: "border-green-200",
       textColor: "text-green-800",
@@ -104,8 +104,8 @@ export const PermissionFlow = ({
     },
     requesting: {
       icon: <LoaderIcon className="w-5 h-5 animate-spin" />,
-      title: "Waiting for Permission",
-      description: `Enable Lamu in System Settings (${checkAttempts}/20)`,
+      title: "En attente de permission",
+      description: `Activez Lamu dans les paramètres système (${checkAttempts}/20)`,
       bgColor: "bg-orange-50",
       borderColor: "border-orange-200",
       textColor: "text-orange-800",
@@ -113,8 +113,8 @@ export const PermissionFlow = ({
     },
     denied: {
       icon: <ShieldAlertIcon className="w-5 h-5" />,
-      title: "Permission Required",
-      description: "Grant access to capture system audio",
+      title: "Permission requise",
+      description: "Accordez l'accès pour capturer l'audio système",
       bgColor: "bg-muted/50",
       borderColor: "border-border",
       textColor: "text-muted-foreground",
@@ -145,14 +145,14 @@ export const PermissionFlow = ({
           {permissionState === "denied" && (
             <div className="mt-3 space-y-2">
               <Button onClick={requestPermission} size="sm" className="w-full">
-                Grant Permission
+                Accorder la permission
               </Button>
               <button
                 type="button"
                 onClick={() => setShowManual(!showManual)}
                 className="w-full flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground"
               >
-                Manual setup
+                Configuration manuelle
                 <ChevronDownIcon
                   className={cn(
                     "w-3 h-3 transition-transform",
@@ -162,10 +162,10 @@ export const PermissionFlow = ({
               </button>
               {showManual && (
                 <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside pt-2 border-t border-border/50">
-                  <li>Open System Settings</li>
-                  <li>Go to Privacy & Security</li>
-                  <li>Select Screen & System Audio Recording</li>
-                  <li>Enable Lamu</li>
+                  <li>Ouvrir les Paramètres système</li>
+                  <li>Aller dans Confidentialité & Sécurité</li>
+                  <li>Sélectionner Enregistrement d'écran & Audio système</li>
+                  <li>Activer Lamu</li>
                 </ol>
               )}
             </div>
@@ -179,7 +179,7 @@ export const PermissionFlow = ({
                 onClick={checkPermission}
                 className="text-xs"
               >
-                Check Now
+                Vérifier maintenant
               </Button>
             </div>
           )}

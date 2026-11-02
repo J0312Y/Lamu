@@ -15,8 +15,8 @@ export const AlwaysOnTopToggle = ({ className }: AlwaysOnTopToggleProps) => {
   return (
     <div id="always-on-top" className={`space-y-2 ${className}`}>
       <Header
-        title="Always On Top Mode"
-        description="Control whether the window stays above all other applications"
+        title="Mode fenêtre au premier plan"
+        description="Contrôle si la fenêtre reste au-dessus de toutes les autres applications"
         isMainTitle
       />
       <div className="flex items-center justify-between">
@@ -24,25 +24,25 @@ export const AlwaysOnTopToggle = ({ className }: AlwaysOnTopToggleProps) => {
           <div>
             <Label className="text-sm font-medium">
               {customizable.alwaysOnTop.isEnabled
-                ? "Disable Always On Top"
-                : "Enable Always On Top"}
+                ? "Désactiver le premier plan"
+                : "Activer le premier plan"}
             </Label>
             <p className="text-xs text-muted-foreground mt-1">
               {customizable.alwaysOnTop.isEnabled
-                ? "Window stays above all other applications (default)"
-                : "Window behaves like normal applications"}
+                ? "La fenêtre reste au-dessus de toutes les applications (par défaut)"
+                : "La fenêtre se comporte comme une application normale"}
             </p>
           </div>
         </div>
         <Switch
           checked={customizable.alwaysOnTop.isEnabled}
           onCheckedChange={handleSwitchChange}
-          title={`Toggle to ${
-            !customizable.alwaysOnTop.isEnabled ? "Enabled" : "Disabled"
-          } always on top`}
-          aria-label={`Toggle to ${
-            customizable.alwaysOnTop.isEnabled ? "Enabled" : "Disabled"
-          } always on top`}
+          title={`Basculer vers premier plan ${
+            !customizable.alwaysOnTop.isEnabled ? "activé" : "désactivé"
+          }`}
+          aria-label={`Basculer vers premier plan ${
+            customizable.alwaysOnTop.isEnabled ? "activé" : "désactivé"
+          }`}
         />
       </div>
     </div>

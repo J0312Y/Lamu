@@ -10,24 +10,24 @@ const stagger = { show: { transition: { staggerChildren: 0.1, delayChildren: 0.1
 
 const perks = [
   { icon: DollarSign, title: '30% de Commission', desc: 'Gagnez 30% sur chaque licence Dev Pro vendue via votre lien de parrainage. Paiement mensuel.', color: '#4ade80', bg: 'rgba(74,222,128,0.08)' },
-  { icon: Users, title: 'Parrainages a Vie', desc: "Votre commission s'applique a vie pour chaque client que vous parrainez — pas seulement le premier achat.", color: '#818cf8', bg: 'rgba(99,102,241,0.08)' },
-  { icon: Link2, title: "Lien d'Affilie Unique", desc: 'Obtenez un lien de suivi personnalise et un tableau de bord pour suivre vos clics, conversions et gains.', color: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
-  { icon: Mail, title: 'Support Dedie', desc: "Acces a des ressources specifiques aux affilies, bannieres et support direct de l'equipe Lamu.", color: '#22d3ee', bg: 'rgba(34,211,238,0.08)' },
+  { icon: Users, title: 'Parrainages à Vie', desc: "Votre commission s'applique à vie pour chaque client que vous parrainez — pas seulement le premier achat.", color: '#818cf8', bg: 'rgba(99,102,241,0.08)' },
+  { icon: Link2, title: "Lien d'Affilié Unique", desc: 'Obtenez un lien de suivi personnalisé et un tableau de bord pour suivre vos clics, conversions et gains.', color: '#fbbf24', bg: 'rgba(251,191,36,0.08)' },
+  { icon: Mail, title: 'Support Dédié', desc: "Accès à des ressources spécifiques aux affiliés, bannières et support direct de l'équipe Lamu.", color: '#22d3ee', bg: 'rgba(34,211,238,0.08)' },
 ]
 
 const steps = [
-  { num: '01', title: 'Postuler', desc: "Envoyez-nous un email a affiliates@lamuka.com avec votre nom et comment vous comptez promouvoir Lamu." },
-  { num: '02', title: 'Obtenir Votre Lien', desc: "Nous vous enverrons un lien de suivi unique et l'acces aux ressources promotionnelles sous 2 jours ouvrables." },
+  { num: '01', title: 'Postuler', desc: "Envoyez-nous un email à affiliates@lamuka-tech.com avec votre nom et comment vous comptez promouvoir Lamu." },
+  { num: '02', title: 'Obtenir Votre Lien', desc: "Nous vous enverrons un lien de suivi unique et l'accès aux ressources promotionnelles sous 2 jours ouvrables." },
   { num: '03', title: 'Promouvoir', desc: 'Partagez Lamu avec votre audience via du contenu, des tutoriels, des posts sociaux ou tout canal de votre choix.' },
-  { num: '04', title: 'Gagner', desc: 'Les commissions sont suivies automatiquement et versees mensuellement sur votre mode de paiement prefere.' },
+  { num: '04', title: 'Gagner', desc: 'Les commissions sont suivies automatiquement et versées mensuellement sur votre mode de paiement préféré.' },
 ]
 
 const faqs = [
   { q: 'Combien est-ce que je gagne par vente ?', a: "30% de chaque vente de licence Dev Pro (120$) — soit 36$ par conversion." },
-  { q: 'Quand suis-je paye ?', a: 'Les commissions sont versees mensuellement, dans les 5 premiers jours ouvrables du mois suivant.' },
-  { q: 'Y a-t-il un seuil minimum de versement ?', a: 'Oui, le seuil minimum est de 50$. Les soldes inferieurs sont reportes au mois suivant.' },
-  { q: 'Quels materiaux promotionnels sont fournis ?', a: 'Nous fournissons des bannieres, videos de demo, modeles de texte et captures de produit. Visitez la page Promouvoir pour les ressources completes.' },
-  { q: 'Puis-je utiliser de la publicite payante ?', a: "Oui, avec approbation ecrite prealable. L'enchere sur nos mots-cles de marque necessite une approbation. Contactez affiliates@lamuka.com." },
+  { q: 'Quand suis-je payé ?', a: 'Les commissions sont versées mensuellement, dans les 5 premiers jours ouvrables du mois suivant.' },
+  { q: 'Y a-t-il un seuil minimum de versement ?', a: 'Oui, le seuil minimum est de 50$. Les soldes inférieurs sont reportés au mois suivant.' },
+  { q: 'Quels matériaux promotionnels sont fournis ?', a: 'Nous fournissons des bannières, vidéos de démo, modèles de texte et captures de produit. Visitez la page Promouvoir pour les ressources complètes.' },
+  { q: 'Puis-je utiliser de la publicité payante ?', a: "Oui, avec approbation écrite préalable. L'enchère sur nos mots-clés de marque nécessite une approbation. Contactez affiliates@lamuka-tech.com." },
 ]
 
 export default function Affiliate() {
@@ -51,7 +51,7 @@ export default function Affiliate() {
           </motion.p>
           <motion.div variants={fadeUp}>
             <a
-              href="mailto:affiliates@lamuka.com?subject=Candidature Affilie"
+              href="mailto:affiliates@lamuka-tech.com?subject=Candidature Affilié"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', fontWeight: 600, padding: '14px 32px', borderRadius: 12, fontSize: 15, textDecoration: 'none' }}
             >
               <Mail size={16} />
@@ -81,7 +81,7 @@ export default function Affiliate() {
       <section style={{ padding: '0 24px 80px' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
           <motion.h2 initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} style={{ fontSize: 26, fontWeight: 800, textAlign: 'center', marginBottom: 48, letterSpacing: -0.5 }}>
-            Comment ca Marche
+            Comment ça Marche
           </motion.h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 16 }}>
             {steps.map((step, i) => (
@@ -116,8 +116,8 @@ export default function Affiliate() {
                 </div>
               ))}
             </div>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>Base sur 36$ de commission par vente Dev Pro (120$ x 30%)</p>
-            <a href="mailto:affiliates@lamuka.com?subject=Candidature Affilie" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', fontWeight: 600, padding: '12px 28px', borderRadius: 10, fontSize: 14, textDecoration: 'none' }}>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>Basé sur 36$ de commission par vente Dev Pro (120$ x 30%)</p>
+            <a href="mailto:affiliates@lamuka-tech.com?subject=Candidature Affilié" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#fff', color: '#000', fontWeight: 600, padding: '12px 28px', borderRadius: 10, fontSize: 14, textDecoration: 'none' }}>
               <Mail size={15} /> Rejoindre le Programme
             </a>
           </motion.div>
@@ -150,14 +150,14 @@ export default function Affiliate() {
       <section style={{ padding: '0 24px 100px', textAlign: 'center' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
-            {['Pas de spam ni de publicite trompeuse', "Pas d'enchere sur les mots-cles de marque sans approbation", 'Divulgation obligatoire conformement aux directives FTC', 'Commissions retenues pour les parrainages frauduleux'].map((g, i) => (
+            {['Pas de spam ni de publicité trompeuse', "Pas d'enchère sur les mots-clés de marque sans approbation", 'Divulgation obligatoire conformément aux directives FTC', 'Commissions retenues pour les parrainages frauduleux'].map((g, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px' }}>
                 <CheckCircle2 size={16} color="#4ade80" style={{ flexShrink: 0 }} />
                 <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)' }}>{g}</span>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>Des questions ? Ecrivez a <a href="mailto:affiliates@lamuka.com" style={{ color: '#818cf8', textDecoration: 'none' }}>affiliates@lamuka.com</a></p>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>Des questions ? Écrivez à <a href="mailto:affiliates@lamuka-tech.com" style={{ color: '#818cf8', textDecoration: 'none' }}>affiliates@lamuka-tech.com</a></p>
         </div>
       </section>
     </div>

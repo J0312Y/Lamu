@@ -97,6 +97,8 @@ async fn search_internal(
         })
         .map_err(|e| format!("KB query error: {}", e))?
         .filter_map(|r| r.ok())
+        // Filter out chunks that contain binary/non-text data (e.g. crawled PNG, font files)
+        .filter(|c| !looks_binary(&c.content))
         .collect();
 
     let n_docs = raw_chunks.len();
@@ -297,6 +299,36 @@ pub fn keyword_search(
     scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     scored.truncate(top_k);
     Ok(scored.into_iter().map(|(_, r)| r).collect())
+}
+
+/// Detect chunks that contain binary/non-text data (PNG, fonts, CSS, minified JS, etc.)
+fn looks_binary(content: &str) -> bool {
+    let bytes = content.as_bytes();
+    // Check for binary file signatures
+    if bytes.len() >= 4 {
+        if bytes.starts_with(b"\x89PNG") || bytes.starts_with(b"\xFF\xD8\xFF")
+            || bytes.starts_with(b"GIF8") || bytes.starts_with(b"%PDF")
+            || bytes.starts_with(b"PK\x03\x04") || bytes.starts_with(b"wOFF")
+            || bytes.starts_with(b"\x00\x01\x00\x00")
+        {
+            return true;
+        }
+    }
+    // High ratio of non-printable/control characters → likely binary
+    if !content.is_empty() {
+        let non_text = content.chars()
+            .filter(|c| c.is_control() && *c != '\n' && *c != '\r' && *c != '\t')
+            .count();
+        if non_text as f32 / content.len() as f32 > 0.05 {
+            return true;
+        }
+    }
+    // Known binary-like patterns from crawled assets
+    let start = &content[..content.len().min(200)];
+    if start.contains("IHDR") && start.contains("IDAT") {
+        return true;
+    }
+    false
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {

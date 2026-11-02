@@ -60,7 +60,7 @@ export const TalkTimeAnalytics = ({ data, compact }: TalkTimeAnalyticsProps) => 
     <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2.5">
       <div className="flex items-center gap-2">
         <BarChart3Icon className="w-3.5 h-3.5 text-primary" />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Talk Time</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Temps de parole</span>
         <span className="text-[10px] text-muted-foreground ml-auto flex items-center gap-1">
           <ClockIcon className="w-2.5 h-2.5" />{formatTime(data.totalDurationMs)}
         </span>

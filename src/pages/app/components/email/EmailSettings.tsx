@@ -44,7 +44,7 @@ export const EmailSettings = () => {
     try {
       await saveEmailConfig(cfg);
     } catch (e: any) {
-      setSaveError(typeof e === "string" ? e : e?.message ?? "Failed to save email configuration");
+      setSaveError(typeof e === "string" ? e : e?.message ?? "Échec de la sauvegarde de la configuration email");
     } finally {
       setIsSaving(false);
     }

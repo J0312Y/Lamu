@@ -10906,6 +10906,8 @@ function toCsv(rows, columns) {
   const header = columns.join(',');
   const lines = rows.map(r => columns.map(c => {
     let val = r[c] ?? '';
+    // mysql2 returns DATE/DATETIME as Date objects; String() would give a locale string
+    if (val instanceof Date) { const iso = val.toISOString(); val = iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso; }
     val = String(val).replace(/"/g, '""');
     if (val.includes(',') || val.includes('"') || val.includes('\n')) val = `"${val}"`;
     return val;
@@ -10951,7 +10953,7 @@ app.get('/api/export/conversations', requireAuth, async (req, res) => {
 
 app.get('/api/export/analytics', requireAuth, async (req, res) => {
   try {
-    const rows = await db.query('SELECT date, requests, tokens_used FROM activity ORDER BY date DESC');
+    const rows = await db.query('SELECT date, requests, tokens AS tokens_used FROM activity ORDER BY date DESC');
     const csv = toCsv(rows, ['date', 'requests', 'tokens_used']);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="analytics_${new Date().toISOString().slice(0,10)}.csv"`);

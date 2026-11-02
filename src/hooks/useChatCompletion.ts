@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useApp } from "@/contexts";
-import { MAX_FILES } from "@/config";
+import { MAX_FILES, LAMU_IDENTITY, EMAIL_ACTION_INSTRUCTIONS, EMAIL_DISABLED_HINT } from "@/config";
 import {
   fetchAIResponse,
   saveConversation,
@@ -13,8 +13,40 @@ import {
   getResponseSettings,
 } from "@/lib";
 import { safeLocalStorage } from "@/lib/storage/helper";
+import { extractSqlBlocks, isWriteSql } from "@/lib/sqlUtils";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { EmailDraft } from "@/types/email";
+
+/**
+ * Extract the first complete JSON object that follows `marker:` in `text`.
+ * Uses brace-counting to find the matching `}`, correctly handling nested
+ * objects and string literals.
+ */
+function extractJsonAfterMarker(text: string, marker: string): string | null {
+  const markerIdx = text.indexOf(marker);
+  if (markerIdx === -1) return null;
+  const start = text.indexOf("{", markerIdx + marker.length);
+  if (start === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (escape) { escape = false; continue; }
+    if (c === "\\" && inString) { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === "{") depth++;
+    if (c === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
 
 // Types for completion
 interface AttachedFile {
@@ -79,6 +111,10 @@ export const useChatCompletion = (
   const [isRecording, setIsRecording] = useState(false);
   const [isFilesPopoverOpen, setIsFilesPopoverOpen] = useState(false);
   const [isScreenshotLoading, setIsScreenshotLoading] = useState(false);
+  const [pendingEmailDraft, setPendingEmailDraft] = useState<EmailDraft | null>(null);
+
+  // Email feature enabled flag (same localStorage key as overlay)
+  const emailEnabled = safeLocalStorage.getItem("email_enabled") === "true";
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -241,7 +277,9 @@ export const useChatCompletion = (
         let fullResponse = "";
 
         // ── Enrich context with KB, integrations, calendar (like overlay) ──
-        let enrichedSystemPrompt = systemPrompt || "";
+        let enrichedSystemPrompt = systemPrompt
+          ? `${LAMU_IDENTITY}\n\n## Additional instructions\n${systemPrompt}`
+          : LAMU_IDENTITY;
         const kbEnabled = (() => { const v = safeLocalStorage.getItem("kb_enabled"); return v === null ? true : v === "true"; })();
 
         if (kbEnabled) {
@@ -283,7 +321,10 @@ export const useChatCompletion = (
                     if (schema && schema.trim()) {
                       liveContextParts.push(`--- Database schema "${integ.name}" (${integ.provider}) ---\n${schema}`);
                     }
-                  } catch { /* best-effort */ }
+                  } catch (e) {
+                    // Schema fetch failed — add a note so the AI knows to query INFORMATION_SCHEMA first
+                    liveContextParts.push(`--- Database "${integ.name}" (${integ.provider}) --- Schema not available. Run: SHOW TABLES; first to discover table names.`);
+                  }
                 })
               );
 
@@ -311,16 +352,15 @@ export const useChatCompletion = (
                 const isPG = dbIntegrations.some((i) => i.provider === "postgres");
                 let sqlHints = `\n\n[DATABASE INSTRUCTIONS — MANDATORY]`;
                 sqlHints += `\nYou have DIRECT access to the following databases: ${dbDetails}.`;
-                sqlHints += `\nThe full schema with all tables and columns is provided above. You KNOW the database structure.`;
                 sqlHints += `\nYou can execute SQL queries — the system will automatically execute any query in a \`\`\`sql\`\`\` block.`;
                 sqlHints += `\nRULES:`;
-                sqlHints += `\n1. When the user asks for data, ANALYZE the provided schema to identify the correct table. Then generate the SQL query in a \`\`\`sql\`\`\` block.`;
-                sqlHints += `\n2. NEVER say "I cannot access the database" or "I cannot show real data" — you CAN via \`\`\`sql\`\`\` blocks.`;
-                sqlHints += `\n3. Only use tables and columns from the provided schema. Do not invent anything.`;
-                sqlHints += `\n4. NEVER generate queries on information_schema. You already have the full schema.`;
-                sqlHints += `\n5. For reports: generate SQL queries with aggregations (COUNT, SUM, AVG, GROUP BY). You can generate multiple \`\`\`sql\`\`\` blocks in one response.`;
-                sqlHints += `\n6. VERY IMPORTANT: NEVER invent fictional data or examples. Only generate SQL block(s) and a brief explanation. Real results will be displayed after execution.`;
-                if (isMySQL) sqlHints += `\n7. MySQL: use DATABASE() instead of the database name in WHERE clauses.`;
+                sqlHints += `\n1. If the schema is provided above, use ONLY the exact table and column names from that schema. Do NOT invent table names.`;
+                sqlHints += `\n2. If the schema is NOT available, first run \`\`\`sql\nSHOW TABLES;\n\`\`\` to discover actual table names, then query.`;
+                sqlHints += `\n3. NEVER say "I cannot access the database" — you CAN via \`\`\`sql\`\`\` blocks.`;
+                sqlHints += `\n4. NEVER prefix table names with the database name (e.g. use \`orders\` NOT \`dbname.orders\`). The connection is already on the correct database.`;
+                sqlHints += `\n5. For reports: use aggregations (COUNT, SUM, AVG, GROUP BY). You can use multiple \`\`\`sql\`\`\` blocks.`;
+                sqlHints += `\n6. NEVER invent fictional data. Generate ONLY SQL blocks and brief explanations. Real results appear after execution.`;
+                if (isMySQL) sqlHints += `\n7. MySQL syntax. Never prefix tables with database name.`;
                 if (isPG) sqlHints += `\n7. PostgreSQL: default schema is 'public'.`;
                 enrichedSystemPrompt += sqlHints;
               }
@@ -351,6 +391,14 @@ export const useChatCompletion = (
               enrichedSystemPrompt += `\n\n--- Upcoming calendar events ---\n${calContext}\n---`;
             }
           } catch { /* best-effort */ }
+        }
+
+        // ── Inject email instructions (same logic as overlay) ──────────────
+        const looksLikeEmailRequest = /\b(email|e-mail|mail|envoie|envoyer|send|message\s+à|write\s+to|rapport.*mail|mail.*rapport)\b/i.test(input);
+        if (emailEnabled) {
+          enrichedSystemPrompt += `\n\n${EMAIL_ACTION_INSTRUCTIONS}`;
+        } else if (looksLikeEmailRequest) {
+          enrichedSystemPrompt += `\n\n${EMAIL_DISABLED_HINT}`;
         }
 
         // Only send images if the current model/provider supports vision
@@ -443,6 +491,103 @@ export const useChatCompletion = (
         // Only proceed if this is still the current request
         if (currentRequestIdRef.current !== requestId || signal.aborted) {
           return;
+        }
+
+        // ── Auto-execute SQL blocks in AI response ──────────────────────
+        try {
+          const sqlBlocks = extractSqlBlocks(fullResponse);
+          if (sqlBlocks.length > 0) {
+            const integrations = await invoke<Array<{ id: string; provider: string; name: string }>>("kb_list_integrations");
+            const dbIntegs = integrations.filter((i) => ["postgres", "mysql"].includes(i.provider));
+            if (dbIntegs.length > 0) {
+              const targetDb = dbIntegs[0];
+              const reads = sqlBlocks.filter((s) => !isWriteSql(s));
+              const writes = sqlBlocks.filter((s) => isWriteSql(s));
+
+              if (reads.length > 0) {
+                const resultParts: string[] = [];
+                for (const sql of reads) {
+                  try {
+                    const data = await invoke<string>("kb_database_query", {
+                      integrationId: targetDb.id, sql, allowWrite: false,
+                    });
+                    if (data && data.trim()) {
+                      // kb_database_query returns pre-formatted text tables from Rust
+                      resultParts.push(data);
+                    }
+                  } catch (e: unknown) {
+                    const msg = e instanceof Error ? e.message : String(e);
+                    resultParts.push(`❌ Error: ${msg}\nSQL: ${sql.replace(/\n/g, " ").slice(0, 150)}`);
+                  }
+                }
+
+                if (resultParts.length > 0) {
+                  fullResponse += `\n\n---\n**📊 ${targetDb.name}**\n\n${resultParts.join("\n\n")}`;
+                }
+              }
+
+              if (writes.length > 0) {
+                fullResponse += `\n\n---\n⚠️ **${writes.length} write operation(s) detected** (INSERT/UPDATE/DELETE). Use the overlay for write operations with approval workflow.`;
+              }
+
+              // Update the displayed message with SQL results
+              const assistantMsgWithResults: ChatMessage = {
+                id: generateMessageId("assistant", timestamp + MESSAGE_ID_OFFSET),
+                role: "assistant",
+                content: fullResponse,
+                timestamp: timestamp + MESSAGE_ID_OFFSET,
+              };
+              const updatedWithResults = {
+                ...updatedMessages,
+                messages: [...updatedMessages.messages.filter(m => m.role !== "assistant" || m.id !== assistantMsgWithResults.id), assistantMsgWithResults],
+              };
+              setMessages(updatedWithResults);
+              scrollToBottom();
+            }
+          }
+        } catch { /* SQL execution is best-effort */ }
+
+        // ── Detect email action from AI response ────────────────────────
+        // Done AFTER SQL so fullResponse already contains the query results
+        if (fullResponse && fullResponse.includes("LAMU_EMAIL")) {
+          const emailJsonStr = extractJsonAfterMarker(fullResponse, "LAMU_EMAIL:");
+          if (emailJsonStr) {
+            try {
+              const raw = JSON.parse(emailJsonStr) as {
+                to?: string; subject?: string; body?: string;
+              };
+
+              // Enrich the email body with SQL results if they were appended to fullResponse
+              let emailBody = (raw.body || "").replace(/\\n/g, "\n");
+              // Check if fullResponse has SQL results (added after the ---\n**📊 marker)
+              const sqlResultsMatch = fullResponse.match(/---\n\*\*📊.*?\*\*\n\n([\s\S]+?)$/);
+              if (sqlResultsMatch) {
+                emailBody += `\n\n--- Données extraites ---\n\n${sqlResultsMatch[1].trim()}`;
+              }
+
+              const toQuery = raw.to || "";
+              let toEmail = "";
+              let toName = "";
+              if (toQuery.includes("@")) {
+                toEmail = toQuery;
+              } else {
+                try {
+                  const contact = await invoke<{ full_name: string; email: string } | null>(
+                    "contacts_resolve", { name: toQuery }
+                  );
+                  if (contact) { toEmail = contact.email; toName = contact.full_name; }
+                } catch { /* contact resolution is best-effort */ }
+              }
+              setPendingEmailDraft({
+                to_name: toName,
+                to_email: toEmail,
+                to_query: toQuery,
+                subject: raw.subject || "",
+                body: emailBody,
+                autoSend: false,
+              });
+            } catch { /* malformed JSON — ignore */ }
+          }
         }
 
         setState((prev) => ({ ...prev, isLoading: false }));
@@ -887,5 +1032,7 @@ export const useChatCompletion = (
     allSttProviders,
     selectedAudioDevices,
     hasActiveLicense,
+    pendingEmailDraft,
+    setPendingEmailDraft,
   };
 };

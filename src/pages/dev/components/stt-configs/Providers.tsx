@@ -43,8 +43,8 @@ export const Providers = ({
     <div className="space-y-3">
       <div className="space-y-2">
         <Header
-          title="Select STT Provider"
-          description="Select your preferred STT service provider or custom providers to get started."
+          title="Sélectionner un fournisseur STT"
+          description="Sélectionnez votre fournisseur de service STT préféré ou un fournisseur personnalisé pour commencer."
         />
         <Selection
           selected={selectedSttProvider?.provider}
@@ -52,13 +52,13 @@ export const Providers = ({
             const json = curl2Json(provider?.curl);
             return {
               label: provider?.isCustom
-                ? json?.url || "Custom Provider"
-                : provider?.id || "Custom Provider",
-              value: provider?.id || "Custom Provider",
+                ? json?.url || "Fournisseur personnalisé"
+                : provider?.id || "Fournisseur personnalisé",
+              value: provider?.id || "Fournisseur personnalisé",
               isCustom: provider?.isCustom,
             };
           })}
-          placeholder="Choose your STT provider"
+          placeholder="Choisissez votre fournisseur STT"
           onChange={(value) => {
             onSetSelectedSttProvider({
               provider: value,
@@ -69,23 +69,23 @@ export const Providers = ({
       </div>
       {localSelectedProvider ? (
         <Header
-          title={`Method: ${
-            localSelectedProvider?.method || "Invalid"
-          }, Endpoint: ${localSelectedProvider?.url || "Invalid"}`}
-          description={`If you want to use different url or method, you can always create a custom provider.`}
+          title={`Méthode : ${
+            localSelectedProvider?.method || "Invalide"
+          }, Endpoint : ${localSelectedProvider?.url || "Invalide"}`}
+          description={`Si vous souhaitez utiliser une URL ou méthode différente, vous pouvez toujours créer un fournisseur personnalisé.`}
         />
       ) : null}
       {findKeyAndValue("api_key") ? (
         <div className="space-y-2">
           <Header
-            title="API Key"
-            description={`Enter your ${
+            title="Clé API"
+            description={`Saisissez votre clé API ${
               allSttProviders?.find(
                 (p) => p?.id === selectedSttProvider?.provider
               )?.isCustom
-                ? "Custom Provider"
+                ? "Fournisseur personnalisé"
                 : selectedSttProvider?.provider
-            } API key to authenticate and access STT models. Your key is stored locally and never shared.`}
+            } pour vous authentifier et accéder aux modèles STT. Votre clé est stockée localement et n'est jamais partagée.`}
           />
 
           <div className="space-y-2">
@@ -140,7 +140,7 @@ export const Providers = ({
                   disabled={isApiKeyEmpty()}
                   size="icon"
                   className="shrink-0 h-11 w-11"
-                  title="Submit API Key"
+                  title="Valider la clé API"
                 >
                   <KeyIcon className="h-4 w-4" />
                 </Button>
@@ -161,7 +161,7 @@ export const Providers = ({
                   size="icon"
                   variant="destructive"
                   className="shrink-0 h-11 w-11"
-                  title="Remove API Key"
+                  title="Supprimer la clé API"
                 >
                   <TrashIcon className="h-4 w-4" />
                 </Button>
@@ -186,25 +186,25 @@ export const Providers = ({
               <div className="space-y-1" key={variable?.key}>
                 <Header
                   title={variable?.value || ""}
-                  description={`add your preferred ${variable?.key?.replace(
+                  description={`Ajoutez votre ${variable?.key?.replace(
                     /_/g,
                     " "
-                  )} for ${
+                  )} préféré pour ${
                     allSttProviders?.find(
                       (p) => p?.id === selectedSttProvider?.provider
                     )?.isCustom
-                      ? "Custom Provider"
+                      ? "Fournisseur personnalisé"
                       : selectedSttProvider?.provider
                   }`}
                 />
                 <TextInput
-                  placeholder={`Enter ${
+                  placeholder={`Saisissez ${
                     allSttProviders?.find(
                       (p) => p?.id === selectedSttProvider?.provider
                     )?.isCustom
-                      ? "Custom Provider"
+                      ? "Fournisseur personnalisé"
                       : selectedSttProvider?.provider
-                  } ${variable?.key?.replace(/_/g, " ") || "value"}`}
+                  } ${variable?.key?.replace(/_/g, " ") || "valeur"}`}
                   value={getVariableValue()}
                   onChange={(value) => {
                     if (!variable?.key || !selectedSttProvider) return;

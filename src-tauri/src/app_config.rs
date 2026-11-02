@@ -5,14 +5,14 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-fn lamu_api_url() -> &'static str {
+pub fn lamu_api_url() -> &'static str {
     // Debug builds (cargo tauri dev) → localhost:3000 automatically.
     // Release builds (cargo tauri build) → set LAMU_API_URL at build time,
-    //   e.g.  LAMU_API_URL=https://api.lamuka.com cargo tauri build
+    //   e.g.  LAMU_API_URL=https://api.lamu.lamuka-tech.com cargo tauri build
     #[cfg(debug_assertions)]
     { option_env!("LAMU_API_URL").unwrap_or("http://localhost:3000") }
     #[cfg(not(debug_assertions))]
-    { option_env!("LAMU_API_URL").unwrap_or("https://api.lamuka.com") }
+    { option_env!("LAMU_API_URL").unwrap_or("https://api.lamu.lamuka-tech.com") }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -49,7 +49,7 @@ impl AppConfig {
             price_label:          "2 XAF".to_string(),
             license_key_prefix:   "LMU-".to_string(),
             app_name:             "Lamu".to_string(),
-            support_email:        "support@lamuka.com".to_string(),
+            support_email:        "support@lamuka-tech.com".to_string(),
             max_file_attachments: 6,
             max_kb_chunk_size:    1200,
             max_ai_tokens:        500,

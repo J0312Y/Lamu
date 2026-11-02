@@ -36,13 +36,13 @@ export const CreateSystemPrompt = ({
     <div className="space-y-3">
       <Input
         className="h-11"
-        placeholder="Enter a name for the system prompt"
+        placeholder="Entrez un nom pour le prompt système"
         value={form.name}
         onChange={(e) => setForm({ ...form, name: e.target.value })}
         disabled={isSaving}
       />
       <Textarea
-        placeholder="You are a helpful AI assistant. Be concise, accurate, and friendly in your responses..."
+        placeholder="Vous êtes un assistant IA utile. Soyez concis, précis et bienveillant dans vos réponses..."
         className="min-h-[100px] resize-none border-1 border-input/50 focus:border-primary/50 transition-colors"
         value={form.prompt}
         onChange={(e) => setForm({ ...form, prompt: e.target.value })}
@@ -58,14 +58,14 @@ export const CreateSystemPrompt = ({
                 onClick={onClose}
                 disabled={isSaving}
               >
-                Close
+                Fermer
               </Button>
               <Button
                 className="w-1/3"
                 variant="destructive"
                 onClick={onDelete}
                 disabled={isSaving}
-                title="Delete this prompt"
+                title="Supprimer ce prompt"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -74,7 +74,7 @@ export const CreateSystemPrompt = ({
                 onClick={onSave}
                 disabled={!isFormValid || isSaving}
               >
-                {isSaving ? "Updating..." : "Update"}
+                {isSaving ? "Mise à jour..." : "Mettre à jour"}
               </Button>
             </div>
           </>
@@ -86,14 +86,14 @@ export const CreateSystemPrompt = ({
               onClick={onClose}
               disabled={isSaving}
             >
-              Cancel
+              Annuler
             </Button>
             <Button
               className="w-1/2"
               onClick={onSave}
               disabled={!isFormValid || isSaving}
             >
-              {isSaving ? "Creating..." : "Create"}
+              {isSaving ? "Création..." : "Créer"}
             </Button>
           </>
         )}

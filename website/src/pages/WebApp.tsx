@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Send, Bot, User, Plus, MessageSquare, Trash2,
@@ -10,19 +10,21 @@ import {
   ThumbsUp, ThumbsDown, Share2, Copy, Check,
   TrendingUp, MessageCircle, Star, Briefcase, Scale,
   Users, Code, HeartHandshake, GraduationCap,
-  Sun, Moon, Download, AlertTriangle, Crown,
-  UserCircle, Paperclip, Keyboard, ExternalLink,
-  ChevronUp, LayoutDashboard, Archive, Clock,
+  Download, AlertTriangle, Crown,
+  UserCircle, Paperclip, ExternalLink,
+  ChevronLeft, LayoutDashboard, Archive, Clock,
+  Bell,
 } from 'lucide-react'
+
+// JSON from backend endpoints that have no TypeScript interface yet.
+// Replace with a real interface when working on the feature that uses it.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ApiData = any
 
 // All backend calls go through the Vite proxy at /lamu-api — the proxy injects
 // the Authorization header server-side so no secret is exposed to the browser.
 const API_BASE = '/lamu-api'
-const hdrs = () => ({ 'Content-Type': 'application/json' })
 
-type Theme = 'dark' | 'light'
-const THEME_KEY = 'lamu_web_theme'
-const getTheme = (): Theme => (localStorage.getItem(THEME_KEY) as Theme) || 'dark'
 const T = {
   dark: {
     bg: '#080808', bgAlt: '#0d0d0d', card: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.08)',
@@ -39,14 +41,14 @@ const T = {
     toastBg: 'rgba(0,0,0,0.85)',
   },
   light: {
-    bg: '#f7f8fa', bgAlt: '#ffffff', card: '#ffffff', border: 'rgba(0,0,0,0.08)',
-    text: '#1a1a2e', textSub: 'rgba(0,0,0,0.55)', textMuted: 'rgba(0,0,0,0.38)',
+    bg: '#fafafa', bgAlt: '#f4f4f5', card: '#ffffff', border: 'rgba(0,0,0,0.08)',
+    text: '#111827', textSub: '#374151', textMuted: '#9ca3af',
     input: '#ffffff', inputBorder: 'rgba(0,0,0,0.12)',
-    bubble: '#f0f0f5', bubbleBorder: 'rgba(0,0,0,0.06)',
-    sidebar: '#ffffff', sidebarBorder: 'rgba(0,0,0,0.08)',
+    bubble: '#f3f4f6', bubbleBorder: 'rgba(0,0,0,0.06)',
+    sidebar: '#ffffff', sidebarBorder: '#e5e7eb',
     modal: '#ffffff', modalBorder: 'rgba(0,0,0,0.1)',
     dropdown: '#ffffff', dropdownBorder: 'rgba(0,0,0,0.12)',
-    headerBg: 'rgba(255,255,255,0.92)', divider: 'rgba(0,0,0,0.06)',
+    headerBg: 'rgba(255,255,255,0.95)', divider: '#e5e7eb',
     hover: 'rgba(0,0,0,0.04)', activeItem: 'rgba(99,102,241,0.08)',
     codeBg: 'rgba(0,0,0,0.04)', spinnerBg: 'rgba(0,0,0,0.15)',
     btnSecBg: 'rgba(0,0,0,0.03)', btnSecBorder: 'rgba(0,0,0,0.12)',
@@ -54,11 +56,11 @@ const T = {
   },
 }
 type ThemeColors = typeof T.dark
-const ThemeCtx = React.createContext<ThemeColors>(T.dark)
+const ThemeCtx = React.createContext<ThemeColors>(T.light)
 const useTheme = () => React.useContext(ThemeCtx)
 
-type View = 'home' | 'chat' | 'knowledge' | 'dashboard' | 'settings' | 'widget' | 'pricing' | 'profile' | 'integrations' | 'helpdesk' | 'analytics' | 'simulation' | 'escalation' | 'team' | 'channels' | 'kb-gaps' | 'csat' | 'workflows' | 'custom-dashboards' | 'ab-tests' | 'archive' | 'onboarding' | 'auto-sync' | 'ai-actions'
-interface Message      { id: string; role: 'user' | 'assistant'; content: string; pending?: boolean }
+type View = 'home' | 'chat' | 'knowledge' | 'dashboard' | 'settings' | 'widget' | 'pricing' | 'profile' | 'integrations' | 'helpdesk' | 'analytics' | 'simulation' | 'escalation' | 'team' | 'channels' | 'kb-gaps' | 'csat' | 'workflows' | 'custom-dashboards' | 'ab-tests' | 'archive' | 'onboarding' | 'auto-sync' | 'ai-actions' | 'whatsapp' | 'skills' | 'reports'
+interface Message      { id: string; role: 'user' | 'assistant'; content: string; pending?: boolean; thinking?: string; thinkingDone?: boolean }
 interface Conversation { id: string; title: string; messages: Message[]; createdAt: number }
 interface Prompt       { title: string; prompt: string }
 interface Model        { model: string; name: string; isAvailable: boolean }
@@ -86,7 +88,7 @@ async function generateConvTitle(msgs: Message[]): Promise<string> {
       while ((idx = buf.indexOf('\n')) !== -1) {
         const line = buf.slice(0, idx).trim(); buf = buf.slice(idx + 1)
         if (!line.startsWith('data: ')) continue
-        try { const j = JSON.parse(line.slice(6)); if (j.delta) title += j.delta } catch {}
+        try { const j = JSON.parse(line.slice(6)); if (j.delta) title += j.delta } catch { /* ignore */ }
       }
     }
     title = title.trim().replace(/^["']|["']$/g, '').replace(/[.!?]$/, '').trim()
@@ -115,10 +117,11 @@ function Spinner() {
 }
 
 function Dots() {
+  const th = useTheme()
   return (
     <span style={{ display: 'inline-flex', gap: 3, alignItems: 'flex-end', height: 16 }}>
       {[0,1,2].map(i => (
-        <motion.span key={i} style={{ display: 'block', width: 5, height: 5, borderRadius: '50%', background: useTheme().textSub }}
+        <motion.span key={i} style={{ display: 'block', width: 5, height: 5, borderRadius: '50%', background: th.textSub }}
           animate={{ opacity: [0.3, 1, 0.3], y: [0, -4, 0] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.18 }} />
       ))}
     </span>
@@ -280,6 +283,48 @@ function ConfirmDialog() {
   )
 }
 
+function ThinkingBlock({ thinking, done, streaming }: { thinking: string; done: boolean; streaming: boolean }) {
+  const th = useTheme()
+  const [collapsed, setCollapsed] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+  const [startedAt] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (done) return
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 200)
+    return () => clearInterval(timer)
+  }, [done, startedAt])
+
+  if (!thinking) return null
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <button onClick={() => setCollapsed(c => !c)} style={{
+        display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+        cursor: 'pointer', color: th.textMuted, fontSize: 12, fontWeight: 600, padding: '4px 0',
+      }}>
+        <ChevronRight size={12} style={{ transform: collapsed ? 'none' : 'rotate(90deg)', transition: 'transform 0.2s' }} />
+        Thinking
+      </button>
+      {!collapsed && (
+        <div style={{
+          padding: '10px 14px', borderRadius: 10, fontSize: 13, lineHeight: 1.6,
+          background: 'rgba(99,102,241,0.06)', borderLeft: '3px solid rgba(99,102,241,0.3)',
+          color: th.textSub, whiteSpace: 'pre-wrap', marginTop: 4,
+        }}>
+          {thinking}
+          {!done && streaming && <span style={{ display: 'inline-flex', marginLeft: 4, verticalAlign: 'middle' }}><Dots /></span>}
+        </div>
+      )}
+      {!done && streaming && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, color: th.textMuted }}>
+          <Spinner /> Thinking it through {elapsed}s
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Bubble({ msg, isLast, streaming, feedback, onFeedback, onCopy }: {
   msg: Message; isLast: boolean; streaming: boolean
   feedback?: 'up' | 'down' | null; onFeedback?: (rating: 'up' | 'down' | null) => void; onCopy?: (text: string) => void
@@ -305,6 +350,10 @@ function Bubble({ msg, isLast, streaming, feedback, onFeedback, onCopy }: {
         {u ? <User size={14} color="#fff" /> : <Bot size={14} color={th.textSub} />}
       </div>
       <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {/* Thinking block (eesel.ai-style) */}
+        {!u && msg.thinking && (
+          <ThinkingBlock thinking={msg.thinking} done={!!msg.thinkingDone} streaming={isLast && streaming} />
+        )}
         <div style={{ padding: '10px 14px', borderRadius: u ? '18px 4px 18px 18px' : '4px 18px 18px 18px', fontSize: 14, lineHeight: 1.65, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: u ? 'linear-gradient(135deg,#6366f1,#5254cc)' : th.bubble, border: u ? 'none' : `1px solid ${th.bubbleBorder}`, color: u ? '#fff' : th.text, opacity: msg.pending ? 0.7 : 1 }}>
           {msg.content ? msg.content : isLast && streaming ? <Dots /> : null}
           {isLast && streaming && msg.content && <span style={{ marginLeft: 4, display: 'inline-flex', verticalAlign: 'middle' }}><Dots /></span>}
@@ -339,7 +388,7 @@ const SOURCES = [
   { icon: Database, label: 'Toutes les sources', color: '#f59e0b' },
 ]
 
-function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, onClose, mobile, onKb }: {
+function Sidebar({ view, setView, convs, activeId, onSelect, onDelete, onClose, mobile, onKb }: {
   view: View; setView: (v: View) => void
   convs: Conversation[]; activeId: string | null
   onNew: () => void; onSelect: (id: string) => void; onDelete: (id: string) => void
@@ -356,51 +405,44 @@ function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, on
   const navBtn = (id: View, label: string, Icon: React.ElementType, bottom = false) => {
     const active = view === id
     return (
-      <button key={id} onClick={() => { setView(id); onClose?.() }} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 10px', width: '100%', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 500, background: active ? th.activeItem : 'transparent', color: active ? '#6366f1' : bottom ? th.textMuted : th.textSub, transition: 'all 0.15s', textAlign: 'left' }}
+      <button key={id} onClick={() => { setView(id); onClose?.() }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', width: '100%', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: active ? 600 : 500, background: active ? th.activeItem : 'transparent', color: active ? '#111827' : bottom ? th.textMuted : th.textSub, transition: 'all 0.15s', textAlign: 'left', letterSpacing: '-0.01em', lineHeight: 1.4 }}
         onMouseEnter={e => { if (!active) { (e.currentTarget as HTMLButtonElement).style.background = th.hover; (e.currentTarget as HTMLButtonElement).style.color = th.text } }}
-        onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = active ? '#6366f1' : bottom ? th.textMuted : th.textSub } }}
+        onMouseLeave={e => { if (!active) { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = active ? '#111827' : bottom ? th.textMuted : th.textSub } }}
       >
-        <Icon size={14} style={{ flexShrink: 0 }} /> {label}
+        <Icon size={18} style={{ flexShrink: 0 }} /> {label}
       </button>
     )
   }
 
   const sectionHeader = (label: string, key: string) => (
-    <button onClick={() => toggleSec(key)} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '5px 8px', margin: '4px 0 2px', background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+    <button onClick={() => toggleSec(key)} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px', margin: '10px 0 4px', background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, fontSize: 12, fontWeight: 600, letterSpacing: 0.3, textTransform: 'capitalize' }}>
       <span style={{ flex: 1, textAlign: 'left' }}>{label}</span>
-      <ChevronRight size={10} style={{ transform: secOpen[key] ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5 }} />
+      <ChevronRight size={12} style={{ transform: secOpen[key] ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', opacity: 0.6 }} />
     </button>
   )
 
   return (
     <div style={{ width: mobile ? '100%' : 260, flexShrink: 0, background: th.sidebar, borderRight: `1px solid ${th.sidebarBorder}`, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Logo */}
-      <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${th.divider}` }}>
-        <img src="/lamu-icon.png" alt="Lamu AI" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0 }} />
+      <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <img src="/lamu-icon.png" alt="Lamu AI" style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.3px', color: th.text }}>Lamu AI</div>
-          <div style={{ fontSize: 10, color: th.textMuted, marginTop: 1 }}>Agent IA</div>
+          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.3px', color: th.text }}>Lamu AI</div>
         </div>
+        <ChevronDown size={14} style={{ color: th.textMuted }} />
         {mobile && onClose && (
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, padding: 4 }}><X size={15} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, padding: 4 }}><X size={16} /></button>
         )}
       </div>
 
-      {/* New chat */}
-      <div style={{ padding: '10px 10px 6px' }}>
-        <button onClick={onNew} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${th.border}`, color: th.textSub, fontSize: 12.5, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = th.hover; (e.currentTarget as HTMLButtonElement).style.color = th.text }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = th.textSub }}>
-          <Plus size={14} /> Nouveau chat
-        </button>
-      </div>
-
       {/* Scrollable nav area */}
-      <nav style={{ padding: '2px 10px', display: 'flex', flexDirection: 'column', gap: 0, flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <nav style={{ padding: '4px 12px', display: 'flex', flexDirection: 'column', gap: 1, flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {/* ── Principal ── */}
         {navBtn('home', 'Accueil', Home)}
         {navBtn('chat', 'Conversations', MessageSquare)}
         {navBtn('knowledge', 'Connaissances', Search)}
+        {navBtn('skills', 'Compétences', Sparkles)}
+        {navBtn('reports', 'Rapports', BarChart2)}
         {navBtn('integrations', 'Intégrations', GitBranch)}
 
         {/* ── Support & Helpdesk ── */}
@@ -408,6 +450,7 @@ function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, on
         {secOpen.support && <>
           {navBtn('helpdesk', 'Helpdesk IA', Bot)}
           {navBtn('channels', 'Canaux', Globe)}
+          {navBtn('whatsapp', 'WhatsApp Bot', ShoppingBag)}
           {navBtn('escalation', 'Escalade', AlertTriangle)}
           {navBtn('csat', 'CSAT / NPS', Star)}
           {navBtn('kb-gaps', 'Lacunes KB', Library)}
@@ -430,10 +473,10 @@ function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, on
         {navBtn('archive', 'Archives', Archive)}
 
         {/* ── Sources de connaissances ── */}
-        <div style={{ marginTop: 6 }}>
-          <button onClick={() => { setSrcOpen(v => !v); onKb() }} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '5px 8px', background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+        <div style={{ marginTop: 10 }}>
+          <button onClick={() => { setSrcOpen(v => !v); onKb() }} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, fontSize: 12, fontWeight: 600, letterSpacing: 0.3, textTransform: 'capitalize' }}>
             <span style={{ flex: 1, textAlign: 'left' }}>Sources</span>
-            <Plus size={10} style={{ opacity: 0.5 }} />
+            <Plus size={14} style={{ opacity: 0.6 }} />
           </button>
           <AnimatePresence>
             {srcOpen && (
@@ -442,10 +485,10 @@ function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, on
                   {SOURCES.map(s => {
                     const Icon = s.icon
                     return (
-                      <button key={s.label} onClick={() => onKb()} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 7, border: 'none', background: 'transparent', cursor: 'pointer', color: th.textSub, fontSize: 11.5, transition: 'all 0.12s', textAlign: 'left' }}
+                      <button key={s.label} onClick={() => onKb()} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 7, border: 'none', background: 'transparent', cursor: 'pointer', color: th.textMuted, fontSize: 14, fontWeight: 400, transition: 'all 0.12s', textAlign: 'left' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = th.hover; (e.currentTarget as HTMLButtonElement).style.color = th.text }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = th.textSub }}>
-                        <Icon size={12} style={{ color: s.color, flexShrink: 0 }} /> {s.label}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; (e.currentTarget as HTMLButtonElement).style.color = th.textMuted }}>
+                        <Icon size={16} style={{ color: s.color, flexShrink: 0 }} /> {s.label}
                       </button>
                     )
                   })}
@@ -456,27 +499,27 @@ function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, on
         </div>
 
         {/* ── Chats récents ── */}
-        <div style={{ marginTop: 2 }}>
-          <button onClick={() => setChatsOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '5px 8px', background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+        <div style={{ marginTop: 4 }}>
+          <button onClick={() => setChatsOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '6px 10px', background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, fontSize: 12, fontWeight: 600, letterSpacing: 0.3, textTransform: 'capitalize' }}>
             <span style={{ flex: 1, textAlign: 'left' }}>Chats récents</span>
-            <ChevronRight size={10} style={{ transform: chatsOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', opacity: 0.5 }} />
+            <ChevronRight size={12} style={{ transform: chatsOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', opacity: 0.6 }} />
           </button>
           <AnimatePresence>
             {chatsOpen && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
                 {convs.length > 3 && (
                   <div style={{ padding: '4px 0 6px' }}>
-                    <input value={chatSearch} onChange={e => setChatSearch(e.target.value)} placeholder="Rechercher..." style={{ width: '100%', background: th.input, border: `1px solid ${th.inputBorder}`, borderRadius: 7, padding: '5px 8px', color: th.text, fontSize: 11, outline: 'none', boxSizing: 'border-box' }} />
+                    <input value={chatSearch} onChange={e => setChatSearch(e.target.value)} placeholder="Rechercher..." style={{ width: '100%', background: th.input, border: `1px solid ${th.inputBorder}`, borderRadius: 7, padding: '6px 10px', color: th.text, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
                   </div>
                 )}
                 <div style={{ maxHeight: 160, overflowY: 'auto', paddingBottom: 6 }}>
                   {convs.length === 0
-                    ? <p style={{ fontSize: 11, color: th.textMuted, padding: '6px 10px' }}>Aucune conversation</p>
+                    ? <p style={{ fontSize: 13, color: th.textMuted, padding: '6px 12px' }}>Aucune conversation</p>
                     : [...convs].filter(c => !chatSearch || c.title.toLowerCase().includes(chatSearch.toLowerCase()) || c.messages.some(m => m.content.toLowerCase().includes(chatSearch.toLowerCase()))).sort((a, b) => b.createdAt - a.createdAt).map(c => (
                       <div key={c.id} style={{ position: 'relative' }}
                         onMouseEnter={e => { const b = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('.del'); if (b) b.style.opacity = '1' }}
                         onMouseLeave={e => { const b = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('.del'); if (b) b.style.opacity = '0' }}>
-                        <button onClick={() => { onSelect(c.id); onClose?.() }} style={{ width: '100%', textAlign: 'left', padding: '5px 28px 5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11.5, background: c.id === activeId && view === 'chat' ? th.activeItem : 'transparent', color: c.id === activeId && view === 'chat' ? '#6366f1' : th.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'all 0.12s' }}
+                        <button onClick={() => { onSelect(c.id); onClose?.() }} style={{ width: '100%', textAlign: 'left', padding: '6px 28px 6px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, background: c.id === activeId && view === 'chat' ? th.activeItem : 'transparent', color: c.id === activeId && view === 'chat' ? '#111827' : th.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'all 0.12s' }}
                           onMouseEnter={e => { if (!(c.id === activeId && view === 'chat')) (e.currentTarget as HTMLButtonElement).style.background = th.hover }}
                           onMouseLeave={e => { if (!(c.id === activeId && view === 'chat')) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}>
                           {c.title}
@@ -495,7 +538,7 @@ function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, on
       </nav>
 
       {/* Bottom nav — always visible */}
-      <div style={{ borderTop: `1px solid ${th.divider}`, padding: '6px 10px 10px', flexShrink: 0 }}>
+      <div style={{ borderTop: `1px solid ${th.divider}`, padding: '8px 12px 12px', flexShrink: 0 }}>
         {navBtn('widget', 'Widget', Code, true)}
         {navBtn('dashboard', 'Tableau de bord', BarChart2, true)}
         {navBtn('pricing', 'Tarifs', Crown, true)}
@@ -508,7 +551,7 @@ function Sidebar({ view, setView, convs, activeId, onNew, onSelect, onDelete, on
 
 // ── KB types ──────────────────────────────────────────────────────────────────
 
-interface KbDoc { id: string; type: string; name: string; url?: string; chars: number; createdAt: number; content?: string; excerpt?: string }
+interface KbDoc { id: string; type: string; name: string; url?: string; chars: number; createdAt: number; content?: string; excerpt?: string; similarity?: number }
 
 // ── Source connection modal ────────────────────────────────────────────────────
 
@@ -615,7 +658,7 @@ function SourceModal({ srcKey, onClose, onAdded, trialLimitReached }: { srcKey: 
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: th.text }}>Connecter {meta.label}</div>
               <div style={{ fontSize: 12, color: th.textMuted, marginTop: 2 }}>
-                {isNative ? 'Indexer le contenu directement dans Lamu' : 'Disponible dans l\'app desktop'}
+                {isNative ? 'Indexer le contenu directement dans Lamu' : `Connecter ${meta.label} à votre base de connaissances`}
               </div>
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, padding: 4 }}><X size={16} /></button>
@@ -683,28 +726,53 @@ function SourceModal({ srcKey, onClose, onAdded, trialLimitReached }: { srcKey: 
               )}
             </>
           ) : (
-            <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
-              <div style={{ width: 52, height: 52, borderRadius: 14, background: meta.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                <Icon size={24} style={{ color: meta.color }} />
-              </div>
+            <div style={{ padding: '4px 0 8px' }}>
               {trialLimitReached ? (
-                <>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: meta.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                    <Icon size={24} style={{ color: meta.color }} />
+                  </div>
                   <p style={{ fontSize: 13, color: th.textSub, lineHeight: 1.7, marginBottom: 20 }}>
                     Les intégrations comme <strong style={{ color: th.text }}>{meta.label}</strong> nécessitent un plan payant.
                   </p>
-                  <a href="/pricing" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: th.text, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                  <a href="/pricing" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 8, background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
                     Passer à un plan payant
                   </a>
-                </>
+                </div>
               ) : (
                 <>
-                  <p style={{ fontSize: 13, color: th.textSub, lineHeight: 1.7, marginBottom: 20 }}>
-                    L'intégration <strong style={{ color: th.text }}>{meta.label}</strong> est disponible dans l'<strong style={{ color: th.text }}>app desktop Lamu</strong>.<br />
-                    Téléchargez l'app pour connecter {meta.label} et synchroniser vos connaissances automatiquement.
+                  <p style={{ fontSize: 13, color: th.textSub, lineHeight: 1.7, marginBottom: 16 }}>
+                    Connectez <strong style={{ color: th.text }}>{meta.label}</strong> en ajoutant votre clé API ou token d'accès. Vos données seront synchronisées dans la base de connaissances Lamu.
                   </p>
-                  <a href="/downloads" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 20px', borderRadius: 8, background: '#fff', color: '#000', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                    Télécharger Lamu
-                  </a>
+                  {inp('Token / Clé API', url, setUrl, `Votre ${meta.label} API token`)}
+                  {(srcKey === 'confluence' || srcKey === 'jira' || srcKey === 'shopify' || srcKey === 'salesforce' || srcKey === 'sharepoint') && inp('URL / Domaine', name, setName, `https://votre-instance.${srcKey === 'jira' || srcKey === 'confluence' ? 'atlassian.net' : srcKey + '.com'}`)}
+                  {error && <div style={{ marginBottom: 14, padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', fontSize: 13 }}>{error}</div>}
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${th.border}`, background: 'transparent', color: th.textSub, fontSize: 13, cursor: 'pointer' }}>Annuler</button>
+                    <button onClick={async () => {
+                      if (!url.trim()) { setError('Veuillez entrer un token ou une clé API.'); return }
+                      setLoading(true); setError('')
+                      try {
+                        const configMap: Record<string, unknown> = {
+                          github: { token: url }, notion: { api_key: url }, gdrive: { token: url },
+                          confluence: { api_token: url, url: name || '' }, jira: { api_token: url, url: name || '' },
+                          shopify: { token: url, url: name || '' }, salesforce: { token: url, url: name || '' },
+                          sharepoint: { token: url, url: name || '' },
+                        }
+                        const r = await fetch(`${API_BASE}/api/integrations`, {
+                          method: 'POST', headers: webHdrs(),
+                          body: JSON.stringify({ provider: srcKey, name: meta.label, config: configMap[srcKey] || { token: url } })
+                        })
+                        const d = await r.json()
+                        if (d.error) { setError(d.error); return }
+                        onAdded({ id: d.id || uid(), type: srcKey, name: meta.label, chars: 0, createdAt: Date.now() })
+                        onClose()
+                      } catch (e) { setError((e instanceof Error && e.message) || 'Échec de la connexion') }
+                      finally { setLoading(false) }
+                    }} disabled={loading} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: loading ? 'rgba(99,102,241,0.4)' : '#6366f1', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}>
+                      {loading ? <><Spinner /> Connexion…</> : `Connecter ${meta.label}`}
+                    </button>
+                  </div>
                 </>
               )}
             </div>
@@ -731,7 +799,7 @@ function KbView({ onClose, isTrial }: { onClose: () => void; isTrial?: boolean }
     try {
       const r = await fetch(`${API_BASE}/api/kb`, { headers: webHdrs() })
       if (r.ok) { const d = await r.json(); setDocs(d.docs || []) }
-    } catch {} finally { setLoading(false) }
+    } catch { /* ignore */ } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -1102,7 +1170,7 @@ function HomeView({ hasChatted, onNewChat, setView, isTrial, userName, hasConfig
 
 // ── Chat view ──────────────────────────────────────────────────────────────────
 
-function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setModel, system, setSystem, prompts, streaming, setStreaming, kbContext, clearKbContext, userName, onMessageSent }: {
+function ChatView({ convs, activeId, setActiveId, setConvs, model, system, setSystem, prompts, streaming, setStreaming, kbContext, clearKbContext, userName, onMessageSent, compact }: {
   convs: Conversation[]; activeId: string | null
   setActiveId: (id: string | null) => void
   setConvs: React.Dispatch<React.SetStateAction<Conversation[]>>
@@ -1113,6 +1181,7 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
   clearKbContext: () => void
   userName: string | null
   onMessageSent?: () => void
+  compact?: boolean
 }) {
   const th = useTheme()
   const [input,       setInput]       = useState('')
@@ -1131,7 +1200,7 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
   const inputRef  = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef  = useRef<AbortController | null>(null)
-  const msgs = convs.find(c => c.id === activeId)?.messages ?? []
+  const msgs = useMemo(() => convs.find(c => c.id === activeId)?.messages ?? [], [convs, activeId])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
 
@@ -1188,12 +1257,20 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
     const displayText = currentFile ? `${text}\n📎 ${currentFile.name}` : text
     const uMsg: Message = { id: uid(), role: 'user',      content: displayText }
     const aMsg: Message = { id: uid(), role: 'assistant', content: '' }
-    setConvs(p => p.map(c => c.id !== convId ? c : { ...c, messages: [...c.messages, uMsg, aMsg] }))
+    // Immediately set title from user message if still default
+    setConvs(p => p.map(c => {
+      if (c.id !== convId) return c
+      const updated = { ...c, messages: [...c.messages, uMsg, aMsg] }
+      if (c.title === 'Nouvelle conversation' || c.title === 'New conversation') {
+        updated.title = text.slice(0, 48) + (text.length > 48 ? '…' : '')
+      }
+      return updated
+    }))
     setStreaming(true); abortRef.current = new AbortController()
     try {
       const prev = convs.find(c => c.id === convId)?.messages ?? []
       const apiText = currentFile ? `${text}\n\n[Attached file: ${currentFile.name}]\n${currentFile.content}` : text
-      const body: any = { messages: [...prev.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: apiText }], model: model || undefined, system: system || undefined, userName: userName || undefined }
+      const body: Record<string, unknown> = { messages: [...prev.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: apiText }], model: model || undefined, system: system || undefined, userName: userName || undefined }
       if (kbContext?.id) body.kbIds = [kbContext.id]
 
       // Retry logic with exponential backoff (2s, 4s, 8s)
@@ -1231,7 +1308,10 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
           try {
             const j = JSON.parse(line.slice(6))
             if (j.error) throw new Error(j.error)
-            if (j.delta) setConvs(p => p.map(c => { if (c.id !== convId) return c; const ms = [...c.messages]; ms[ms.length - 1] = { ...ms[ms.length - 1], content: ms[ms.length - 1].content + j.delta }; return { ...c, messages: ms } }))
+            if (j.thinking_start) setConvs(p => p.map(c => { if (c.id !== convId) return c; const ms = [...c.messages]; ms[ms.length - 1] = { ...ms[ms.length - 1], thinking: '', thinkingDone: false }; return { ...c, messages: ms } }))
+            else if (j.thinking_delta) setConvs(p => p.map(c => { if (c.id !== convId) return c; const ms = [...c.messages]; ms[ms.length - 1] = { ...ms[ms.length - 1], thinking: (ms[ms.length - 1].thinking || '') + j.thinking_delta }; return { ...c, messages: ms } }))
+            else if (j.thinking_end) setConvs(p => p.map(c => { if (c.id !== convId) return c; const ms = [...c.messages]; ms[ms.length - 1] = { ...ms[ms.length - 1], thinkingDone: true }; return { ...c, messages: ms } }))
+            else if (j.delta) setConvs(p => p.map(c => { if (c.id !== convId) return c; const ms = [...c.messages]; ms[ms.length - 1] = { ...ms[ms.length - 1], content: ms[ms.length - 1].content + j.delta }; return { ...c, messages: ms } }))
           } catch (e: unknown) { if (e instanceof Error && e.message) throw e }
         }
       }
@@ -1259,7 +1339,7 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
       setError(isOffline ? 'Vous êtes hors ligne. Vérifiez votre connexion internet et réessayez.' : (e instanceof Error ? e.message : 'Une erreur est survenue. Vérifiez que le serveur est en cours d\'exécution.'))
       setConvs(p => p.map(c => c.id !== convId ? c : { ...c, messages: c.messages.filter((m, i) => !(i === c.messages.length - 1 && m.role === 'assistant' && !m.content)) }))
     } finally { setStreaming(false) }
-  }, [activeId, convs, model, system, streaming, setConvs, setActiveId, setStreaming, kbContext])
+  }, [activeId, convs, model, system, streaming, setConvs, setActiveId, setStreaming, kbContext, userName, onMessageSent])
 
   const send = useCallback(() => {
     const text = input.trim(); if (!text || streaming) return
@@ -1286,15 +1366,15 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-      {/* Top bar */}
-      <div style={{ padding: '8px 16px', borderBottom: `1px solid ${th.divider}`, display: 'flex', alignItems: 'center', gap: 8, background: th.headerBg, backdropFilter: 'blur(12px)', flexShrink: 0 }}>
-        <button onClick={() => setShowCfg(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: th.hover, border: `1px solid ${th.border}`, borderRadius: 8, padding: '5px 10px', color: th.text, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
-            <img src="/lamu-icon.png" alt="" style={{ width: 14, height: 14, borderRadius: 3 }} />Lamu AI<ChevronDown size={11} style={{ opacity: 0.5 }} />
+      {/* Top bar — hidden in compact/side-panel mode */}
+      {!compact && <div style={{ padding: '6px 10px', borderBottom: `1px solid ${th.divider}`, display: 'flex', alignItems: 'center', gap: 6, background: th.headerBg, backdropFilter: 'blur(12px)', flexShrink: 0, flexWrap: 'wrap' }}>
+        <button onClick={() => setShowCfg(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: th.hover, border: `1px solid ${th.border}`, borderRadius: 8, padding: '4px 8px', color: th.text, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}>
+            <img src="/lamu-icon.png" alt="" style={{ width: 13, height: 13, borderRadius: 3 }} />Lamu AI<ChevronDown size={10} style={{ opacity: 0.5 }} />
           </button>
         {prompts.length > 0 && (
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowPrompts(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 5, background: th.hover, border: `1px solid ${th.border}`, borderRadius: 8, padding: '5px 10px', color: th.textSub, fontSize: 12, cursor: 'pointer' }}>
-              <Sparkles size={11} style={{ color: '#f59e0b' }} /> Modèles
+            <button onClick={() => setShowPrompts(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 4, background: th.hover, border: `1px solid ${th.border}`, borderRadius: 8, padding: '4px 8px', color: th.textSub, fontSize: 11, cursor: 'pointer' }}>
+              <Sparkles size={10} style={{ color: '#f59e0b' }} /> Modèles
             </button>
             <AnimatePresence>
               {showPrompts && (
@@ -1367,13 +1447,14 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
             <Download size={12} /> Exporter
           </button>
         )}
-        <button onClick={() => setShowCfg(v => !v)} style={{ display: 'flex', alignItems: 'center', background: showCfg ? 'rgba(99,102,241,0.15)' : th.hover, border: `1px solid ${showCfg ? 'rgba(99,102,241,0.3)' : th.border}`, borderRadius: 8, padding: '5px 10px', color: showCfg ? '#818cf8' : th.textSub, fontSize: 12, cursor: 'pointer' }}>
-          <Settings size={12} />
+        <div style={{ flex: 1 }} />
+        <button onClick={() => setShowCfg(v => !v)} style={{ display: 'flex', alignItems: 'center', background: showCfg ? 'rgba(99,102,241,0.15)' : 'none', border: 'none', borderRadius: 6, padding: 4, color: showCfg ? '#818cf8' : th.textMuted, cursor: 'pointer' }}>
+          <Settings size={14} />
         </button>
-        <button onClick={newChat} style={{ display: 'flex', alignItems: 'center', background: th.hover, border: `1px solid ${th.border}`, borderRadius: 8, padding: '5px 10px', color: th.textSub, fontSize: 12, cursor: 'pointer' }}>
-          <Plus size={13} />
+        <button onClick={newChat} style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', borderRadius: 6, padding: 4, color: th.textMuted, cursor: 'pointer' }}>
+          <Plus size={14} />
         </button>
-      </div>
+      </div>}
       {kbContext && (
         <div style={{ padding: '10px 16px', borderBottom: `1px solid ${th.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: 'rgba(99,102,241,0.05)', color: th.text, fontSize: 13 }}>
           <div>Source de connaissances : <strong style={{ color: th.text }}>{kbContext.name}</strong></div>
@@ -1397,24 +1478,34 @@ function ChatView({ convs, activeId, setActiveId, setConvs, model, models, setMo
       </AnimatePresence>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 0', minHeight: 0 }}>
         <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {msgs.length === 0 ? (
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '80px 20px 40px' }}>
-              <img src="/lamu-icon.png" alt="Lamu AI" style={{ width: 60, height: 60, borderRadius: '50%', margin: '0 auto 20px', boxShadow: '0 0 40px rgba(99,102,241,0.3)' }} />
-              <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, letterSpacing: '-0.5px', color: th.text }}>{userName ? `Bonjour ${userName} !` : 'Comment puis-je vous aider ?'}</h2>
-              <p style={{ color: th.textMuted, fontSize: 14, maxWidth: 360, margin: '0 auto 32px', lineHeight: 1.7 }}>Posez vos questions — je suis connecté à votre base de connaissances et prêt à vous assister.</p>
-              {prompts.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', maxWidth: 520, margin: '0 auto' }}>
-                  {prompts.slice(0, 6).map(p => (
-                    <button key={p.title} onClick={() => { setSystem(p.prompt); inputRef.current?.focus() }} style={{ padding: '8px 16px', borderRadius: 20, border: `1px solid ${th.border}`, background: th.card, color: th.textSub, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(99,102,241,0.4)'; (e.currentTarget as HTMLButtonElement).style.color = th.text }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = th.border; (e.currentTarget as HTMLButtonElement).style.color = th.textSub }}>
-                      {p.title}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: compact ? '40px 16px 20px' : '80px 20px 40px' }}>
+              <img src="/lamu-icon.png" alt="Lamu AI" style={{ width: compact ? 48 : 60, height: compact ? 48 : 60, borderRadius: '50%', margin: '0 auto 16px', boxShadow: '0 0 40px rgba(99,102,241,0.3)' }} />
+              <h2 style={{ fontSize: compact ? 20 : 24, fontWeight: 700, marginBottom: 6, letterSpacing: '-0.5px', color: th.text }}>{userName ? `Bonjour ${userName} !` : 'Comment puis-je vous aider ?'}</h2>
+              <p style={{ color: th.textMuted, fontSize: 13, maxWidth: 360, margin: '0 auto 24px', lineHeight: 1.6 }}>Posez vos questions — je suis connecté à votre base de connaissances et prêt à vous assister.</p>
+              {/* eesel.ai-style vertical suggestion list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 380, margin: '0 auto' }}>
+                {(prompts.length > 0 ? prompts.slice(0, 4).map(p => ({ label: p.title, action: () => { setSystem(p.prompt); inputRef.current?.focus() } })) : [
+                  { label: 'Connecter votre helpdesk pour améliorer la gestion des tickets.', action: () => { setInput('Comment connecter mon helpdesk ?'); setTimeout(() => inputRef.current?.focus(), 50) } },
+                  { label: 'Essayez : Quelle est votre politique de confidentialité ?', action: () => { setInput('Quelle est votre politique de confidentialité ?'); setTimeout(() => inputRef.current?.focus(), 50) } },
+                  { label: 'Chargez des documents pour une meilleure assistance.', action: () => { setInput('Comment charger des documents ?'); setTimeout(() => inputRef.current?.focus(), 50) } },
+                  { label: 'Essayez d\'écrire un article de blog.', action: () => { setInput('Écris un article de blog sur...'); setTimeout(() => inputRef.current?.focus(), 50) } },
+                ]).map((s, i) => (
+                  <button key={i} onClick={s.action} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', width: '100%',
+                    background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                    borderRadius: 8, color: th.textSub, fontSize: 13, lineHeight: 1.4, transition: 'background 0.15s',
+                  }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = th.hover }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                  >
+                    <ChevronRight size={14} style={{ flexShrink: 0, marginTop: 2, opacity: 0.4, transform: 'rotate(180deg)' }} />
+                    <span>{s.label}</span>
+                  </button>
+                ))}
+              </div>
             </motion.div>
           ) : msgs.map((m, i) => <Bubble key={m.id} msg={m} isLast={i === msgs.length - 1 && m.role === 'assistant'} streaming={streaming} feedback={feedbackMap[m.id] || null} onFeedback={r => handleFeedback(m.id, r)} />)}
           {retryStatus && (
@@ -1656,19 +1747,717 @@ const INDUSTRY_TEMPLATES = [
   { icon: Briefcase, label: 'Business & Sales', color: '#6366f1', prompt: `Tu es un assistant commercial et business. Tu aides a qualifier les prospects, tu reponds aux questions sur les offres et tu guides vers la meilleure solution. Tu es persuasif mais honnete, et tu cherches toujours a creer de la valeur pour le client.` },
 ]
 
-function SettingsView({ model, models, setModel, system, setSystem }: { model: string; models: Model[]; setModel: (m: string) => void; system: string; setSystem: (s: string) => void }) {
+// ── Skills View (eesel.ai style) ─────────────────────────────────────────────
+
+interface SkillDef {
+  name: string; emoji: string; desc: string; available: boolean
+  detail?: string; config?: { label: string; type: 'toggle' | 'text' | 'select'; key: string; default?: string; options?: string[] }[]
+}
+
+const SKILLS_DATA: { category: string; catEmoji: string; skills: SkillDef[] }[] = [
+  {
+    category: 'Support Analytics',
+    catEmoji: '📊',
+    skills: [
+      { name: 'Simulation', emoji: '📝', desc: 'Run your agent against multiple tickets at once and get a scored performanc...', available: true, detail: 'Lancez des tests de simulation en masse sur vos tickets pour évaluer les performances de votre agent. Obtenez un score de qualité, des métriques détaillées et des suggestions d\'amélioration.', config: [{ label: 'Nombre de tickets par test', type: 'text', key: 'ticket_count', default: '50' }, { label: 'Activer scoring automatique', type: 'toggle', key: 'auto_score' }] },
+      { name: 'Support Analytics', emoji: '📈', desc: 'Surface top themes and resolution trends across your tickets.', available: true, detail: 'Analysez automatiquement les tendances de vos tickets : thèmes récurrents, temps de résolution, taux de satisfaction et lacunes dans la base de connaissances.', config: [{ label: 'Période d\'analyse', type: 'select', key: 'period', options: ['7 jours', '30 jours', '90 jours'] }, { label: 'Notifications de tendances', type: 'toggle', key: 'trend_notif' }] },
+    ]
+  },
+  {
+    category: 'Agent Improvement',
+    catEmoji: '🛠️',
+    skills: [
+      { name: 'Skill Builder', emoji: '🔧', desc: 'Build and edit custom skills to teach your agent new workflows', available: true, detail: 'Créez des compétences personnalisées pour votre agent en définissant des workflows, des conditions de déclenchement et des actions. Votre agent apprendra à gérer de nouveaux scénarios.', config: [{ label: 'Mode avancé', type: 'toggle', key: 'advanced_mode' }] },
+      { name: 'Self Review', emoji: '📋', desc: "Review your agent's setup and performance with actionable suggestions", available: true, detail: 'Obtenez un audit complet de votre agent : qualité des instructions, couverture de la KB, analyse des conversations rejetées et suggestions concrètes d\'amélioration.', config: [{ label: 'Fréquence de review', type: 'select', key: 'review_freq', options: ['Quotidien', 'Hebdomadaire', 'Mensuel'] }] },
+      { name: 'KB Auto-updater', emoji: '🔄', desc: 'Draft articles from resolved conversations to fill knowledge gaps.', available: false },
+      { name: 'Self Improvement', emoji: '✏️', desc: 'Find rejection patterns and suggest instruction fixes.', available: false },
+    ]
+  },
+  {
+    category: 'SEO & Content Creation',
+    catEmoji: '📄',
+    skills: [
+      { name: 'Blog Writer', emoji: '🔥', desc: 'Turn a topic into a fully researched, publication-ready long-form post', available: true, detail: 'Générez des articles de blog complets et optimisés SEO à partir d\'un simple sujet. Inclut recherche, plan, rédaction, meta descriptions et suggestions de mots-clés.', config: [{ label: 'Langue par défaut', type: 'select', key: 'lang', options: ['Français', 'English', 'Español'] }, { label: 'Longueur cible (mots)', type: 'text', key: 'word_count', default: '2000' }] },
+      { name: 'GitHub', emoji: '🐙', desc: 'Clone, edit, and push content to any GitHub repository', available: true, detail: 'Connectez un dépôt GitHub pour que votre agent puisse cloner, éditer et pousser du contenu directement. Idéal pour la documentation technique et les changelogs.', config: [{ label: 'Branche par défaut', type: 'text', key: 'default_branch', default: 'main' }] },
+    ]
+  },
+  {
+    category: 'Other',
+    catEmoji: '✨',
+    skills: [
+      { name: 'Translation', emoji: '🌐', desc: 'Translate documents into any language, formatting preserved', available: true, detail: 'Traduisez vos documents, articles et pages dans n\'importe quelle langue tout en préservant le formatage, les liens et la structure du contenu original.', config: [{ label: 'Langues cibles par défaut', type: 'text', key: 'target_langs', default: 'fr, en, es' }] },
+    ]
+  },
+]
+
+function SkillsView() {
+  const th = useTheme()
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<SkillDef | null>(null)
+  const [skillStates, setSkillStates] = useState<Record<string, Record<string, string>>>({})
+  const [enabledSkills, setEnabledSkills] = useState<Record<string, boolean>>({})
+  const [saving, setSaving] = useState(false)
+
+  // Load persisted skills from backend
+  useEffect(() => {
+    fetch(`${API_BASE}/api/settings/skills`, { headers: webHdrs() })
+      .then(r => r.json())
+      .then(d => {
+        const skills = d.skills || {}
+        const enabled: Record<string, boolean> = {}
+        const configs: Record<string, Record<string, string>> = {}
+        Object.entries(skills).forEach(([name, val]: [string, ApiData]) => {
+          enabled[name] = val.enabled ?? false
+          if (val.config) configs[name] = val.config
+        })
+        setEnabledSkills(enabled)
+        setSkillStates(configs)
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveSkill = async (skillName: string, enabled: boolean, config?: Record<string, string>) => {
+    setSaving(true)
+    const updated = { ...enabledSkills, [skillName]: enabled }
+    const updatedConfigs = config ? { ...skillStates, [skillName]: config } : skillStates
+    setEnabledSkills(updated)
+    if (config) setSkillStates(updatedConfigs)
+    const payload: Record<string, unknown> = {}
+    SKILLS_DATA.flatMap(c => c.skills).forEach(s => {
+      if (updated[s.name] || updatedConfigs[s.name]) {
+        payload[s.name] = { enabled: !!updated[s.name], config: updatedConfigs[s.name] || {} }
+      }
+    })
+    await fetch(`${API_BASE}/api/settings/skills`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ skills: payload }) }).catch(() => {})
+    setSaving(false)
+  }
+
+  const filtered = SKILLS_DATA.map(cat => ({
+    ...cat,
+    skills: cat.skills.filter(s => !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.desc.toLowerCase().includes(search.toLowerCase()))
+  })).filter(cat => cat.skills.length > 0)
+
+  const updateConfig = (skillName: string, key: string, value: string) => {
+    setSkillStates(prev => ({ ...prev, [skillName]: { ...(prev[skillName] || {}), [key]: value } }))
+  }
+
+  // Detail panel for a selected skill
+  if (selected) {
+    return (
+      <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+        <div style={{ maxWidth: 700, margin: '0 auto' }}>
+          <button onClick={() => setSelected(null)} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: th.textSub, fontSize: 13, fontWeight: 500, marginBottom: 20, padding: 0 }}>
+            <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} /> Retour aux Skills
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <span style={{ fontSize: 36 }}>{selected.emoji}</span>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: th.text, margin: 0 }}>{selected.name}</h2>
+              <p style={{ fontSize: 14, color: th.textSub, margin: '4px 0 0' }}>{selected.desc}</p>
+            </div>
+          </div>
+
+          {selected.detail && (
+            <div style={{ padding: '16px 20px', borderRadius: 12, border: `1px solid ${th.border}`, background: th.card, marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>Description</div>
+              <p style={{ fontSize: 14, color: th.text, lineHeight: 1.7, margin: 0 }}>{selected.detail}</p>
+            </div>
+          )}
+
+          {selected.config && selected.config.length > 0 && (
+            <div style={{ padding: '16px 20px', borderRadius: 12, border: `1px solid ${th.border}`, background: th.card, marginBottom: 20 }}>
+              <div style={{ fontSize: 11, color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14 }}>Configuration</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {selected.config.map(c => {
+                  const val = skillStates[selected.name]?.[c.key] ?? c.default ?? ''
+                  return (
+                    <div key={c.key}>
+                      <label style={{ fontSize: 13, fontWeight: 600, color: th.textSub, marginBottom: 6, display: 'block' }}>{c.label}</label>
+                      {c.type === 'toggle' ? (
+                        <button onClick={() => updateConfig(selected.name, c.key, val === 'on' ? 'off' : 'on')} style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', background: val === 'on' ? '#6366f1' : th.hover, position: 'relative', transition: 'background 0.2s' }}>
+                          <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: val === 'on' ? 23 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />
+                        </button>
+                      ) : c.type === 'select' ? (
+                        <select value={val || c.options?.[0] || ''} onChange={e => updateConfig(selected.name, c.key, e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+                          {c.options?.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <input value={val} onChange={e => updateConfig(selected.name, c.key, e.target.value)} style={{ padding: '8px 12px', borderRadius: 8, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 13, outline: 'none', width: '100%', maxWidth: 300, boxSizing: 'border-box' }} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            {enabledSkills[selected.name] ? (
+              <button onClick={() => { saveSkill(selected.name, false); setSelected(null) }} disabled={saving} style={{ padding: '10px 24px', borderRadius: 10, border: '1px solid #ef4444', background: 'transparent', color: '#ef4444', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                {saving ? 'Enregistrement...' : 'Désactiver ce skill'}
+              </button>
+            ) : (
+              <button onClick={() => { saveSkill(selected.name, true, skillStates[selected.name]); setSelected(null) }} disabled={saving} style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: '#6366f1', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                {saving ? 'Enregistrement...' : 'Activer ce skill'}
+              </button>
+            )}
+            <button onClick={() => setSelected(null)} style={{ padding: '10px 24px', borderRadius: 10, border: `1px solid ${th.border}`, background: 'transparent', color: th.textSub, fontSize: 14, cursor: 'pointer' }}>Annuler</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: 700, margin: '0 auto' }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: th.text }}>Skills</h2>
+        <p style={{ fontSize: 14, color: th.textSub, marginBottom: 24 }}>Ajoutez des compétences pour donner à votre agent de nouveaux workflows et capacités.</p>
+
+        <div style={{ position: 'relative', marginBottom: 28 }}>
+          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: th.textMuted }} />
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher des skills..."
+            style={{ width: '100%', padding: '11px 14px 11px 40px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        {filtered.map(cat => (
+          <div key={cat.category} style={{ marginBottom: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 18 }}>{cat.catEmoji}</span>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: th.text, margin: 0 }}>{cat.category}</h3>
+            </div>
+            <div style={{ borderRadius: 12, border: `1px solid ${th.border}`, overflow: 'hidden' }}>
+              {cat.skills.map((skill, i) => (
+                <div key={skill.name}
+                  onClick={() => { if (skill.available) setSelected(skill) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderBottom: i < cat.skills.length - 1 ? `1px solid ${th.border}` : 'none', cursor: skill.available ? 'pointer' : 'default', transition: 'background 0.15s' }}
+                  onMouseEnter={e => { if (skill.available) (e.currentTarget as HTMLDivElement).style.background = th.hover }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}>
+                  <span style={{ fontSize: 28, flexShrink: 0, width: 36, textAlign: 'center', filter: skill.available ? 'none' : 'grayscale(1) opacity(0.5)' }}>{skill.emoji}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: skill.available ? th.text : th.textMuted }}>{skill.name}</div>
+                    <div style={{ fontSize: 13, color: th.textMuted, marginTop: 2 }}>{skill.desc}</div>
+                  </div>
+                  {skill.available
+                    ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        {enabledSkills[skill.name] && <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: 'rgba(34,197,94,0.1)' }}>Actif</span>}
+                        <ChevronRight size={16} style={{ color: th.textMuted }} />
+                      </div>
+                    : <span style={{ fontSize: 12, color: '#6366f1', fontWeight: 600, padding: '4px 12px', borderRadius: 20, border: '1px solid rgba(99,102,241,0.3)', whiteSpace: 'nowrap', flexShrink: 0 }}>Nous contacter</span>
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Reports View ─────────────────────────────────────────────────────────────
+
+function ReportsView() {
+  const th = useTheme()
+  const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d')
+  const [stats, setStats] = useState<{ total_requests: number; avg_response_time: number; resolution_rate: number; top_topics: string[] } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/reports?period=${period}`, { headers: webHdrs() })
+      .then(r => r.json())
+      .then(d => {
+        setStats({
+          total_requests: d.total_requests || 0,
+          avg_response_time: d.avg_response_time || 0,
+          resolution_rate: d.resolution_rate || 0,
+          top_topics: d.top_topics?.length ? d.top_topics : []
+        })
+      })
+      .catch(() => setStats({ total_requests: 0, avg_response_time: 0, resolution_rate: 0, top_topics: [] }))
+      .finally(() => setLoading(false))
+  }, [period])
+
+  const statCards = stats ? [
+    { label: 'Conversations totales', value: stats.total_requests.toLocaleString(), icon: MessageSquare, color: '#6366f1' },
+    { label: 'Temps de réponse moyen', value: `${stats.avg_response_time}s`, icon: Clock, color: '#22c55e' },
+    { label: 'Taux de résolution', value: `${stats.resolution_rate}%`, icon: CheckCircle, color: '#f59e0b' },
+  ] : []
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: 700, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: th.text, margin: 0 }}>Rapports</h2>
+            <p style={{ fontSize: 14, color: th.textSub, marginTop: 4 }}>Analysez les performances de votre agent.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 4, background: th.bgAlt, borderRadius: 8, padding: 3 }}>
+            {(['7d', '30d', '90d'] as const).map(p => (
+              <button key={p} onClick={() => { if (p !== period) { setPeriod(p); setLoading(true) } }} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: period === p ? '#fff' : 'transparent', color: period === p ? th.text : th.textMuted, fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: period === p ? '0 1px 3px rgba(0,0,0,0.08)' : 'none' }}>{p === '7d' ? '7 jours' : p === '30d' ? '30 jours' : '90 jours'}</button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, color: th.textMuted }}>Chargement...</div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+              {statCards.map(c => {
+                const Icon = c.icon
+                return (
+                  <div key={c.label} style={{ padding: '18px 16px', borderRadius: 12, border: `1px solid ${th.border}`, background: th.card }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: c.color + '15', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon size={16} style={{ color: c.color }} />
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: th.text }}>{c.value}</div>
+                    <div style={{ fontSize: 12, color: th.textMuted, marginTop: 4 }}>{c.label}</div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div style={{ borderRadius: 12, border: `1px solid ${th.border}`, padding: '18px 20px', background: th.card }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, margin: '0 0 14px' }}>Top sujets</h3>
+              {stats?.top_topics && stats.top_topics.length > 0 ? stats.top_topics.map((topic, i) => (
+                <div key={topic} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: i < (stats?.top_topics.length || 0) - 1 ? `1px solid ${th.divider}` : 'none' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: th.textMuted, width: 20 }}>{i + 1}</span>
+                  <span style={{ fontSize: 13, color: th.text, flex: 1 }}>{topic}</span>
+                  <div style={{ width: 80, height: 6, borderRadius: 3, background: th.hover, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 3, background: '#6366f1', width: `${100 - i * 18}%` }} />
+                  </div>
+                </div>
+              )) : (
+                <div style={{ fontSize: 13, color: th.textMuted, fontStyle: 'italic', padding: '8px 0' }}>Aucun sujet détecté pour cette période.</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Settings View (enhanced with eesel.ai sections) ─────────────────────────
+
+function SettingsView({ models, system, setSystem }: { model: string; models: Model[]; setModel: (m: string) => void; system: string; setSystem: (s: string) => void }) {
   const th = useTheme()
   const [activeTemplate, setActiveTemplate] = useState<string | null>(null)
+  const [agentName, setAgentName] = useState('Lamu Agent')
+  const [agentNameSaved, setAgentNameSaved] = useState(false)
+  const [notifChannel, setNotifChannel] = useState('in-app')
+  const [notifDropdown, setNotifDropdown] = useState(false)
+  const [domains, setDomains] = useState<{ id: number; domain: string; auth_header: string }[]>([])
+  const [newDomain, setNewDomain] = useState('')
+  const [newAuth, setNewAuth] = useState('')
+  const [jobs, setJobs] = useState<{ id: number; name: string; prompt: string; cron_expression: string; enabled: number; last_run_at: string | null; last_result: string | null }[]>([])
+  const [addingJob, setAddingJob] = useState(false)
+  const [expandedJob, setExpandedJob] = useState<number | null>(null)
+  const [jobName, setJobName] = useState('')
+  const [jobPrompt, setJobPrompt] = useState('')
+  const [jobFreq, setJobFreq] = useState<'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom'>('daily')
+  const [jobTime, setJobTime] = useState('09:00')
+  const [jobDay, setJobDay] = useState('1') // 0=Sun..6=Sat for weekly, 1-28 for monthly
+  const [jobTimezone, setJobTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [jobCustomCron, setJobCustomCron] = useState('')
+  const [showCronExpr, setShowCronExpr] = useState(false)
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/settings/agent`, { headers: webHdrs() }).then(r => r.json()).then(d => { if (d.name) setAgentName(d.name) }).catch(() => {})
+    fetch(`${API_BASE}/api/settings/notifications`, { headers: webHdrs() }).then(r => r.json()).then(d => { if (d.channel) setNotifChannel(d.channel) }).catch(() => {})
+    fetch(`${API_BASE}/api/settings/network-access`, { headers: webHdrs() }).then(r => r.json()).then(d => { if (d.data) setDomains(d.data) }).catch(() => {})
+    fetch(`${API_BASE}/api/settings/scheduled-jobs`, { headers: webHdrs() }).then(r => r.json()).then(d => { if (d.data) setJobs(d.data) }).catch(() => {})
+  }, [])
+
+  const saveAgentName = async () => {
+    await fetch(`${API_BASE}/api/settings/agent`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ name: agentName }) })
+    setAgentNameSaved(true)
+    setTimeout(() => setAgentNameSaved(false), 2000)
+  }
+
+  const saveNotifChannel = async (ch: string) => {
+    setNotifChannel(ch)
+    setNotifDropdown(false)
+    await fetch(`${API_BASE}/api/settings/notifications`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ channel: ch }) })
+  }
+
+  const addDomain = async () => {
+    if (!newDomain.trim()) return
+    const r = await fetch(`${API_BASE}/api/settings/network-access`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ domain: newDomain, auth_header: newAuth || null }) })
+    const d = await r.json()
+    if (d.success) { setDomains(prev => [{ id: d.id, domain: newDomain, auth_header: newAuth }, ...prev]); setNewDomain(''); setNewAuth('') }
+  }
+
+  const removeDomain = async (id: number) => {
+    await fetch(`${API_BASE}/api/settings/network-access/${id}`, { method: 'DELETE', headers: webHdrs() })
+    setDomains(prev => prev.filter(d => d.id !== id))
+  }
+
+  const buildCron = () => {
+    const [hh, mm] = jobTime.split(':').map(Number)
+    switch (jobFreq) {
+      case 'hourly':  return `${mm} * * * *`
+      case 'daily':   return `${mm} ${hh} * * *`
+      case 'weekly':  return `${mm} ${hh} * * ${jobDay}`
+      case 'monthly': return `${mm} ${hh} ${jobDay} * *`
+      case 'custom':  return jobCustomCron
+    }
+  }
+
+  const cronToHuman = (cron: string) => {
+    const parts = cron.split(' ')
+    if (parts.length !== 5) return cron
+    const [mn, hr, dom, , dow] = parts
+    if (hr === '*') return `Toutes les heures à :${mn.padStart(2, '0')}`
+    const t = `${hr.padStart(2, '0')}:${mn.padStart(2, '0')}`
+    if (dom !== '*') return `Mensuel le ${dom} à ${t}`
+    if (dow !== '*') { const days = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam']; return `Hebdomadaire le ${days[Number(dow)] || dow} à ${t}` }
+    return `Quotidien à ${t}`
+  }
+
+  const addJob = async () => {
+    if (!jobName.trim()) return
+    const cron = buildCron()
+    if (!cron.trim()) return
+    const r = await fetch(`${API_BASE}/api/settings/scheduled-jobs`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ name: jobName, prompt: jobPrompt, cron_expression: cron, timezone: jobTimezone, action_type: 'custom', action_config: '{}' }) })
+    const d = await r.json()
+    if (d.success) {
+      setJobs(prev => [{ id: d.id, name: jobName, prompt: jobPrompt, cron_expression: cron, enabled: 1, last_run_at: null, last_result: null }, ...prev])
+      setJobName(''); setJobPrompt(''); setJobFreq('daily'); setJobTime('09:00'); setJobDay('1'); setJobCustomCron(''); setShowCronExpr(false); setAddingJob(false)
+    }
+  }
+
+  const deleteJob = async (id: number) => {
+    await fetch(`${API_BASE}/api/settings/scheduled-jobs/${id}`, { method: 'DELETE', headers: webHdrs() })
+    setJobs(prev => prev.filter(j => j.id !== id))
+  }
 
   const applyTemplate = (t: typeof INDUSTRY_TEMPLATES[0]) => {
     setSystem(t.prompt)
     setActiveTemplate(t.label)
   }
 
+  const sectionTitle = (icon: React.ElementType, title: string, sub: string) => {
+    const Icon = icon
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <Icon size={18} style={{ color: th.text }} />
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: th.text, margin: 0 }}>{title}</h3>
+        </div>
+        <p style={{ fontSize: 13, color: th.textSub, margin: 0 }}>{sub}</p>
+      </div>
+    )
+  }
+
+  const notifOptions = [
+    { value: 'in-app', label: 'In-app only', icon: LayoutDashboard, desc: 'Les approbations apparaissent dans le dashboard.' },
+    { value: 'email', label: 'Email', icon: Mail, desc: '' },
+    { value: 'slack', label: 'Slack', icon: MessageCircle, desc: '' },
+  ]
+
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '32px 24px' }}>
       <div style={{ maxWidth: 600, margin: '0 auto' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24, letterSpacing: '-0.4px', color: th.text }}>Paramètres</h2>
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8, color: th.text }}>Settings</h2>
+        <p style={{ fontSize: 14, color: th.textSub, marginBottom: 28 }}>Gérez la configuration de votre agent, les tâches planifiées et les paramètres de l'espace de travail.</p>
+
+        {/* ── Scheduled Jobs ── */}
+        <div style={{ marginBottom: 32 }}>
+          {sectionTitle(Clock, 'Tâches planifiées', 'Configurez des tâches récurrentes pour votre agent.')}
+          {jobs.length > 0 && !addingJob && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+              {jobs.map(job => {
+                const isExpanded = expandedJob === job.id
+                const hasError = job.last_result?.startsWith('ERROR:')
+                const statusColor = !job.last_run_at ? th.textMuted : hasError ? '#ef4444' : '#22c55e'
+                const statusLabel = !job.last_run_at ? 'Jamais exécuté' : hasError ? 'Échoué' : 'Réussi'
+                const timeAgo = job.last_run_at ? (() => {
+                  const diff = Date.now() - new Date(job.last_run_at).getTime()
+                  const mins = Math.floor(diff / 60000)
+                  if (mins < 1) return 'à l\'instant'
+                  if (mins < 60) return `il y a ${mins}min`
+                  const hrs = Math.floor(mins / 60)
+                  if (hrs < 24) return `il y a ${hrs}h`
+                  return `il y a ${Math.floor(hrs / 24)}j`
+                })() : null
+                return (
+                  <div key={job.id} style={{ borderRadius: 10, border: `1px solid ${th.border}`, overflow: 'hidden' }}>
+                    {/* Main row */}
+                    <div onClick={() => setExpandedJob(isExpanded ? null : job.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer' }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: th.hover, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Clock size={16} style={{ color: th.textMuted }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: th.text }}>{job.name}</div>
+                        <div style={{ fontSize: 12, color: th.textMuted, marginTop: 2 }}>{cronToHuman(job.cron_expression)}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: statusColor }} />
+                          <span style={{ fontSize: 12, color: statusColor, fontWeight: 500 }}>{statusLabel}</span>
+                        </div>
+                        {timeAgo && <span style={{ fontSize: 11, color: th.textMuted }}>{timeAgo}</span>}
+                        <ChevronDown size={14} style={{ color: th.textMuted, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                      </div>
+                    </div>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div style={{ borderTop: `1px solid ${th.border}`, padding: '14px 16px' }}>
+                        {job.prompt && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: th.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Prompt</div>
+                            <div style={{ fontSize: 13, color: th.textSub, lineHeight: 1.5 }}>{job.prompt}</div>
+                          </div>
+                        )}
+                        {job.last_run_at && (
+                          <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: th.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                              Dernière exécution — {new Date(job.last_run_at).toLocaleString('fr-FR')}
+                            </div>
+                            <div style={{ fontSize: 13, color: hasError ? '#ef4444' : th.text, lineHeight: 1.5, background: th.hover, borderRadius: 8, padding: '10px 12px', maxHeight: 200, overflowY: 'auto', whiteSpace: 'pre-wrap', fontFamily: hasError ? 'monospace' : 'inherit' }}>
+                              {job.last_result || 'Aucun résultat'}
+                            </div>
+                          </div>
+                        )}
+                        {!job.last_run_at && (
+                          <div style={{ fontSize: 13, color: th.textMuted, fontStyle: 'italic', marginBottom: 12 }}>Cette tâche n'a pas encore été exécutée. Elle se lancera à la prochaine heure planifiée.</div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <button onClick={e => { e.stopPropagation(); deleteJob(job.id); setExpandedJob(null) }} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', borderRadius: 8, border: `1px solid #fca5a5`, background: 'transparent', color: '#ef4444', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+                            <Trash2 size={13} /> Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {addingJob ? (
+            <div style={{ borderRadius: 12, border: `1px solid ${th.border}`, padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 0, background: th.sidebar }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <button onClick={() => setAddingJob(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, padding: 0 }}>
+                  <ChevronLeft size={20} />
+                </button>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: th.hover, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={20} style={{ color: th.textMuted }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: th.text }}>Nouvelle tâche planifiée</div>
+                  <div style={{ fontSize: 13, color: th.textSub }}>Configurez une tâche récurrente pour votre agent</div>
+                </div>
+              </div>
+
+              <div style={{ height: 1, background: th.border, margin: '0 -20px 20px' }} />
+
+              {/* Title */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 14, fontWeight: 600, color: th.text, display: 'block', marginBottom: 8 }}>Titre</label>
+                <input value={jobName} onChange={e => setJobName(e.target.value)} placeholder="ex. Rapport quotidien, Résumé hebdomadaire" style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+
+              {/* Prompt */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 14, fontWeight: 600, color: th.text, display: 'block', marginBottom: 4 }}>Prompt</label>
+                <div style={{ fontSize: 13, color: th.textSub, marginBottom: 8 }}>Que doit faire l'agent à chaque exécution planifiée ?</div>
+                <textarea value={jobPrompt} onChange={e => setJobPrompt(e.target.value)} placeholder="ex. Génère un résumé de tous les tickets support des dernières 24 heures..." rows={5} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 14, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
+              </div>
+
+              {/* Schedule frequency */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 14, fontWeight: 600, color: th.text, display: 'block', marginBottom: 10 }}>Fréquence</label>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                  {(['hourly', 'daily', 'weekly', 'monthly', 'custom'] as const).map(f => (
+                    <button key={f} onClick={() => setJobFreq(f)} style={{ padding: '8px 18px', borderRadius: 20, border: jobFreq === f ? 'none' : `1px solid ${th.border}`, background: jobFreq === f ? '#3b82f6' : 'transparent', color: jobFreq === f ? '#fff' : th.text, fontSize: 13, fontWeight: 500, cursor: 'pointer', textTransform: 'capitalize' }}>
+                      {f === 'hourly' ? 'Toutes les heures' : f === 'daily' ? 'Quotidien' : f === 'weekly' ? 'Hebdomadaire' : f === 'monthly' ? 'Mensuel' : 'Personnalisé'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Time + day picker */}
+                {jobFreq !== 'custom' && (
+                  <div style={{ borderRadius: 10, border: `1px solid ${th.border}`, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    {jobFreq === 'weekly' && (
+                      <>
+                        <span style={{ fontSize: 13, color: th.textSub }}>Le</span>
+                        <select value={jobDay} onChange={e => setJobDay(e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 13, outline: 'none' }}>
+                          {['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'].map((d, i) => (
+                            <option key={i} value={String(i)}>{d}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                    {jobFreq === 'monthly' && (
+                      <>
+                        <span style={{ fontSize: 13, color: th.textSub }}>Le</span>
+                        <select value={jobDay} onChange={e => setJobDay(e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 13, outline: 'none' }}>
+                          {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                            <option key={d} value={String(d)}>{d}{d === 1 ? 'er' : ''}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                    {jobFreq !== 'hourly' && (
+                      <>
+                        <span style={{ fontSize: 13, color: th.textSub }}>À</span>
+                        <select value={jobTime} onChange={e => setJobTime(e.target.value)} style={{ padding: '6px 10px', borderRadius: 8, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 13, outline: 'none' }}>
+                          {Array.from({ length: 24 }, (_, h) => [`${String(h).padStart(2,'0')}:00`, `${String(h).padStart(2,'0')}:30`]).flat().map(t => {
+                            const [hh, mm] = t.split(':').map(Number)
+                            const ampm = hh >= 12 ? 'PM' : 'AM'
+                            const h12 = hh === 0 ? 12 : hh > 12 ? hh - 12 : hh
+                            return <option key={t} value={t}>{h12}:{String(mm).padStart(2,'0')} {ampm}</option>
+                          })}
+                        </select>
+                      </>
+                    )}
+                    {jobFreq === 'hourly' && (
+                      <>
+                        <span style={{ fontSize: 13, color: th.textSub }}>À la minute</span>
+                        <select value={jobTime.split(':')[1] || '00'} onChange={e => setJobTime(`00:${e.target.value}`)} style={{ padding: '6px 10px', borderRadius: 8, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 13, outline: 'none' }}>
+                          {['00','15','30','45'].map(m => <option key={m} value={m}>:{m}</option>)}
+                        </select>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {jobFreq === 'custom' && (
+                  <input value={jobCustomCron} onChange={e => setJobCustomCron(e.target.value)} placeholder="Expression cron (ex. 0 9 * * 1-5)" style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 14, outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'monospace' }} />
+                )}
+
+                {/* Human-readable summary + show cron link */}
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: th.textSub }}>
+                    <Clock size={13} />
+                    <span>{cronToHuman(buildCron())}</span>
+                  </div>
+                  <button onClick={() => setShowCronExpr(!showCronExpr)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, color: th.textMuted, textDecoration: 'underline', marginTop: 2 }}>
+                    {showCronExpr ? 'Masquer' : 'Voir'} l'expression cron
+                  </button>
+                  {showCronExpr && <div style={{ fontSize: 12, color: th.textMuted, fontFamily: 'monospace', marginTop: 4 }}>{buildCron()}</div>}
+                </div>
+              </div>
+
+              {/* Timezone */}
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ fontSize: 14, fontWeight: 600, color: th.text, display: 'block', marginBottom: 8 }}>Fuseau horaire</label>
+                <select value={jobTimezone} onChange={e => setJobTimezone(e.target.value)} style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${th.border}`, background: th.bg, color: th.text, fontSize: 14, outline: 'none' }}>
+                  {[
+                    'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+                    'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Shanghai',
+                    'Asia/Kolkata', 'Australia/Sydney', 'Pacific/Auckland', 'Africa/Lagos', 'Africa/Kinshasa'
+                  ].map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')} ({tz})</option>)}
+                </select>
+              </div>
+
+              <div style={{ height: 1, background: th.border, margin: '0 -20px 16px' }} />
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button onClick={() => { setAddingJob(false); setJobName(''); setJobPrompt(''); setJobFreq('daily'); setJobTime('09:00'); setShowCronExpr(false) }} style={{ padding: '9px 20px', borderRadius: 8, border: `1px solid ${th.border}`, background: 'transparent', color: th.text, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Annuler</button>
+                <button onClick={addJob} disabled={!jobName.trim()} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: !jobName.trim() ? th.border : '#3b82f6', color: '#fff', fontSize: 14, fontWeight: 600, cursor: jobName.trim() ? 'pointer' : 'default', opacity: jobName.trim() ? 1 : 0.6 }}>Créer</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAddingJob(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 20, border: `1px solid ${th.border}`, background: 'transparent', color: th.text, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <Plus size={14} /> Ajouter une tâche planifiée
+            </button>
+          )}
+        </div>
+
+        {/* ── Agent ── */}
+        <div style={{ marginBottom: 32 }}>
+          {sectionTitle(Settings, 'Agent', 'Configurez le nom de votre agent et gérez son cycle de vie.')}
+          <div style={{ borderRadius: 10, border: `1px solid ${th.border}`, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: `1px solid ${th.border}` }}>
+              <span style={{ fontSize: 13, color: th.textMuted, fontWeight: 500, width: 50 }}>Name</span>
+              <input value={agentName} onChange={e => setAgentName(e.target.value)} onBlur={saveAgentName} style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: `1px solid ${th.border}`, background: th.input, color: th.text, fontSize: 14, fontWeight: 600, outline: 'none' }} />
+              {agentNameSaved && <Check size={14} style={{ color: '#22c55e' }} />}
+            </div>
+            <button style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 16px', background: 'rgba(239,68,68,0.04)', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 13 }}>
+              <Trash2 size={14} /> Delete agent
+            </button>
+          </div>
+        </div>
+
+        {/* ── Network Access ── */}
+        <div style={{ marginBottom: 32 }}>
+          {sectionTitle(Globe, 'Accès réseau', 'Autorisez les requêtes sortantes vers des domaines spécifiques et attachez optionnellement des headers d\'authentification.')}
+          {domains.length > 0 ? (
+            <div style={{ borderRadius: 10, border: `1px solid ${th.border}`, marginBottom: 12, overflow: 'hidden' }}>
+              {domains.map((d, i) => (
+                <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: i < domains.length - 1 ? `1px solid ${th.border}` : 'none' }}>
+                  <Globe size={14} style={{ color: th.textMuted, flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 13, color: th.text }}>{d.domain}</span>
+                  <button onClick={() => removeDomain(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, padding: 4 }}><Trash2 size={14} /></button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ fontSize: 13, color: th.textMuted, marginBottom: 12 }}>No outbound domains are allowed yet.</p>
+          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => {
+              const d = prompt('Domaine (ex: api.example.com)')
+              if (d) { setNewDomain(d); addDomain() }
+            }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 20, border: `1px solid ${th.border}`, background: 'transparent', color: th.text, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+              <Plus size={14} /> Add domain
+            </button>
+            <button onClick={() => {}} style={{ padding: '8px 20px', borderRadius: 20, border: 'none', background: 'rgba(99,102,241,0.15)', color: '#6366f1', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Save</button>
+          </div>
+        </div>
+
+        {/* ── Notification Channel ── */}
+        <div style={{ marginBottom: 32 }}>
+          {sectionTitle(Bell, 'Canal de notification', 'Choisissez un canal et qui est notifié quand l\'agent a besoin d\'approbation.')}
+          <div style={{ borderRadius: 10, border: `1px solid ${th.border}`, padding: '16px 18px', display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 12, color: th.textMuted, marginBottom: 6 }}>Channel</div>
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setNotifDropdown(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 8, border: `1px solid ${notifDropdown ? '#6366f1' : th.border}`, background: th.input, color: th.text, fontSize: 13, fontWeight: 500, cursor: 'pointer', minWidth: 160 }}>
+                  {(() => { const opt = notifOptions.find(o => o.value === notifChannel); const Icon = opt?.icon || LayoutDashboard; return <><Icon size={14} /> {opt?.label || notifChannel} <ChevronDown size={12} style={{ marginLeft: 'auto' }} /></> })()}
+                </button>
+                {notifDropdown && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, minWidth: 180, borderRadius: 10, border: `1px solid ${th.border}`, background: th.card, boxShadow: '0 8px 24px rgba(0,0,0,0.08)', zIndex: 10, overflow: 'hidden' }}>
+                    {notifOptions.map(opt => {
+                      const Icon = opt.icon
+                      return (
+                        <button key={opt.value} onClick={() => saveNotifChannel(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', border: 'none', background: notifChannel === opt.value ? th.activeItem : 'transparent', color: th.text, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = th.hover }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = notifChannel === opt.value ? th.activeItem : 'transparent' }}>
+                          <Icon size={14} style={{ color: opt.value === 'slack' ? '#e01563' : th.textSub }} /> {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <p style={{ fontSize: 13, color: th.textMuted, margin: 0, paddingTop: 24 }}>
+              {notifChannel === 'in-app' ? 'No email or Slack is sent. Approvals still appear on the dashboard for you to review.' : notifChannel === 'email' ? 'Les notifications seront envoyées par email.' : 'Les notifications seront envoyées via Slack.'}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Workspace Settings ── */}
+        <div style={{ marginBottom: 32 }}>
+          {sectionTitle(Settings, 'Paramètres de l\'espace de travail', 'Gérez la facturation, les membres de l\'équipe et les paramètres globaux.')}
+          <button onClick={() => {}} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#6366f1', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Go to workspace settings <ExternalLink size={12} />
+          </button>
+        </div>
+
+        {/* ── Connection Status ── */}
         <div style={{ marginBottom: 20, padding: '16px 20px', borderRadius: 12, background: th.card, border: `1px solid ${th.border}` }}>
           <div style={{ fontSize: 11, color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Connexion</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: th.textSub }}>
@@ -1750,7 +2539,7 @@ function KnowledgeSearchView({ onAskDoc }: { onAskDoc: (doc: KbDoc) => void }) {
     try {
       let systemPrompt = 'Réponds à la question de l\'utilisateur en utilisant les documents de la base de connaissances. Cite tes sources entre crochets [Nom du Document]. Si aucun document ne contient d\'information pertinente, dis-le. Réponds dans la même langue que la question (français si français, anglais si anglais). Écris des phrases complètes et correctes.'
       if (docs.length > 0) {
-        const context = docs.map((d: any, i: number) => `[${i + 1}] ${d.name}:\n${d.chunk_content || d.excerpt || ''}`).join('\n\n')
+        const context = docs.map((d: ApiData, i: number) => `[${i + 1}] ${d.name}:\n${d.chunk_content || d.excerpt || ''}`).join('\n\n')
         systemPrompt += `\n\nMost relevant documents found:\n${context}`
       }
       const resp = await fetch(`${API_BASE}/api/chat`, {
@@ -1820,7 +2609,7 @@ function KnowledgeSearchView({ onAskDoc }: { onAskDoc: (doc: KbDoc) => void }) {
       if (!r.ok) { throw new Error('Échec du résumé') }
       const d = await r.json()
       setSummary(d.summary || 'No summary available')
-    } catch (e) {
+    } catch {
       setSummary('Échec de la génération du résumé')
     } finally {
       setSummarizing(false)
@@ -1873,7 +2662,7 @@ function KnowledgeSearchView({ onAskDoc }: { onAskDoc: (doc: KbDoc) => void }) {
                       <div style={{ fontSize: 12, color: th.textMuted, marginTop: 4 }}>{doc.url || doc.type.toUpperCase()}</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {(doc as any).similarity != null && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontWeight: 600 }}>{Math.round((doc as any).similarity * 100)}%</span>}
+                      {doc.similarity != null && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 8, background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontWeight: 600 }}>{Math.round(doc.similarity * 100)}%</span>}
                       <span style={{ fontSize: 11, color: th.textMuted, whiteSpace: 'nowrap' }}>{(doc.chars / 1000).toFixed(1)}k</span>
                     </div>
                   </div>
@@ -2207,6 +2996,9 @@ function PricingView({ currentPlan, onUpgrade }: { currentPlan?: string; onUpgra
     finally { setUpgrading('') }
   }
 
+  const onUpgradeRef = useRef(onUpgrade)
+  useEffect(() => { onUpgradeRef.current = onUpgrade }, [onUpgrade])
+
   // On mount: check if returning from payment redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -2228,7 +3020,7 @@ function PricingView({ currentPlan, onUpgrade }: { currentPlan?: string; onUpgra
           localStorage.removeItem('lamu_pending_tx')
           setSuccess({ plan_name: d.plan_name || '', license_key: d.license_key || '' })
           showToast('Paiement confirmé ! Votre licence est active.', 'success')
-          onUpgrade?.('')
+          onUpgradeRef.current?.('')
           // Clean URL
           window.history.replaceState({}, '', window.location.pathname)
           return
@@ -2402,7 +3194,7 @@ function ProfileView({ user, onLogout, setView }: { user: WebUser; onLogout: () 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const mkCard = (th: ThemeColors) => ({ borderRadius: 18, padding: '24px 28px', background: th.card, border: `1px solid ${th.border}` }) as const
-const mkBtnP = (th: ThemeColors) => ({ padding: '10px 20px', borderRadius: 12, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 700 as const, cursor: 'pointer' as const, fontSize: 13 })
+const mkBtnP = () => ({ padding: '10px 20px', borderRadius: 12, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 700 as const, cursor: 'pointer' as const, fontSize: 13 })
 const mkBtnS = (th: ThemeColors) => ({ padding: '10px 20px', borderRadius: 12, border: `1px solid ${th.btnSecBorder}`, background: th.btnSecBg, color: th.text, cursor: 'pointer' as const, fontSize: 13 })
 const mkInput = (th: ThemeColors) => ({ width: '100%', borderRadius: 10, border: `1px solid ${th.inputBorder}`, background: th.input, color: th.text, padding: '10px 14px', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const })
 const badgeStyle = (color: string) => ({ padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: `${color}20`, color })
@@ -2413,15 +3205,17 @@ const viewInner = { maxWidth: 1000, margin: '0 auto' }
 
 function IntegrationsView({ userEmail }: { userEmail?: string }) {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [integrations, setIntegrations] = useState<any[]>([])
-  const [oauthStatus, setOauthStatus] = useState<any>({ configured: {}, connected: {} })
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [integrations, setIntegrations] = useState<ApiData[]>([])
+  const [oauthStatus, setOauthStatus] = useState<ApiData>({ configured: {}, connected: {} })
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [addMode, setAddMode] = useState<'picker' | 'form'>('picker')
   const [form, setForm] = useState({ provider: '', name: '', token: '' })
   const [syncing, setSyncing] = useState('')
   const [connecting, setConnecting] = useState('')
+  const [shopDomain, setShopDomain] = useState('')
+  const [shopDomainPrompt, setShopDomainPrompt] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -2434,7 +3228,7 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
       ])
       setIntegrations(intRes.integrations || [])
       setOauthStatus({ configured: availRes.oauth_configured || {}, connected: statusRes.connected || {} })
-    } catch {} finally { setLoading(false) }
+    } catch { /* ignore */ } finally { setLoading(false) }
   }, [userEmail])
   useEffect(() => { load() }, [load])
 
@@ -2442,7 +3236,8 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'oauth_success') {
-        showToast(`${e.data.provider === 'google' ? 'Google Drive' : 'Slack'} connecté !`, 'success')
+        const names: Record<string, string> = { google: 'Google Drive', slack: 'Slack', github: 'GitHub', shopify: 'Shopify', teams: 'Microsoft Teams' }
+        showToast(`${names[e.data.provider] || e.data.provider} connecté !`, 'success')
         setConnecting('')
         load()
       }
@@ -2451,11 +3246,21 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
     return () => window.removeEventListener('message', handler)
   }, [load])
 
-  const startOAuth = async (provider: string) => {
+  const startOAuth = async (provider: string, domain?: string) => {
+    // Providers that need a domain first — show prompt if not provided
+    const providerCfg = oauthProviders.find(p => p.id === provider)
+    if (providerCfg?.needsDomain && !domain) {
+      setShopDomainPrompt(provider)
+      return
+    }
     setConnecting(provider)
+    setShopDomainPrompt('')
     try {
-      const emailParam = userEmail ? `?user_email=${encodeURIComponent(userEmail)}` : ''
-      const r = await apiFetch(`${API_BASE}/api/oauth/${provider}/start${emailParam}`, { headers: webHdrs() })
+      const params = new URLSearchParams()
+      if (userEmail) params.set('user_email', userEmail)
+      if (domain) params.set('shop_domain', domain)
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      const r = await apiFetch(`${API_BASE}/api/oauth/${provider}/start${qs}`, { headers: webHdrs() })
       const d = await r.json()
       if (d.auth_url) {
         const w = 500, h = 650
@@ -2479,7 +3284,7 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
   const addApiKey = async () => {
     if (!form.provider || !form.token) return
     const providerNames: Record<string, string> = { notion: 'Notion', zendesk: 'Zendesk', hubspot: 'HubSpot', freshdesk: 'Freshdesk', intercom: 'Intercom', confluence: 'Confluence', woocommerce: 'WooCommerce', gitlab: 'GitLab' }
-    const configMap: Record<string, any> = {
+    const configMap: Record<string, unknown> = {
       notion: { api_key: form.token },
       zendesk: { token: form.token, subdomain: form.name || '' },
       hubspot: { api_key: form.token },
@@ -2515,22 +3320,41 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
     load()
   }
 
+  const brandLogo = (id: string, size = 28) => {
+    const logos: Record<string, React.ReactNode> = {
+      google: <svg width={size} height={size} viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg"><path d="M6.6 66.85l3.85-6.65c3.8 2.85 8.2 4.3 13.2 4.3 5.15 0 9.2-1.55 12.15-4.65s4.43-7.2 4.43-12.3V44.1h-.3c-1.7 2.45-4.1 4.4-7.2 5.85s-6.3 2.18-9.6 2.18c-5.85 0-10.78-2.08-14.78-6.23S4 37.3 4 30.85s1.65-11.88 4.95-16.23S16.1 8.1 22.3 8.1c3.3 0 6.45.72 9.45 2.18s5.4 3.42 7.2 5.92h.3V9.35h10.2v37.65c0 7.65-2.35 13.7-7.05 18.15s-10.95 6.68-18.75 6.68c-6.55 0-12.3-1.67-17.25-5zm23.6-24.95c3.15-3.15 4.73-7.1 4.73-11.85s-1.58-8.7-4.73-11.85-6.95-4.73-11.4-4.73-8.3 1.58-11.55 4.73S3.5 25.3 3.5 30.05s1.6 8.7 4.78 11.85 7.08 4.73 11.72 4.73 8.05-1.58 11.2-4.73z" fill="#4285F4"/></svg>,
+      slack: <svg width={size} height={size} viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg"><g fillRule="nonzero"><path d="M19.7 0a5.4 5.4 0 00-5.4 5.4v13.5a5.4 5.4 0 1010.8 0V5.4A5.4 5.4 0 0019.7 0" fill="#36C5F0"/><path d="M0 34.3a5.4 5.4 0 005.4 5.4h13.5a5.4 5.4 0 000-10.8H5.4A5.4 5.4 0 000 34.3" fill="#2EB67D"/><path d="M34.3 54a5.4 5.4 0 005.4-5.4V35.1a5.4 5.4 0 10-10.8 0v13.5a5.4 5.4 0 005.4 5.4" fill="#ECB22E"/><path d="M54 19.7a5.4 5.4 0 00-5.4-5.4H35.1a5.4 5.4 0 100 10.8h13.5a5.4 5.4 0 005.4-5.4" fill="#E01E5A"/><path d="M0 19.7a5.4 5.4 0 005.4 5.4h5.4V19.7a5.4 5.4 0 10-10.8 0" fill="#36C5F0"/><path d="M19.7 54a5.4 5.4 0 005.4-5.4v-5.4h-5.4a5.4 5.4 0 100 10.8" fill="#2EB67D"/><path d="M54 34.3a5.4 5.4 0 00-5.4-5.4h-5.4v5.4a5.4 5.4 0 1010.8 0" fill="#ECB22E"/><path d="M34.3 0a5.4 5.4 0 00-5.4 5.4v5.4h5.4a5.4 5.4 0 100-10.8" fill="#E01E5A"/></g></svg>,
+      github: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>,
+      shopify: <svg width={size} height={size} viewBox="0 0 109.5 124.5" xmlns="http://www.w3.org/2000/svg"><path d="M95.6 28.2c-.1-.6-.6-1-1.1-1-.5 0-10.7-.8-10.7-.8s-7.1-7.1-7.9-7.9c-.8-.8-2.3-.5-2.9-.4-.1 0-1.5.5-4 1.2-2.4-6.8-6.6-13.1-14-13.1h-.7C52.5 3.5 50.3 2 48.5 2c-17.3 0-25.6 21.6-28.2 32.6-6.8 2.1-11.6 3.6-12.2 3.8C5 39.3 4.9 39.4 4.6 42.3 4.4 44.6 0 79.8 0 79.8l71.5 13.4 38-8.3S95.7 28.8 95.6 28.2zM67.2 21.6l-5.4 1.7V21c0-2.5-.3-4.5-.9-6.2C64.2 15.5 66.2 18.5 67.2 21.6zM56.7 15.7c.6 1.7.9 4.1.9 7.4v.6l-11.2 3.5c2.2-8.3 6.2-12.3 10.3-11.5zM48.2 6.5c.7 0 1.3.2 1.9.7-4.9 2.3-10.2 8.1-12.4 19.7l-8.8 2.7C31.2 21.8 37 6.5 48.2 6.5z" fill="#95BF47"/><path d="M94.5 27.2c-.5 0-10.7-.8-10.7-.8s-7.1-7.1-7.9-7.9c-.3-.3-.7-.4-1.1-.5l-3.3 67.8 38-8.3S95.6 28.2 95.6 28.2c-.1-.6-.6-1-1.1-1z" fill="#5E8E3E"/><path d="M57.6 40.8l-5.1 15.1s-4.5-2.4-10-2.4c-8.1 0-8.5 5.1-8.5 6.3 0 7 18.2 9.6 18.2 25.9 0 12.8-8.1 21.1-19.1 21.1-13.2 0-19.9-8.2-19.9-8.2l3.5-11.6s6.9 6 12.8 6c3.8 0 5.4-3 5.4-5.2 0-9.1-14.9-9.5-14.9-24.4 0-12.5 9-24.7 27.2-24.7 7 .1 10.4 2.1 10.4 2.1z" fill="#fff"/></svg>,
+      teams: <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.4 7.1h-2.9V5.5a1.4 1.4 0 011.4-1.4h.1a1.4 1.4 0 011.4 1.4v1.6z" fill="#5059C9"/><circle cx="19" cy="2.5" r="1.5" fill="#5059C9"/><path d="M14.5 7.1h6.3a1.2 1.2 0 011.2 1.2v5.3a3.5 3.5 0 01-3.5 3.5h-.3A3.5 3.5 0 0114.5 14V8.3a1.2 1.2 0 011.2-1.2h-1.2z" fill="#5059C9"/><circle cx="10" cy="2.5" r="2.5" fill="#7B83EB"/><path d="M13.5 7.1H6.5A1.5 1.5 0 005 8.6v6.9a4.5 4.5 0 004.5 4.5h1A4.5 4.5 0 0015 15.5V8.6a1.5 1.5 0 00-1.5-1.5z" fill="#7B83EB"/><path d="M10.5 7.1H5v8.4a4.5 4.5 0 004.5 4.5h1A4.5 4.5 0 0015 15.5V11.6A4.5 4.5 0 0010.5 7.1z" fill="#4B53BC"/><path d="M3 9h8a1 1 0 011 1v7a1 1 0 01-1 1H3a1 1 0 01-1-1v-7a1 1 0 011-1z" fill="#4B53BC"/><path d="M8.3 11.5H7v4H5.8v-4H4.5v-1h3.8v1z" fill="#fff"/></svg>,
+      notion: <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L18.28 2.16c-.42-.326-.98-.7-2.055-.607L3.39 2.72c-.466.046-.56.28-.373.466l1.442 1.022zM5.252 7.035v13.916c0 .747.373 1.027 1.214.98l14.523-.84c.84-.046.933-.56.933-1.166V6.196c0-.606-.233-.933-.747-.886l-15.177.886c-.56.047-.746.327-.746.84zm14.337.42c.093.42 0 .84-.42.886l-.7.14v10.264c-.607.327-1.166.514-1.633.514-.746 0-.933-.234-1.493-.933l-4.571-7.177v6.944l1.446.327s0 .84-1.166.84l-3.218.186c-.093-.186 0-.653.327-.746l.84-.233V9.855l-1.166-.093c-.093-.42.14-1.026.793-1.073l3.451-.233 4.758 7.27v-6.43l-1.213-.14c-.093-.513.28-.886.746-.933l3.226-.186z"/></svg>,
+      gitlab: <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.65 14.39L12 22.13 1.35 14.39a.84.84 0 01-.3-.94l1.22-3.78 2.44-7.51A.42.42 0 014.82 2a.43.43 0 01.58 0 .42.42 0 01.11.18l2.44 7.49h8.1l2.44-7.51A.42.42 0 0118.6 2a.43.43 0 01.58 0 .42.42 0 01.11.18l2.44 7.51L23 13.45a.84.84 0 01-.35.94z" fill="#E24329"/><path d="M12 22.13L16.05 9.67H7.95z" fill="#FC6D26"/><path d="M12 22.13L7.95 9.67H1.77z" fill="#FCA326"/><path d="M1.77 9.67l-.42 1.28a.84.84 0 00.3.94L12 22.13 1.77 9.67z" fill="#E24329"/><path d="M1.77 9.67h6.18L5.53 2.16a.42.42 0 00-.8 0z" fill="#FC6D26"/><path d="M12 22.13l4.05-12.46h6.18z" fill="#FCA326"/><path d="M22.23 9.67l.42 1.28a.84.84 0 01-.3.94L12 22.13l10.23-12.46z" fill="#E24329"/><path d="M22.23 9.67h-6.18l2.42-7.51a.42.42 0 01.8 0z" fill="#FC6D26"/></svg>,
+      zendesk: <svg width={size} height={size} viewBox="0 0 24 24" fill="#03363D" xmlns="http://www.w3.org/2000/svg"><path d="M11.1 7.7V21H1L11.1 7.7zm0-4.7c0 2.8-2.3 5-5.1 5S1 5.8 1 3h10.1zM12.9 21c0-2.8 2.3-5 5.1-5s5.1 2.2 5.1 5H12.9zm0-4.7V3H23L12.9 16.3z"/></svg>,
+      hubspot: <svg width={size} height={size} viewBox="0 0 24 24" fill="#FF7A59" xmlns="http://www.w3.org/2000/svg"><path d="M18.16 5.67V3.39a1.72 1.72 0 10-1.72 0v2.28a4.43 4.43 0 00-2.51 1.94l-6.84-5.08a2.13 2.13 0 10-1.06 1.42l6.63 4.93a4.45 4.45 0 00-.14 1.12 4.5 4.5 0 004.5 4.5 4.46 4.46 0 001.86-.41l2.89 2.89a1.28 1.28 0 101.8-1.8l-2.81-2.81A4.5 4.5 0 0018.16 5.67zm-1.24 7.91a2.35 2.35 0 110-4.7 2.35 2.35 0 010 4.7z"/></svg>,
+      freshdesk: <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="4" fill="#2CC66D"/><text x="12" y="17" textAnchor="middle" fill="#fff" fontSize="14" fontWeight="700" fontFamily="Arial">F</text></svg>,
+      intercom: <svg width={size} height={size} viewBox="0 0 24 24" fill="#286EFA" xmlns="http://www.w3.org/2000/svg"><path d="M20 0H4a4 4 0 00-4 4v16a4 4 0 004 4h16a4 4 0 004-4V4a4 4 0 00-4-4zm-9 5a1 1 0 012 0v7a1 1 0 01-2 0V5zm-4 2a1 1 0 012 0v5a1 1 0 01-2 0V7zM4 9a1 1 0 012 0v3a1 1 0 01-2 0V9zm15.3 8.7c-.1.1-2.9 2.3-7.3 2.3-4.4 0-7.2-2.2-7.3-2.3a1 1 0 111.2-1.4c0 0 2.4 1.9 6.1 1.9s6-.9 6.1-1.9a1 1 0 111.2 1.4zM20 12a1 1 0 01-2 0V9a1 1 0 012 0v3zm-2-5a1 1 0 01-2 0v5a1 1 0 012 0V7z"/></svg>,
+      confluence: <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M1.84 18.6c-.22.36-.47.8-.66 1.12a.67.67 0 00.24.92l3.56 2.16a.67.67 0 00.92-.2c.16-.28.4-.68.66-1.12 1.86-3.16 3.72-2.76 7.12-1.08l3.36 1.64a.67.67 0 00.88-.32l1.72-3.84a.67.67 0 00-.32-.88C18 16.28 9.24 12.36 1.84 18.6z" fill="#2684FF"/><path d="M22.16 5.4c.22-.36.47-.8.66-1.12a.67.67 0 00-.24-.92L19.02 1.2a.67.67 0 00-.92.2c-.16.28-.4.68-.66 1.12-1.86 3.16-3.72 2.76-7.12 1.08L6.96 2a.67.67 0 00-.88.32L4.36 6.16a.67.67 0 00.32.88C6 7.72 14.76 11.64 22.16 5.4z" fill="#2684FF"/></svg>,
+      woocommerce: <svg width={size} height={size} viewBox="0 0 24 24" fill="#96588A" xmlns="http://www.w3.org/2000/svg"><path d="M2.1 2C.94 2 0 2.94 0 4.1v12.06A2.1 2.1 0 002.1 18.26h8.64l3.26 3.74 3.26-3.74h4.64A2.1 2.1 0 0024 16.16V4.1A2.1 2.1 0 0021.9 2H2.1zm3.7 3.72c.52 0 .96.24 1.32.72.36.44.62 1.08.8 1.92l.88 4.4 2.2-5.36h.96l.72 5.36c.12.88.2 1.52.2 1.92.04-.52.2-1.16.44-1.92l1.56-5.04h1.36l-2.76 7.48h-.96L11.4 9.36c-.04-.24-.08-.48-.08-.72-.16.72-.28 1.2-.36 1.44l-2.4 5.12h-.96L5.32 6.76c-.16-.72-.4-1.24-.72-1.56a.84.84 0 01.42-.08z"/></svg>,
+    }
+    return logos[id] || <span style={{ fontSize: size }}>{id[0].toUpperCase()}</span>
+  }
+
   const oauthProviders = [
-    { id: 'google', provider: 'google_drive', label: 'Google Drive', icon: '📁', desc: 'Synchronisez vos documents Google Drive', type: 'oauth' as const },
-    { id: 'slack', provider: 'slack', label: 'Slack', icon: '💬', desc: 'Importez les messages de vos channels Slack', type: 'oauth' as const },
-    { id: 'github', provider: 'github', label: 'GitHub', icon: '🐙', desc: 'Connectez vos repos et issues GitHub', type: 'oauth' as const },
-    { id: 'shopify', provider: 'shopify', label: 'Shopify', icon: '🛒', desc: 'Produits, commandes et clients', type: 'oauth' as const },
-    { id: 'teams', provider: 'teams', label: 'Microsoft Teams', icon: '👥', desc: 'Canaux, messages et fichiers', type: 'oauth' as const },
+    { id: 'google', provider: 'google_drive', label: 'Google Drive', desc: 'Synchronisez vos documents Google Drive', type: 'oauth' as const },
+    { id: 'slack', provider: 'slack', label: 'Slack', desc: 'Importez les messages de vos channels Slack', type: 'oauth' as const },
+    { id: 'github', provider: 'github', label: 'GitHub', desc: 'Connectez vos repos et issues GitHub', type: 'oauth' as const },
+    { id: 'shopify', provider: 'shopify', label: 'Shopify', desc: 'Produits, commandes et clients', type: 'oauth' as const, needsDomain: true, domainPlaceholder: 'mystore.myshopify.com' },
+    { id: 'teams', provider: 'teams', label: 'Microsoft Teams', desc: 'Canaux, messages et fichiers', type: 'oauth' as const },
   ]
   const apiKeyProviders = [
-    { id: 'notion', provider: 'notion', label: 'Notion', icon: '📝', desc: 'Importez vos pages Notion', type: 'apikey' as const, placeholder: 'ntn_xxxxxxxxxxxx', helpUrl: 'https://www.notion.so/my-integrations' },
-    { id: 'gitlab', provider: 'gitlab', label: 'GitLab', icon: '🦊', desc: 'Connectez vos projets GitLab', type: 'apikey' as const, placeholder: 'glpat-xxxxxxxxxxxx', helpUrl: 'https://gitlab.com/-/user_settings/personal_access_tokens' },
-    { id: 'zendesk', provider: 'zendesk', label: 'Zendesk', icon: '🎫', desc: 'Articles et tickets support', type: 'apikey' as const, placeholder: 'votre-token-api', helpUrl: '' },
-    { id: 'hubspot', provider: 'hubspot', label: 'HubSpot', icon: '🔶', desc: 'Contacts et deals CRM', type: 'apikey' as const, placeholder: 'pat-xxxxxxxx', helpUrl: '' },
-    { id: 'freshdesk', provider: 'freshdesk', label: 'Freshdesk', icon: '🟢', desc: 'Articles et tickets support', type: 'apikey' as const, placeholder: 'votre-api-key', helpUrl: '' },
-    { id: 'intercom', provider: 'intercom', label: 'Intercom', icon: '💙', desc: 'Articles et conversations', type: 'apikey' as const, placeholder: 'dG9rOxxxxxxx', helpUrl: '' },
-    { id: 'confluence', provider: 'confluence', label: 'Confluence', icon: '📋', desc: 'Pages et documentation Atlassian', type: 'apikey' as const, placeholder: 'votre-api-token', helpUrl: 'https://id.atlassian.com/manage-profile/security/api-tokens' },
-    { id: 'woocommerce', provider: 'woocommerce', label: 'WooCommerce', icon: '🛍️', desc: 'Produits et commandes WordPress', type: 'apikey' as const, placeholder: 'ck_xxxxxxxx', helpUrl: '' },
+    { id: 'notion', provider: 'notion', label: 'Notion', desc: 'Importez vos pages Notion', type: 'apikey' as const, placeholder: 'ntn_xxxxxxxxxxxx', helpUrl: 'https://www.notion.so/my-integrations' },
+    { id: 'gitlab', provider: 'gitlab', label: 'GitLab', desc: 'Connectez vos projets GitLab', type: 'apikey' as const, placeholder: 'glpat-xxxxxxxxxxxx', helpUrl: 'https://gitlab.com/-/user_settings/personal_access_tokens' },
+    { id: 'zendesk', provider: 'zendesk', label: 'Zendesk', desc: 'Articles et tickets support', type: 'apikey' as const, placeholder: 'votre-token-api', helpUrl: '' },
+    { id: 'hubspot', provider: 'hubspot', label: 'HubSpot', desc: 'Contacts et deals CRM', type: 'apikey' as const, placeholder: 'pat-xxxxxxxx', helpUrl: '' },
+    { id: 'freshdesk', provider: 'freshdesk', label: 'Freshdesk', desc: 'Articles et tickets support', type: 'apikey' as const, placeholder: 'votre-api-key', helpUrl: '' },
+    { id: 'intercom', provider: 'intercom', label: 'Intercom', desc: 'Articles et conversations', type: 'apikey' as const, placeholder: 'dG9rOxxxxxxx', helpUrl: '' },
+    { id: 'confluence', provider: 'confluence', label: 'Confluence', desc: 'Pages et documentation Atlassian', type: 'apikey' as const, placeholder: 'votre-api-token', helpUrl: 'https://id.atlassian.com/manage-profile/security/api-tokens' },
+    { id: 'woocommerce', provider: 'woocommerce', label: 'WooCommerce', desc: 'Produits et commandes WordPress', type: 'apikey' as const, placeholder: 'ck_xxxxxxxx', helpUrl: '' },
   ]
   const allProviders = [...oauthProviders, ...apiKeyProviders]
   const providerMap = Object.fromEntries(allProviders.map(p => [p.provider, p]))
@@ -2548,10 +3372,9 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {oauthProviders.map(p => {
               const isConnected = oauthStatus.connected?.[p.id]
-              const isConfigured = oauthStatus.configured?.[p.id]
               return (
-                <div key={p.id} style={{ ...cardStyle, padding: '16px', textAlign: 'center', opacity: isConfigured ? 1 : 0.5 }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{p.icon}</div>
+                <div key={p.id} style={{ ...cardStyle, padding: '16px', textAlign: 'center' }}>
+                  <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>{brandLogo(p.id)}</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 4 }}>{p.label}</div>
                   <div style={{ fontSize: 11, color: th.textMuted, marginBottom: 12 }}>{p.desc}</div>
                   {isConnected ? (
@@ -2559,12 +3382,27 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
                       <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>Connecté</span>
                       <button onClick={() => disconnectOAuth(p.id)} style={{ ...btnSecondary, fontSize: 11, padding: '2px 8px', color: '#fca5a5' }}>Déconnecter</button>
                     </div>
-                  ) : isConfigured ? (
+                  ) : shopDomainPrompt === p.id ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <input
+                        value={shopDomain}
+                        onChange={e => setShopDomain(e.target.value)}
+                        placeholder={p.domainPlaceholder || 'votre-domaine.com'}
+                        onKeyDown={e => { if (e.key === 'Enter' && shopDomain.trim()) startOAuth(p.id, shopDomain.trim()) }}
+                        style={{ ...inputStyle, fontSize: 12, padding: '6px 10px', textAlign: 'center' }}
+                        autoFocus
+                      />
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                        <button onClick={() => { setShopDomainPrompt(''); setShopDomain('') }} style={{ ...btnSecondary, fontSize: 11, padding: '4px 10px' }}>Annuler</button>
+                        <button onClick={() => shopDomain.trim() && startOAuth(p.id, shopDomain.trim())} disabled={!shopDomain.trim() || connecting === p.id} style={{ ...btnPrimary, fontSize: 11, padding: '4px 10px' }}>
+                          {connecting === p.id ? 'Connexion…' : 'Connecter'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <button onClick={() => startOAuth(p.id)} disabled={connecting === p.id} style={{ ...btnPrimary, fontSize: 12, padding: '6px 14px' }}>
                       {connecting === p.id ? 'Connexion…' : 'Connecter'}
                     </button>
-                  ) : (
-                    <div style={{ fontSize: 11, color: th.textMuted }}>Non disponible</div>
                   )}
                 </div>
               )
@@ -2572,7 +3410,7 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
             {apiKeyProviders.map(p => (
               <div key={p.id} style={{ ...cardStyle, padding: '16px', textAlign: 'center', cursor: 'pointer' }}
                 onClick={() => { setForm({ provider: p.id, name: '', token: '' }); setAddMode('form') }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>{p.icon}</div>
+                <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center' }}>{brandLogo(p.id)}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 4 }}>{p.label}</div>
                 <div style={{ fontSize: 11, color: th.textMuted, marginBottom: 12 }}>{p.desc}</div>
                 <button style={{ ...btnPrimary, fontSize: 12, padding: '6px 14px' }}>Ajouter</button>
@@ -2587,8 +3425,8 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
 
       {showAdd && addMode === 'form' && (
         <div style={{ ...cardStyle, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 4 }}>
-            {apiKeyProviders.find(p => p.id === form.provider)?.icon} {apiKeyProviders.find(p => p.id === form.provider)?.label}
+          <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {brandLogo(form.provider, 22)} {apiKeyProviders.find(p => p.id === form.provider)?.label}
           </div>
           <div style={{ fontSize: 12, color: th.textMuted, marginBottom: 14 }}>
             {apiKeyProviders.find(p => p.id === form.provider)?.desc}
@@ -2629,7 +3467,7 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
             return (
               <div key={i.id} style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: th.text }}>{p?.icon || '🔌'} {i.name}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: th.text, display: 'flex', alignItems: 'center', gap: 8 }}>{p ? brandLogo(p.id || i.provider, 20) : '🔌'} {i.name}</div>
                   <div style={{ fontSize: 12, color: th.textMuted, marginTop: 4 }}>
                     {p?.label || i.provider} · {i.docs_synced} docs synchro · {i.last_sync_at ? new Date(i.last_sync_at).toLocaleDateString() : 'jamais'}
                   </div>
@@ -2651,37 +3489,37 @@ function IntegrationsView({ userEmail }: { userEmail?: string }) {
 
 function HelpdeskView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [agents, setAgents] = useState<any[]>([])
-  const [tickets, setTickets] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [agents, setAgents] = useState<ApiData[]>([])
+  const [tickets, setTickets] = useState<ApiData[]>([])
   const [tab, setTab] = useState<'agents' | 'tickets' | 'routing' | 'performance'>('agents')
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', description: '', system_prompt: '', auto_reply: true, confidence_threshold: '0.70', escalation_enabled: false, department: '' })
   // Routing rules state
-  const [routingRules, setRoutingRules] = useState<any[]>([])
+  const [routingRules, setRoutingRules] = useState<ApiData[]>([])
   const [showAddRule, setShowAddRule] = useState(false)
   const [ruleForm, setRuleForm] = useState({ name: '', condition_type: 'channel', condition_value: '', agent_id: '', fallback_agent_id: '', priority: '0' })
-  const [routingTest, setRoutingTest] = useState({ message: '', channel: '', result: null as any })
+  const [routingTest, setRoutingTest] = useState({ message: '', channel: '', result: null as ApiData })
   // Performance state
-  const [performance, setPerformance] = useState<any[]>([])
-  const [selectedTicket, setSelectedTicket] = useState<any>(null)
-  const [ticketDetail, setTicketDetail] = useState<any>(null)
-  const [aiSuggestion, setAiSuggestion] = useState('')
+  const [performance, setPerformance] = useState<ApiData[]>([])
+  const [selectedTicket, setSelectedTicket] = useState<ApiData>(null)
+  const [ticketDetail, setTicketDetail] = useState<ApiData>(null)
+  const [, setAiSuggestion] = useState('')
   const [quickReplies, setQuickReplies] = useState<string[]>([])
   const [loadingSuggestion, setLoadingSuggestion] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[] | null>(null)
+  const [searchResults, setSearchResults] = useState<ApiData[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkAction, setBulkAction] = useState('')
-  const [ticketTags, setTicketTags] = useState<any[]>([])
+  const [ticketTags, setTicketTags] = useState<ApiData[]>([])
   const [newTagName, setNewTagName] = useState('')
 
-  const loadAgents = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/agents`, { headers: webHdrs() }); const d = await r.json(); setAgents(d.agents || []) } catch {} }, [])
-  const loadTickets = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/tickets`, { headers: webHdrs() }); const d = await r.json(); setTickets(d.tickets || []) } catch {} }, [])
-  const loadRules = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/routing-rules`, { headers: webHdrs() }); const d = await r.json(); setRoutingRules(d.rules || []) } catch {} }, [])
-  const loadPerformance = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/agents/performance`, { headers: webHdrs() }); const d = await r.json(); setPerformance(d.agents || []) } catch {} }, [])
+  const loadAgents = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/agents`, { headers: webHdrs() }); const d = await r.json(); setAgents(d.agents || []) } catch { /* ignore */ } }, [])
+  const loadTickets = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/tickets`, { headers: webHdrs() }); const d = await r.json(); setTickets(d.tickets || []) } catch { /* ignore */ } }, [])
+  const loadRules = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/routing-rules`, { headers: webHdrs() }); const d = await r.json(); setRoutingRules(d.rules || []) } catch { /* ignore */ } }, [])
+  const loadPerformance = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/helpdesk/agents/performance`, { headers: webHdrs() }); const d = await r.json(); setPerformance(d.agents || []) } catch { /* ignore */ } }, [])
   useEffect(() => { loadAgents(); loadTickets(); loadRules(); loadPerformance() }, [loadAgents, loadTickets, loadRules, loadPerformance])
 
   const addAgent = async () => {
@@ -2696,14 +3534,14 @@ function HelpdeskView() {
     try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ ...ruleForm, priority: parseInt(ruleForm.priority) || 0 }) }) } catch { return }
     setShowAddRule(false); setRuleForm({ name: '', condition_type: 'channel', condition_value: '', agent_id: '', fallback_agent_id: '', priority: '0' }); loadRules()
   }
-  const deleteRule = async (id: string) => { try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch {} loadRules() }
-  const toggleRule = async (id: string, active: boolean) => { try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/${id}`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ is_active: !active }) }) } catch {} loadRules() }
+  const deleteRule = async (id: string) => { try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch { /* ignore */ } loadRules() }
+  const toggleRule = async (id: string, active: boolean) => { try { await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/${id}`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ is_active: !active }) }) } catch { /* ignore */ } loadRules() }
   const testRouting = async () => {
     if (!routingTest.message) return
     try {
       const r = await apiFetch(`${API_BASE}/api/helpdesk/routing-rules/test`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ message: routingTest.message, channel: routingTest.channel || undefined }) })
       const d = await r.json(); setRoutingTest(prev => ({ ...prev, result: d }))
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const toggleAgent = async (id: string, active: boolean) => {
@@ -2716,7 +3554,7 @@ function HelpdeskView() {
     loadTickets(); setSelectedTicket(null); setTicketDetail(null)
   }
 
-  const selectTicket = async (t: any) => {
+  const selectTicket = async (t: ApiData) => {
     setSelectedTicket(t); setAiSuggestion(''); setQuickReplies([]); setReplyText(''); setNewTagName('')
     try {
       const r = await apiFetch(`${API_BASE}/api/helpdesk/tickets/${t.id}`, { headers: webHdrs() })
@@ -2730,14 +3568,14 @@ function HelpdeskView() {
 
   const addTag = async () => {
     if (!newTagName.trim() || !selectedTicket) return
-    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${selectedTicket.id}/tags`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ tag_name: newTagName.trim() }) }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${selectedTicket.id}/tags`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ tag_name: newTagName.trim() }) }) } catch { /* ignore */ }
     setNewTagName('')
-    try { const r = await apiFetch(`${API_BASE}/api/helpdesk/tickets/${selectedTicket.id}/tags`, { headers: webHdrs() }); const d = await r.json(); setTicketTags(d.tags || []) } catch {}
+    try { const r = await apiFetch(`${API_BASE}/api/helpdesk/tickets/${selectedTicket.id}/tags`, { headers: webHdrs() }); const d = await r.json(); setTicketTags(d.tags || []) } catch { /* ignore */ }
   }
 
   const removeTag = async (tagId: number) => {
     if (!selectedTicket) return
-    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${selectedTicket.id}/tags/${tagId}`, { method: 'DELETE', headers: webHdrs() }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${selectedTicket.id}/tags/${tagId}`, { method: 'DELETE', headers: webHdrs() }) } catch { /* ignore */ }
     setTicketTags(prev => prev.filter(t => t.id !== tagId))
   }
 
@@ -2750,7 +3588,7 @@ function HelpdeskView() {
       setAiSuggestion(d.suggestion || '')
       setQuickReplies(d.quick_replies || [])
       setReplyText(d.suggestion || '')
-    } catch {} finally { setLoadingSuggestion(false) }
+    } catch { /* ignore */ } finally { setLoadingSuggestion(false) }
   }
 
   const sendReply = async () => {
@@ -2760,11 +3598,11 @@ function HelpdeskView() {
       await apiFetch(`${API_BASE}/api/helpdesk/tickets/${selectedTicket.id}/reply`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ message: replyText }) })
       setReplyText(''); setAiSuggestion(''); setQuickReplies([])
       loadTickets(); selectTicket(selectedTicket)
-    } catch {} finally { setSendingReply(false) }
+    } catch { /* ignore */ } finally { setSendingReply(false) }
   }
 
   const setPriority = async (id: string, priority: string) => {
-    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${id}/priority`, { method: 'PATCH', headers: webHdrs(), body: JSON.stringify({ priority }) }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${id}/priority`, { method: 'PATCH', headers: webHdrs(), body: JSON.stringify({ priority }) }) } catch { /* ignore */ }
     loadTickets()
   }
 
@@ -2786,15 +3624,15 @@ function HelpdeskView() {
 
   const executeBulk = async () => {
     if (!bulkAction || selectedIds.size === 0) return
-    const body: any = { ids: Array.from(selectedIds), action: bulkAction }
+    const body: Record<string, unknown> = { ids: Array.from(selectedIds), action: bulkAction }
     if (bulkAction === 'assign') body.assigned_to = prompt('Assigné à (email):')
     if (bulkAction === 'priority') body.priority = prompt('Priorité (low/medium/high/urgent):')
-    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/bulk`, { method: 'POST', headers: webHdrs(), body: JSON.stringify(body) }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/bulk`, { method: 'POST', headers: webHdrs(), body: JSON.stringify(body) }) } catch { /* ignore */ }
     setSelectedIds(new Set()); setBulkAction(''); loadTickets()
   }
 
   const archiveTicket = async (id: string) => {
-    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${id}/archive`, { method: 'POST', headers: webHdrs() }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/helpdesk/tickets/${id}/archive`, { method: 'POST', headers: webHdrs() }) } catch { /* ignore */ }
     loadTickets(); setSelectedTicket(null); setTicketDetail(null)
   }
 
@@ -2929,7 +3767,7 @@ function HelpdeskView() {
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {(() => {
                   const msgs = ticketDetail?.messages ? (typeof ticketDetail.messages === 'string' ? JSON.parse(ticketDetail.messages) : ticketDetail.messages) : []
-                  return msgs.map((m: any, i: number) => (
+                  return msgs.map((m: ApiData, i: number) => (
                     <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-start' : 'flex-end' }}>
                       <div style={{ maxWidth: '80%', padding: '8px 12px', borderRadius: 12, fontSize: 12, lineHeight: 1.5, background: m.role === 'user' ? (th.bg === '#0f172a' ? '#1e293b' : '#f1f5f9') : '#6366f1', color: m.role === 'user' ? th.text : '#fff' }}>
                         {m.content}
@@ -3038,7 +3876,7 @@ function HelpdeskView() {
           <div style={{ color: th.textMuted, textAlign: 'center', padding: 32 }}>Aucun agent configuré</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-            {performance.map((a: any) => (
+            {performance.map((a: ApiData) => (
               <div key={a.id} style={cardStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: th.text }}>{a.name}</div>
@@ -3092,17 +3930,17 @@ function HelpdeskView() {
 
 function KbGapsView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th)
-  const [gaps, setGaps] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th)
+  const [gaps, setGaps] = useState<ApiData[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState('')
 
-  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/kb/gaps`, { headers: webHdrs() }); const d = await r.json(); setGaps(d.gaps || []) } catch {} finally { setLoading(false) } }, [])
+  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/kb/gaps`, { headers: webHdrs() }); const d = await r.json(); setGaps(d.gaps || []) } catch { /* ignore */ } finally { setLoading(false) } }, [])
   useEffect(() => { load() }, [load])
 
   const generate = async (id: string) => {
     setGenerating(id)
-    try { await apiFetch(`${API_BASE}/api/kb/gaps/${id}/generate`, { method: 'POST', headers: webHdrs() }); load() } catch {} finally { setGenerating('') }
+    try { await apiFetch(`${API_BASE}/api/kb/gaps/${id}/generate`, { method: 'POST', headers: webHdrs() }); load() } catch { /* ignore */ } finally { setGenerating('') }
   }
 
   const approve = async (id: string) => {
@@ -3146,7 +3984,7 @@ function KbGapsView() {
 function AnalyticsView() {
   const th = useTheme()
   const cardStyle = mkCard(th)
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<ApiData>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -3181,7 +4019,7 @@ function AnalyticsView() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
         <div style={cardStyle}>
           <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Répartition des sentiments</div>
-          {(data.sentiment_breakdown || []).map((s: any) => (
+          {(data.sentiment_breakdown || []).map((s: ApiData) => (
             <div key={s.sentiment} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${th.divider}` }}>
               <span style={{ color: s.sentiment === 'positive' ? '#4ade80' : s.sentiment === 'negative' ? '#f87171' : '#fbbf24', fontSize: 13, fontWeight: 600 }}>{s.sentiment}</span>
               <span style={{ color: th.textSub, fontSize: 13 }}>{s.count}</span>
@@ -3193,7 +4031,7 @@ function AnalyticsView() {
 
         <div style={cardStyle}>
           <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Sujets principaux</div>
-          {(data.topic_breakdown || []).slice(0, 8).map((t: any) => (
+          {(data.topic_breakdown || []).slice(0, 8).map((t: ApiData) => (
             <div key={t.topic} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px solid ${th.divider}` }}>
               <span style={{ color: th.text, fontSize: 13 }}>{t.topic}</span>
               <span style={{ color: th.textSub, fontSize: 13 }}>{t.count}</span>
@@ -3206,7 +4044,7 @@ function AnalyticsView() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div style={cardStyle}>
           <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Répartition par canal</div>
-          {(data.channel_breakdown || []).map((c: any) => (
+          {(data.channel_breakdown || []).map((c: ApiData) => (
             <div key={c.channel} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
               <span style={{ color: th.text, fontSize: 13 }}>{c.channel}</span>
               <span style={{ color: th.textSub, fontSize: 13 }}>{c.count}</span>
@@ -3242,15 +4080,15 @@ function AnalyticsView() {
 
 function SimulationView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [tests, setTests] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [tests, setTests] = useState<ApiData[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
   const [casesText, setCasesText] = useState('')
   const [running, setRunning] = useState('')
-  const [results, setResults] = useState<any>(null)
+  const [results, setResults] = useState<ApiData>(null)
 
-  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/simulation/tests`, { headers: webHdrs() }); const d = await r.json(); setTests(d.tests || []) } catch {} }, [])
+  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/simulation/tests`, { headers: webHdrs() }); const d = await r.json(); setTests(d.tests || []) } catch { /* ignore */ } }, [])
   useEffect(() => { load() }, [load])
 
   const create = async () => {
@@ -3297,7 +4135,7 @@ function SimulationView() {
       {results && (
         <div style={{ ...cardStyle, marginTop: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Résultats — Précision : {results.accuracy}%</div>
-          {(results.results || []).map((r: any, i: number) => (
+          {(results.results || []).map((r: ApiData, i: number) => (
             <div key={i} style={{ padding: '12px 0', borderBottom: `1px solid ${th.divider}` }}>
               <div style={{ fontSize: 13, color: th.text, fontWeight: 600 }}>Q: {r.question}</div>
               <div style={{ fontSize: 12, color: th.textSub, marginTop: 4 }}>Attendu : {r.expected?.slice(0, 100)}</div>
@@ -3315,9 +4153,9 @@ function SimulationView() {
 
 function ChannelsView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [channels, setChannels] = useState<any[]>([])
-  const [agents, setAgents] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [channels, setChannels] = useState<ApiData[]>([])
+  const [agents, setAgents] = useState<ApiData[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ agent_id: '', channel_type: 'website', config: '' })
 
@@ -3328,8 +4166,9 @@ function ChannelsView() {
         apiFetch(`${API_BASE}/api/helpdesk/agents`, { headers: webHdrs() }).then(r => r.json()),
       ])
       setChannels(ch.channels || []); setAgents(ag.agents || [])
-    } catch {}
+    } catch { /* ignore */ }
   }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
   useEffect(() => { load() }, [load])
 
   const add = async () => {
@@ -3395,12 +4234,13 @@ function ChannelsView() {
 
 function EscalationView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [rules, setRules] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [rules, setRules] = useState<ApiData[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', condition_type: 'keyword', condition_value: '', action_type: 'escalate', action_value: '', priority: '0' })
 
-  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/escalation/rules`, { headers: webHdrs() }); const d = await r.json(); setRules(d.rules || []) } catch {} }, [])
+  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/escalation/rules`, { headers: webHdrs() }); const d = await r.json(); setRules(d.rules || []) } catch { /* ignore */ } }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
   useEffect(() => { load() }, [load])
 
   const add = async () => {
@@ -3474,12 +4314,13 @@ function EscalationView() {
 
 function TeamView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [members, setMembers] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [members, setMembers] = useState<ApiData[]>([])
   const [showInvite, setShowInvite] = useState(false)
   const [form, setForm] = useState({ email: '', name: '', role: 'member' })
 
-  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/team`, { headers: webHdrs() }); const d = await r.json(); setMembers(d.members || []) } catch {} }, [])
+  const load = useCallback(async () => { try { const r = await apiFetch(`${API_BASE}/api/team`, { headers: webHdrs() }); const d = await r.json(); setMembers(d.members || []) } catch { /* ignore */ } }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
   useEffect(() => { load() }, [load])
 
   const invite = async () => {
@@ -3488,7 +4329,7 @@ function TeamView() {
       const r = await apiFetch(`${API_BASE}/api/team/invite`, { method: 'POST', headers: webHdrs(), body: JSON.stringify(form) })
       if (r.ok) { setShowInvite(false); setForm({ email: '', name: '', role: 'member' }); load() }
       else { const d = await r.json(); showToast(d.error || 'Échec', 'error') }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const changeRole = async (id: string, role: string) => {
@@ -3503,7 +4344,6 @@ function TeamView() {
     load()
   }
 
-  const roleColor = (r: string) => r === 'admin' ? '#818cf8' : r === 'editor' ? '#fbbf24' : '#4ade80'
 
   return (
     <div style={viewWrap}><div style={viewInner}>
@@ -3557,7 +4397,7 @@ function TeamView() {
 function CsatView() {
   const th = useTheme()
   const cardStyle = mkCard(th)
-  const [stats, setStats] = useState<any>(null)
+  const [stats, setStats] = useState<ApiData>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -3565,7 +4405,7 @@ function CsatView() {
       try {
         const r = await apiFetch(`${API_BASE}/api/csat/stats`, { headers: webHdrs() })
         const d = await r.json(); setStats(d)
-      } catch {} finally { setLoading(false) }
+      } catch { /* ignore */ } finally { setLoading(false) }
     })()
   }, [])
 
@@ -3621,7 +4461,7 @@ function CsatView() {
 
       <div style={cardStyle}>
         <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 12 }}>Commentaires récents</div>
-        {stats?.recent_comments?.length ? stats.recent_comments.map((c: any, i: number) => (
+        {stats?.recent_comments?.length ? stats.recent_comments.map((c: ApiData, i: number) => (
           <div key={i} style={{ padding: '10px 0', borderBottom: `1px solid ${th.divider}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <span style={{ fontWeight: 600, color: th.text, fontSize: 13 }}>{c.customer_email || 'Anonyme'}</span>
@@ -3639,34 +4479,35 @@ function CsatView() {
 
 function WorkflowsView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [workflows, setWorkflows] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [workflows, setWorkflows] = useState<ApiData[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', description: '', nodes: '[]', edges: '[]' })
   const [editId, setEditId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
-    try { const r = await apiFetch(`${API_BASE}/api/workflows`, { headers: webHdrs() }); const d = await r.json(); setWorkflows(d.workflows || []) } catch {}
+    try { const r = await apiFetch(`${API_BASE}/api/workflows`, { headers: webHdrs() }); const d = await r.json(); setWorkflows(d.workflows || []) } catch { /* ignore */ }
   }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
   useEffect(() => { load() }, [load])
 
   const save = async () => {
-    const body: any = { ...form }
-    try { body.nodes = JSON.parse(body.nodes) } catch {}
-    try { body.edges = JSON.parse(body.edges) } catch {}
+    const body: Record<string, unknown> = { ...form }
+    try { body.nodes = JSON.parse(form.nodes) } catch { /* ignore */ }
+    try { body.edges = JSON.parse(form.edges) } catch { /* ignore */ }
     const url = editId ? `${API_BASE}/api/workflows/${editId}` : `${API_BASE}/api/workflows`
     const method = editId ? 'PUT' : 'POST'
-    try { await apiFetch(url, { method, headers: webHdrs(), body: JSON.stringify(body) }) } catch {}
+    try { await apiFetch(url, { method, headers: webHdrs(), body: JSON.stringify(body) }) } catch { /* ignore */ }
     setShowForm(false); setEditId(null); setForm({ name: '', description: '', nodes: '[]', edges: '[]' }); load()
   }
 
   const del = async (id: number) => {
-    try { await apiFetch(`${API_BASE}/api/workflows/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/workflows/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch { /* ignore */ }
     load()
   }
 
   const toggle = async (id: number, active: number) => {
-    try { await apiFetch(`${API_BASE}/api/workflows/${id}`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ active }) }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/workflows/${id}`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ active }) }) } catch { /* ignore */ }
     load()
   }
 
@@ -3678,7 +4519,7 @@ function WorkflowsView() {
         setForm({ name: d.workflow.name, description: d.workflow.description || '', nodes: typeof d.workflow.nodes === 'string' ? d.workflow.nodes : JSON.stringify(d.workflow.nodes, null, 2), edges: typeof d.workflow.edges === 'string' ? d.workflow.edges : JSON.stringify(d.workflow.edges, null, 2) })
         setEditId(id); setShowForm(true)
       }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   return (
@@ -3733,29 +4574,30 @@ function WorkflowsView() {
 
 function CustomDashboardsView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [dashboards, setDashboards] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [dashboards, setDashboards] = useState<ApiData[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', description: '', widgets: '[]' })
   const [editId, setEditId] = useState<number | null>(null)
-  const [viewingDash, setViewingDash] = useState<any>(null)
-  const [widgetData, setWidgetData] = useState<Record<string, any>>({})
+  const [viewingDash, setViewingDash] = useState<ApiData>(null)
+  const [widgetData, setWidgetData] = useState<Record<string, ApiData>>({})
 
   const load = useCallback(async () => {
-    try { const r = await apiFetch(`${API_BASE}/api/dashboards`, { headers: webHdrs() }); const d = await r.json(); setDashboards(d.dashboards || []) } catch {}
+    try { const r = await apiFetch(`${API_BASE}/api/dashboards`, { headers: webHdrs() }); const d = await r.json(); setDashboards(d.dashboards || []) } catch { /* ignore */ }
   }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
   useEffect(() => { load() }, [load])
 
   const save = async () => {
-    const body: any = { ...form }
-    try { body.widgets = JSON.parse(body.widgets) } catch {}
+    const body: Record<string, unknown> = { ...form }
+    try { body.widgets = JSON.parse(form.widgets) } catch { /* ignore */ }
     const url = editId ? `${API_BASE}/api/dashboards/${editId}` : `${API_BASE}/api/dashboards`
-    try { await apiFetch(url, { method: editId ? 'PUT' : 'POST', headers: webHdrs(), body: JSON.stringify(body) }) } catch {}
+    try { await apiFetch(url, { method: editId ? 'PUT' : 'POST', headers: webHdrs(), body: JSON.stringify(body) }) } catch { /* ignore */ }
     setShowForm(false); setEditId(null); setForm({ name: '', description: '', widgets: '[]' }); load()
   }
 
   const del = async (id: number) => {
-    try { await apiFetch(`${API_BASE}/api/dashboards/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/dashboards/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch { /* ignore */ }
     load()
   }
 
@@ -3766,7 +4608,7 @@ function CustomDashboardsView() {
       if (d.dashboard) {
         setViewingDash(d.dashboard)
         const widgets = typeof d.dashboard.widgets === 'string' ? JSON.parse(d.dashboard.widgets) : (d.dashboard.widgets || [])
-        const dataMap: Record<string, any> = {}
+        const dataMap: Record<string, unknown> = {}
         for (const w of widgets) {
           try {
             const wr = await apiFetch(`${API_BASE}/api/dashboards/widget-data`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ widget_type: w.type }) })
@@ -3775,7 +4617,7 @@ function CustomDashboardsView() {
         }
         setWidgetData(dataMap)
       }
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   if (viewingDash) {
@@ -3787,7 +4629,7 @@ function CustomDashboardsView() {
           <div style={{ fontSize: 22, fontWeight: 800, color: th.text }}>{viewingDash.name}</div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {widgets.map((w: any, i: number) => {
+          {widgets.map((w: ApiData, i: number) => {
             const d = widgetData[w.type]
             return (
               <div key={i} style={{ ...cardStyle, padding: 16 }}>
@@ -3849,35 +4691,36 @@ function CustomDashboardsView() {
 
 function AbTestsView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
-  const [tests, setTests] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [tests, setTests] = useState<ApiData[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', agent_id: '', prompt_a: '', prompt_b: '', test_cases: '' })
 
   const load = useCallback(async () => {
-    try { const r = await apiFetch(`${API_BASE}/api/ab-tests`, { headers: webHdrs() }); const d = await r.json(); setTests(d.tests || []) } catch {}
+    try { const r = await apiFetch(`${API_BASE}/api/ab-tests`, { headers: webHdrs() }); const d = await r.json(); setTests(d.tests || []) } catch { /* ignore */ }
   }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
   useEffect(() => { load() }, [load])
 
   const save = async () => {
-    const body: any = { ...form, agent_id: parseInt(form.agent_id) || null }
-    try { body.test_cases = JSON.parse(body.test_cases) } catch {}
-    try { await apiFetch(`${API_BASE}/api/ab-tests`, { method: 'POST', headers: webHdrs(), body: JSON.stringify(body) }) } catch {}
+    const body: Record<string, unknown> = { ...form, agent_id: parseInt(form.agent_id) || null }
+    try { body.test_cases = JSON.parse(form.test_cases) } catch { /* ignore */ }
+    try { await apiFetch(`${API_BASE}/api/ab-tests`, { method: 'POST', headers: webHdrs(), body: JSON.stringify(body) }) } catch { /* ignore */ }
     setShowForm(false); setForm({ name: '', agent_id: '', prompt_a: '', prompt_b: '', test_cases: '' }); load()
   }
 
   const run = async (id: number) => {
-    try { await apiFetch(`${API_BASE}/api/ab-tests/${id}/run`, { method: 'POST', headers: webHdrs() }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/ab-tests/${id}/run`, { method: 'POST', headers: webHdrs() }) } catch { /* ignore */ }
     load()
   }
 
   const apply = async (id: number) => {
-    try { await apiFetch(`${API_BASE}/api/ab-tests/${id}/apply`, { method: 'POST', headers: webHdrs() }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/ab-tests/${id}/apply`, { method: 'POST', headers: webHdrs() }) } catch { /* ignore */ }
     load()
   }
 
   const del = async (id: number) => {
-    try { await apiFetch(`${API_BASE}/api/ab-tests/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch {}
+    try { await apiFetch(`${API_BASE}/api/ab-tests/${id}`, { method: 'DELETE', headers: webHdrs() }) } catch { /* ignore */ }
     load()
   }
 
@@ -3936,27 +4779,27 @@ function AbTestsView() {
 
 function OnboardingView({ userEmail, setView }: { userEmail?: string; setView: (v: View) => void }) {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
   const [step, setStep] = useState(1)
-  const [steps, setSteps] = useState<any[]>([])
+  const [steps, setSteps] = useState<ApiData[]>([])
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
-  const [config, setConfig] = useState<any>({ agent_name: '', agent_description: '', system_prompt: '', integrations: [], channel_type: 'website' })
+  const [config, setConfig] = useState<ApiData>({ agent_name: '', agent_description: '', system_prompt: '', integrations: [], channel_type: 'website' })
 
   useEffect(() => {
     apiFetch(`${API_BASE}/api/onboarding/status?email=${encodeURIComponent(userEmail || '')}`, { headers: webHdrs() })
       .then(r => r.json())
-      .then(d => { setSteps(d.steps || []); setStep(d.current_step || 1); setCompletedSteps(d.completed_steps || []); if (d.config_data) setConfig((c: any) => ({ ...c, ...d.config_data })) })
+      .then(d => { setSteps(d.steps || []); setStep(d.current_step || 1); setCompletedSteps(d.completed_steps || []); if (d.config_data) setConfig((c: ApiData) => ({ ...c, ...d.config_data })) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [userEmail])
 
-  const completeStep = async (s: number, data?: any) => {
+  const completeStep = async (s: number, data?: ApiData) => {
     try {
       await apiFetch(`${API_BASE}/api/onboarding/step`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ email: userEmail, step: s, data }) })
       setCompletedSteps(prev => [...prev, s])
       setStep(s + 1)
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const applyConfig = async () => {
@@ -3971,12 +4814,11 @@ function OnboardingView({ userEmail, setView }: { userEmail?: string; setView: (
     try {
       await apiFetch(`${API_BASE}/api/onboarding/skip`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ email: userEmail }) })
       setView('home')
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   if (loading) return <div style={{ ...viewWrap, display: 'flex', justifyContent: 'center', alignItems: 'center' }}><Spinner /></div>
 
-  const stepIcons: Record<string, any> = { sparkles: Sparkles, database: Database, bot: Bot, plug: Link, rocket: Zap }
 
   return (
     <div style={viewWrap}><div style={{ ...viewInner, maxWidth: 640 }}>
@@ -3987,7 +4829,7 @@ function OnboardingView({ userEmail, setView }: { userEmail?: string; setView: (
 
       {/* Progress bar */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 32 }}>
-        {steps.map((s: any) => (
+        {steps.map((s: ApiData) => (
           <div key={s.step} style={{ flex: 1, height: 4, borderRadius: 2, background: completedSteps.includes(s.step) ? '#6366f1' : step === s.step ? '#818cf8' : th.border }} />
         ))}
       </div>
@@ -4014,11 +4856,11 @@ function OnboardingView({ userEmail, setView }: { userEmail?: string; setView: (
           <div style={{ fontSize: 13, color: th.textSub, marginBottom: 16 }}>Sélectionnez les sources à importer dans la base de connaissances :</div>
           {['google_drive', 'notion', 'confluence', 'zendesk', 'freshdesk', 'github', 'webcrawl'].map(p => {
             const names: Record<string, string> = { google_drive: 'Google Drive', notion: 'Notion', confluence: 'Confluence', zendesk: 'Zendesk', freshdesk: 'Freshdesk', github: 'GitHub', webcrawl: 'Site web' }
-            const selected = config.integrations?.some((i: any) => i.provider === p)
+            const selected = config.integrations?.some((i: ApiData) => i.provider === p)
             return (
-              <div key={p} onClick={() => setConfig((c: any) => {
+              <div key={p} onClick={() => setConfig((c: ApiData) => {
                 const integs = [...(c.integrations || [])]
-                const idx = integs.findIndex((i: any) => i.provider === p)
+                const idx = integs.findIndex((i: ApiData) => i.provider === p)
                 if (idx >= 0) integs.splice(idx, 1)
                 else integs.push({ provider: p, name: names[p], auto_sync: true, config: {} })
                 return { ...c, integrations: integs }
@@ -4043,11 +4885,11 @@ function OnboardingView({ userEmail, setView }: { userEmail?: string; setView: (
         <div style={cardStyle}>
           <div style={{ fontSize: 18, fontWeight: 700, color: th.text, marginBottom: 16 }}>Créez votre agent IA</div>
           <div style={{ fontSize: 11, color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>Nom de l'agent</div>
-          <input value={config.agent_name} onChange={e => setConfig((c: any) => ({ ...c, agent_name: e.target.value }))} placeholder="ex: Support Bot" style={{ ...inputStyle, marginBottom: 12 }} />
+          <input value={config.agent_name} onChange={e => setConfig((c: ApiData) => ({ ...c, agent_name: e.target.value }))} placeholder="ex: Support Bot" style={{ ...inputStyle, marginBottom: 12 }} />
           <div style={{ fontSize: 11, color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>Description</div>
-          <input value={config.agent_description} onChange={e => setConfig((c: any) => ({ ...c, agent_description: e.target.value }))} placeholder="ex: Assistant pour le support client" style={{ ...inputStyle, marginBottom: 12 }} />
+          <input value={config.agent_description} onChange={e => setConfig((c: ApiData) => ({ ...c, agent_description: e.target.value }))} placeholder="ex: Assistant pour le support client" style={{ ...inputStyle, marginBottom: 12 }} />
           <div style={{ fontSize: 11, color: th.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>Instructions système (prompt)</div>
-          <textarea value={config.system_prompt} onChange={e => setConfig((c: any) => ({ ...c, system_prompt: e.target.value }))} placeholder="ex: Tu es un agent de support amical et efficace..." rows={4} style={{ ...inputStyle, resize: 'vertical', marginBottom: 12 }} />
+          <textarea value={config.system_prompt} onChange={e => setConfig((c: ApiData) => ({ ...c, system_prompt: e.target.value }))} placeholder="ex: Tu es un agent de support amical et efficace..." rows={4} style={{ ...inputStyle, resize: 'vertical', marginBottom: 12 }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => completeStep(3, { agent_name: config.agent_name, agent_description: config.agent_description, system_prompt: config.system_prompt })} style={btnPrimary}>Continuer</button>
             <button onClick={() => completeStep(3)} style={btnSecondary}>Passer</button>
@@ -4072,7 +4914,7 @@ function OnboardingView({ userEmail, setView }: { userEmail?: string; setView: (
           <div style={{ fontSize: 18, fontWeight: 700, color: th.text, marginBottom: 16 }}>Déployez votre agent</div>
           <div style={{ fontSize: 13, color: th.textSub, marginBottom: 16 }}>Choisissez où déployer votre agent :</div>
           {['website', 'slack', 'email', 'zendesk', 'api'].map(ch => (
-            <div key={ch} onClick={() => setConfig((c: any) => ({ ...c, channel_type: ch }))}
+            <div key={ch} onClick={() => setConfig((c: ApiData) => ({ ...c, channel_type: ch }))}
               style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', borderColor: config.channel_type === ch ? '#6366f1' : th.border, background: config.channel_type === ch ? 'rgba(99,102,241,0.08)' : th.card }}>
               <div style={{ width: 16, height: 16, borderRadius: 8, border: `2px solid ${config.channel_type === ch ? '#6366f1' : th.border}`, background: config.channel_type === ch ? '#6366f1' : 'transparent' }} />
               <span style={{ fontSize: 14, color: th.text, fontWeight: 600 }}>{ch === 'website' ? 'Widget site web' : ch === 'slack' ? 'Slack' : ch === 'email' ? 'Email' : ch === 'zendesk' ? 'Zendesk' : 'API'}</span>
@@ -4101,9 +4943,9 @@ function OnboardingView({ userEmail, setView }: { userEmail?: string; setView: (
 
 function AutoSyncView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th)
-  const [syncs, setSyncs] = useState<any[]>([])
-  const [integrations, setIntegrations] = useState<any[]>([])
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th)
+  const [syncs, setSyncs] = useState<ApiData[]>([])
+  const [integrations, setIntegrations] = useState<ApiData[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [selectedInteg, setSelectedInteg] = useState('')
@@ -4117,9 +4959,10 @@ function AutoSyncView() {
       ])
       setSyncs(sRes.syncs || [])
       setIntegrations(iRes.integrations || [])
-    } catch {}
+    } catch { /* ignore */ }
     setLoading(false)
   }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
   useEffect(() => { load() }, [load])
 
   const enableSync = async () => {
@@ -4130,7 +4973,7 @@ function AutoSyncView() {
         body: JSON.stringify({ interval_minutes: parseInt(interval) || 60 }),
       })
       setShowAdd(false); load()
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const toggle = async (integId: string, active: boolean) => {
@@ -4140,14 +4983,14 @@ function AutoSyncView() {
         body: JSON.stringify({ enabled: !active }),
       })
       load()
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const remove = async (integId: string) => {
     try {
       await apiFetch(`${API_BASE}/api/integrations/${integId}/auto-sync`, { method: 'DELETE', headers: webHdrs() })
       load()
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   const triggerSync = async (integId: string) => {
@@ -4175,7 +5018,7 @@ function AutoSyncView() {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 11, color: th.textMuted, marginBottom: 4 }}>Intégration</div>
             <CustomSelect value={selectedInteg} onChange={v => setSelectedInteg(v)}
-              options={[{ value: '', label: 'Choisir...' }, ...integrations.map((i: any) => ({ value: i.id, label: `${i.provider} — ${i.name}` }))]} />
+              options={[{ value: '', label: 'Choisir...' }, ...integrations.map((i: ApiData) => ({ value: i.id, label: `${i.provider} — ${i.name}` }))]} />
           </div>
           <div>
             <div style={{ fontSize: 11, color: th.textMuted, marginBottom: 4 }}>Intervalle (min)</div>
@@ -4187,7 +5030,7 @@ function AutoSyncView() {
         </div>
       )}
 
-      {syncs.map((s: any) => (
+      {syncs.map((s: ApiData) => (
         <div key={s.id} style={{ ...cardStyle, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4218,13 +5061,13 @@ function AutoSyncView() {
 
 function AiActionsView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
   const [tab, setTab] = useState<'available' | 'log'>('available')
-  const [actions, setActions] = useState<any[]>([])
-  const [log, setLog] = useState<any[]>([])
+  const [actions, setActions] = useState<ApiData[]>([])
+  const [log, setLog] = useState<ApiData[]>([])
   const [testAction, setTestAction] = useState('')
   const [testParams, setTestParams] = useState('{}')
-  const [testResult, setTestResult] = useState<any>(null)
+  const [testResult, setTestResult] = useState<ApiData>(null)
   const [running, setRunning] = useState(false)
 
   useEffect(() => {
@@ -4237,13 +5080,13 @@ function AiActionsView() {
     setRunning(true); setTestResult(null)
     try {
       let params = {}
-      try { params = JSON.parse(testParams) } catch {}
+      try { params = JSON.parse(testParams) } catch { /* ignore */ }
       const r = await apiFetch(`${API_BASE}/api/ai-actions/execute`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ action_type: testAction, params }) })
       setTestResult(await r.json())
       // Refresh log
       const logR = await apiFetch(`${API_BASE}/api/ai-actions/log`, { headers: webHdrs() })
       setLog((await logR.json()).actions || [])
-    } catch (e: any) { setTestResult({ error: e.message }) }
+    } catch (e) { setTestResult({ error: e instanceof Error ? e.message : String(e) }) }
     setRunning(false)
   }
 
@@ -4266,7 +5109,7 @@ function AiActionsView() {
       {tab === 'available' && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginBottom: 24 }}>
-            {actions.map((a: any) => (
+            {actions.map((a: ApiData) => (
               <div key={a.name} style={{ ...cardStyle, cursor: 'pointer', borderColor: testAction === a.name ? '#6366f1' : th.border }}
                 onClick={() => { setTestAction(a.name); setTestParams(JSON.stringify(Object.fromEntries(Object.keys(a.parameters).map(k => [k, ''])), null, 2)) }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: th.text, marginBottom: 4 }}>{a.name.replace(/_/g, ' ')}</div>
@@ -4296,7 +5139,7 @@ function AiActionsView() {
 
       {tab === 'log' && (
         <div>
-          {log.map((a: any, i: number) => (
+          {log.map((a: ApiData, i: number) => (
             <div key={i} style={{ ...cardStyle, marginBottom: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -4315,13 +5158,342 @@ function AiActionsView() {
   )
 }
 
+// ── WhatsApp Commerce View ──────────────────────────────────────────────────
+
+function WhatsAppCommerceView() {
+  const th = useTheme()
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th), inputStyle = mkInput(th)
+  const [tab, setTab] = useState<'config' | 'products' | 'orders' | 'templates' | 'broadcasts' | 'analytics' | 'contacts'>('config')
+  const [config, setConfig] = useState<ApiData>({})
+  const [products, setProducts] = useState<ApiData[]>([])
+  const [orders, setOrders] = useState<ApiData[]>([])
+  const [templates, setTemplates] = useState<ApiData[]>([])
+  const [broadcasts, setBroadcasts] = useState<ApiData[]>([])
+  const [analytics, setAnalytics] = useState<ApiData>(null)
+  const [contacts, setContacts] = useState<ApiData[]>([])
+  const [agents, setAgents] = useState<ApiData[]>([])
+  // Product form
+  const [pName, setPName] = useState(''); const [pDesc, setPDesc] = useState(''); const [pPrice, setPPrice] = useState(''); const [pCurrency, setPCurrency] = useState('USD')
+  const [pCategory, setPCategory] = useState(''); const [pImage, setPImage] = useState('')
+  // Template form
+  const [tName, setTName] = useState(''); const [tBody, setTBody] = useState(''); const [tCategory, setTCategory] = useState('utility'); const [tFooter, setTFooter] = useState('')
+  // Broadcast form
+  const [bcName, setBcName] = useState(''); const [bcTemplate, setBcTemplate] = useState(''); const [bcMessage, setBcMessage] = useState(''); const [bcPhones, setBcPhones] = useState('')
+  // Config form
+  const [cfgPhoneId, setCfgPhoneId] = useState(''); const [cfgToken, setCfgToken] = useState(''); const [cfgVerify, setCfgVerify] = useState(''); const [cfgAgent, setCfgAgent] = useState('')
+  // Send message
+  const [sendPhone, setSendPhone] = useState(''); const [sendText, setSendText] = useState(''); const [sendType, setSendType] = useState('text'); const [sendMediaUrl, setSendMediaUrl] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const [cfgR, prodR, ordR, tplR, bcR, anlR, ctR, agR] = await Promise.all([
+        fetch(`${API_BASE}/api/whatsapp/bot/config`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({})),
+        fetch(`${API_BASE}/api/whatsapp/products`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch(`${API_BASE}/api/whatsapp/orders?limit=30`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch(`${API_BASE}/api/whatsapp/templates`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch(`${API_BASE}/api/whatsapp/broadcasts`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch(`${API_BASE}/api/whatsapp/analytics?days=30`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({})),
+        fetch(`${API_BASE}/api/whatsapp/contacts`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({ data: [] })),
+        fetch(`${API_BASE}/api/helpdesk/agents`, { headers: webHdrs() }).then(r => r.json()).catch(() => ({ data: [] })),
+      ])
+      setConfig(cfgR); setProducts(prodR.data || []); setOrders(ordR.data || []); setTemplates(tplR.data || [])
+      setBroadcasts(bcR.data || []); setAnalytics(anlR); setContacts(ctR.data || []); setAgents(agR.data || agR.agents || [])
+    } catch { /* ignore */ }
+  }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load() only sets state after an await (async fetch)
+  useEffect(() => { load() }, [load])
+
+  const saveConfig = async () => {
+    await fetch(`${API_BASE}/api/whatsapp/bot/config`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ phone_number_id: cfgPhoneId, access_token: cfgToken, verify_token: cfgVerify, default_agent_id: cfgAgent }) })
+    showToast('Configuration sauvegardée', 'success'); load()
+  }
+  const addProduct = async () => {
+    if (!pName) return showToast('Nom requis', 'error')
+    await fetch(`${API_BASE}/api/whatsapp/products`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ name: pName, description: pDesc, price: parseFloat(pPrice) || 0, currency: pCurrency, category: pCategory || 'general', image_url: pImage || null }) })
+    setPName(''); setPDesc(''); setPPrice(''); setPCategory(''); setPImage(''); showToast('Produit ajouté', 'success'); load()
+  }
+  const deleteProduct = async (id: string) => {
+    if (!await confirmDialog({ title: 'Supprimer', message: 'Supprimer ce produit ?', danger: true })) return
+    await fetch(`${API_BASE}/api/whatsapp/products/${id}`, { method: 'DELETE', headers: webHdrs() }); load()
+  }
+  const addTemplate = async () => {
+    if (!tName || !tBody) return showToast('Nom et texte requis', 'error')
+    await fetch(`${API_BASE}/api/whatsapp/templates`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ name: tName, body_text: tBody, category: tCategory, footer_text: tFooter || null }) })
+    setTName(''); setTBody(''); setTFooter(''); showToast('Template créé', 'success'); load()
+  }
+  const submitTemplate = async (id: string) => {
+    const r = await fetch(`${API_BASE}/api/whatsapp/templates/${id}/submit`, { method: 'POST', headers: webHdrs() }).then(r => r.json())
+    showToast(r.success ? 'Soumis à Meta pour approbation' : (r.error || 'Erreur'), r.success ? 'success' : 'error'); load()
+  }
+  const createBroadcast = async () => {
+    if (!bcName) return showToast('Nom requis', 'error')
+    const phones = bcPhones.split(/[\n,;]+/).map(p => p.trim()).filter(Boolean)
+    if (phones.length === 0) return showToast('Au moins un numéro requis', 'error')
+    await fetch(`${API_BASE}/api/whatsapp/broadcasts`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ name: bcName, template_id: bcTemplate || null, message_text: bcMessage || null, recipients: phones }) })
+    setBcName(''); setBcPhones(''); setBcMessage(''); showToast('Broadcast créé', 'success'); load()
+  }
+  const sendBroadcast = async (id: string) => {
+    const r = await fetch(`${API_BASE}/api/whatsapp/broadcasts/${id}/send`, { method: 'POST', headers: webHdrs() }).then(r => r.json())
+    showToast(r.success ? `Envoyé : ${r.delivered} livrés, ${r.failed} échoués` : 'Erreur', r.success ? 'success' : 'error'); load()
+  }
+  const updateOrderStatus = async (id: string, status: string) => {
+    await fetch(`${API_BASE}/api/whatsapp/orders/${id}/status`, { method: 'PUT', headers: webHdrs(), body: JSON.stringify({ status }) })
+    showToast('Statut mis à jour', 'success'); load()
+  }
+  const sendMessage = async () => {
+    if (!sendPhone) return showToast('Numéro requis', 'error')
+    const body: Record<string, unknown> = { phone: sendPhone, type: sendType }
+    if (sendType === 'text') body.text = sendText
+    else if (['image', 'document', 'video'].includes(sendType)) { body.media_url = sendMediaUrl; body.caption = sendText }
+    await fetch(`${API_BASE}/api/whatsapp/send`, { method: 'POST', headers: webHdrs(), body: JSON.stringify(body) })
+    showToast('Message envoyé', 'success'); setSendText(''); setSendMediaUrl('')
+  }
+
+  const tabs = [
+    { id: 'config', label: '⚙️ Config' }, { id: 'products', label: '📦 Catalogue' }, { id: 'orders', label: '🛒 Commandes' },
+    { id: 'templates', label: '📝 Templates' }, { id: 'broadcasts', label: '📢 Broadcasts' }, { id: 'analytics', label: '📊 Analytics' }, { id: 'contacts', label: '👥 Contacts' },
+  ]
+
+  const statusColor = (s: string) => s === 'paid' || s === 'delivered' || s === 'confirmed' ? '#4ade80' : s === 'cancelled' || s === 'failed' ? '#f87171' : '#fbbf24'
+
+  return (
+    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: th.text, marginBottom: 4 }}>📱 WhatsApp Commerce Bot</h2>
+      <p style={{ fontSize: 13, color: th.textSub, marginBottom: 20 }}>Configurez votre bot WhatsApp pour vendre, gérer les commandes et communiquer avec vos clients.</p>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id as typeof tab)}
+            style={{ padding: '6px 14px', borderRadius: 8, border: `1px solid ${tab === t.id ? '#6366f1' : th.border}`, background: tab === t.id ? 'rgba(99,102,241,0.15)' : 'transparent', color: tab === t.id ? '#818cf8' : th.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Config Tab ── */}
+      {tab === 'config' && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 12 }}>Configuration WhatsApp Business API</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: config.configured ? '#4ade80' : '#f87171' }} />
+            <span style={{ fontSize: 13, color: config.configured ? '#4ade80' : '#f87171', fontWeight: 600 }}>{config.configured ? 'Configuré' : 'Non configuré'}</span>
+          </div>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div><label style={{ fontSize: 11, color: th.textMuted, marginBottom: 4, display: 'block' }}>Phone Number ID</label><input value={cfgPhoneId} onChange={e => setCfgPhoneId(e.target.value)} placeholder="Ex: 123456789" style={inputStyle} /></div>
+            <div><label style={{ fontSize: 11, color: th.textMuted, marginBottom: 4, display: 'block' }}>Access Token (permanent)</label><input value={cfgToken} onChange={e => setCfgToken(e.target.value)} type="password" placeholder="Token Meta" style={inputStyle} /></div>
+            <div><label style={{ fontSize: 11, color: th.textMuted, marginBottom: 4, display: 'block' }}>Verify Token</label><input value={cfgVerify} onChange={e => setCfgVerify(e.target.value)} placeholder="Token de vérification webhook" style={inputStyle} /></div>
+            <div><label style={{ fontSize: 11, color: th.textMuted, marginBottom: 4, display: 'block' }}>Agent IA par défaut</label>
+              <CustomSelect value={cfgAgent} onChange={setCfgAgent} options={agents.map((a: ApiData) => ({ value: a.id, label: a.name }))} placeholder="Sélectionner un agent" /></div>
+            <button onClick={saveConfig} style={btnPrimary}>Sauvegarder la configuration</button>
+          </div>
+          <div style={{ marginTop: 16, padding: 12, background: th.input, borderRadius: 8, fontSize: 12, color: th.textSub }}>
+            <strong style={{ color: th.text }}>📋 Instructions :</strong><br />
+            1. Créez une app Meta Business sur <code>developers.facebook.com</code><br />
+            2. Ajoutez le produit "WhatsApp" à votre app<br />
+            3. Copiez le Phone Number ID et générez un token permanent<br />
+            4. Configurez le webhook URL : <code>{window.location.origin}/api/whatsapp/webhook</code><br />
+            5. Entrez le Verify Token choisi ci-dessus
+          </div>
+          {/* Quick send message */}
+          <div style={{ marginTop: 20, borderTop: `1px solid ${th.border}`, paddingTop: 16 }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 8 }}>💬 Envoyer un message</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8, marginBottom: 8 }}>
+              <input value={sendPhone} onChange={e => setSendPhone(e.target.value)} placeholder="Numéro (ex: +243...)" style={inputStyle} />
+              <CustomSelect value={sendType} onChange={setSendType} options={[{ value: 'text', label: '📝 Texte' }, { value: 'image', label: '🖼️ Image' }, { value: 'document', label: '📄 Document' }]} />
+            </div>
+            {['image', 'document', 'video'].includes(sendType) && <input value={sendMediaUrl} onChange={e => setSendMediaUrl(e.target.value)} placeholder="URL du média" style={{ ...inputStyle, marginBottom: 8 }} />}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={sendText} onChange={e => setSendText(e.target.value)} placeholder={sendType === 'text' ? 'Message...' : 'Légende...'} style={{ ...inputStyle, flex: 1 }} />
+              <button onClick={sendMessage} style={btnPrimary}>Envoyer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Products Tab ── */}
+      {tab === 'products' && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 12 }}>📦 Catalogue produits ({products.length})</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <input value={pName} onChange={e => setPName(e.target.value)} placeholder="Nom du produit" style={inputStyle} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input value={pPrice} onChange={e => setPPrice(e.target.value)} placeholder="Prix" type="number" style={{ ...inputStyle, flex: 1 }} />
+              <CustomSelect value={pCurrency} onChange={setPCurrency} options={['USD', 'EUR', 'XAF', 'CDF', 'GBP', 'MAD'].map(c => ({ value: c, label: c }))} style={{ width: 80 }} />
+            </div>
+            <input value={pCategory} onChange={e => setPCategory(e.target.value)} placeholder="Catégorie" style={inputStyle} />
+            <input value={pImage} onChange={e => setPImage(e.target.value)} placeholder="URL image (optionnel)" style={inputStyle} />
+          </div>
+          <input value={pDesc} onChange={e => setPDesc(e.target.value)} placeholder="Description" style={{ ...inputStyle, marginBottom: 8 }} />
+          <button onClick={addProduct} style={btnPrimary}>Ajouter le produit</button>
+          <div style={{ marginTop: 16 }}>
+            {products.map((p: ApiData) => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${th.divider}` }}>
+                {p.image_url && <img src={p.image_url} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover' }} />}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: th.textSub }}>{p.category} • {p.price} {p.currency} {p.in_stock ? '✅' : '❌ Rupture'}</div>
+                </div>
+                <button onClick={() => deleteProduct(p.id)} style={{ ...btnSecondary, padding: '4px 10px', fontSize: 11, color: '#f87171' }}>🗑️</button>
+              </div>
+            ))}
+            {products.length === 0 && <div style={{ fontSize: 13, color: th.textMuted, textAlign: 'center', padding: 20 }}>Aucun produit. Ajoutez votre catalogue ci-dessus.</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Orders Tab ── */}
+      {tab === 'orders' && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 12 }}>🛒 Commandes ({orders.length})</h3>
+          {orders.map((o: ApiData) => {
+            const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || [])
+            return (
+              <div key={o.id} style={{ padding: 12, marginBottom: 8, borderRadius: 8, border: `1px solid ${th.border}`, background: th.input }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: th.text }}>{o.id}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: statusColor(o.status), background: `${statusColor(o.status)}15`, padding: '2px 8px', borderRadius: 4 }}>{o.status}</span>
+                </div>
+                <div style={{ fontSize: 12, color: th.textSub, marginBottom: 4 }}>📱 {o.customer_phone} {o.customer_name ? `(${o.customer_name})` : ''}</div>
+                <div style={{ fontSize: 12, color: th.textSub, marginBottom: 6 }}>{items.map((i: ApiData) => `${i.name} x${i.quantity || 1}`).join(', ')}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: th.text }}>💰 {o.total} {o.currency}</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {o.status === 'pending' && <button onClick={() => updateOrderStatus(o.id, 'confirmed')} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 10 }}>✅ Confirmer</button>}
+                    {o.status === 'confirmed' && <button onClick={() => updateOrderStatus(o.id, 'shipped')} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 10 }}>🚚 Expédier</button>}
+                    {o.status === 'shipped' && <button onClick={() => updateOrderStatus(o.id, 'delivered')} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 10 }}>📦 Livré</button>}
+                    {!['delivered', 'cancelled'].includes(o.status) && <button onClick={() => updateOrderStatus(o.id, 'cancelled')} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 10, color: '#f87171' }}>❌</button>}
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: th.textMuted, marginTop: 4 }}>Paiement : <span style={{ color: statusColor(o.payment_status) }}>{o.payment_status}</span> • {new Date(o.created_at).toLocaleString('fr-FR')}</div>
+              </div>
+            )
+          })}
+          {orders.length === 0 && <div style={{ fontSize: 13, color: th.textMuted, textAlign: 'center', padding: 20 }}>Aucune commande. Les commandes WhatsApp apparaîtront ici.</div>}
+        </div>
+      )}
+
+      {/* ── Templates Tab ── */}
+      {tab === 'templates' && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 12 }}>📝 Templates de messages ({templates.length})</h3>
+          <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 8 }}>
+              <input value={tName} onChange={e => setTName(e.target.value)} placeholder="Nom du template (ex: order_confirmation)" style={inputStyle} />
+              <CustomSelect value={tCategory} onChange={setTCategory} options={[{ value: 'utility', label: 'Utility' }, { value: 'marketing', label: 'Marketing' }, { value: 'authentication', label: 'Auth' }]} />
+            </div>
+            <textarea value={tBody} onChange={e => setTBody(e.target.value)} placeholder="Texte du message. Utilisez {{1}}, {{2}}... pour les variables." rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+            <input value={tFooter} onChange={e => setTFooter(e.target.value)} placeholder="Footer (optionnel, max 60 car.)" style={inputStyle} />
+            <button onClick={addTemplate} style={btnPrimary}>Créer le template</button>
+          </div>
+          {templates.map((t: ApiData) => (
+            <div key={t.id} style={{ padding: 10, marginBottom: 6, borderRadius: 8, border: `1px solid ${th.border}`, background: th.input }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{t.name}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, color: t.status === 'approved' ? '#4ade80' : t.status === 'rejected' ? '#f87171' : '#fbbf24', background: `${t.status === 'approved' ? '#4ade80' : t.status === 'rejected' ? '#f87171' : '#fbbf24'}15` }}>{t.status}</span>
+              </div>
+              <div style={{ fontSize: 12, color: th.textSub, marginBottom: 6 }}>{t.body_text?.slice(0, 120)}</div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {t.status === 'draft' && <button onClick={() => submitTemplate(t.id)} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 10 }}>📤 Soumettre à Meta</button>}
+                <button onClick={async () => { await fetch(`${API_BASE}/api/whatsapp/templates/${t.id}`, { method: 'DELETE', headers: webHdrs() }); load() }} style={{ ...btnSecondary, padding: '3px 8px', fontSize: 10, color: '#f87171' }}>🗑️</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Broadcasts Tab ── */}
+      {tab === 'broadcasts' && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 12 }}>📢 Campagnes broadcast ({broadcasts.length})</h3>
+          <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <input value={bcName} onChange={e => setBcName(e.target.value)} placeholder="Nom de la campagne" style={inputStyle} />
+            {templates.length > 0 && <CustomSelect value={bcTemplate} onChange={setBcTemplate} placeholder="Template (optionnel)" options={[{ value: '', label: '— Aucun template —' }, ...templates.filter((t: ApiData) => t.status === 'approved').map((t: ApiData) => ({ value: t.id, label: t.name }))]} />}
+            {!bcTemplate && <textarea value={bcMessage} onChange={e => setBcMessage(e.target.value)} placeholder="Message texte (si pas de template)" rows={2} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />}
+            <textarea value={bcPhones} onChange={e => setBcPhones(e.target.value)} placeholder="Numéros (un par ligne ou séparés par virgule)&#10;Ex: +243812345678&#10;+33612345678" rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+            <button onClick={createBroadcast} style={btnPrimary}>Créer le broadcast</button>
+          </div>
+          {broadcasts.map((b: ApiData) => (
+            <div key={b.id} style={{ padding: 10, marginBottom: 6, borderRadius: 8, border: `1px solid ${th.border}`, background: th.input }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{b.name}</span>
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, color: b.status === 'sent' ? '#4ade80' : b.status === 'failed' ? '#f87171' : '#fbbf24', background: `${b.status === 'sent' ? '#4ade80' : b.status === 'failed' ? '#f87171' : '#fbbf24'}15` }}>{b.status}</span>
+              </div>
+              <div style={{ fontSize: 12, color: th.textSub }}>📱 {b.total_recipients} destinataires • ✅ {b.delivered || 0} livrés • 👀 {b.read_count || 0} lus • ❌ {b.failed_count || 0} échoués</div>
+              {b.status === 'draft' && <button onClick={() => sendBroadcast(b.id)} style={{ ...btnPrimary, marginTop: 6, padding: '4px 12px', fontSize: 11 }}>🚀 Envoyer maintenant</button>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Analytics Tab ── */}
+      {tab === 'analytics' && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 16 }}>📊 Analytics WhatsApp (30 jours)</h3>
+          {analytics?.messages ? (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+                {[
+                  { label: 'Messages total', value: analytics.messages.total_messages || 0, color: '#818cf8' },
+                  { label: 'Contacts uniques', value: analytics.messages.unique_contacts || 0, color: '#4ade80' },
+                  { label: 'Livrés', value: analytics.messages.delivered || 0, color: '#22d3ee' },
+                  { label: 'Lus', value: analytics.messages.read_count || 0, color: '#fbbf24' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: th.input, borderRadius: 8, padding: 12, textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+                    <div style={{ fontSize: 11, color: th.textMuted }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              {analytics.orders && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+                  <div style={{ background: th.input, borderRadius: 8, padding: 12, textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#4ade80' }}>{analytics.orders.total_orders || 0}</div>
+                    <div style={{ fontSize: 11, color: th.textMuted }}>Commandes</div>
+                  </div>
+                  <div style={{ background: th.input, borderRadius: 8, padding: 12, textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#fbbf24' }}>{analytics.orders.revenue || 0}</div>
+                    <div style={{ fontSize: 11, color: th.textMuted }}>Revenue</div>
+                  </div>
+                  <div style={{ background: th.input, borderRadius: 8, padding: 12, textAlign: 'center' }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: '#22d3ee' }}>{analytics.avg_response_time_seconds ? `${Math.round(analytics.avg_response_time_seconds)}s` : 'N/A'}</div>
+                    <div style={{ fontSize: 11, color: th.textMuted }}>Temps de réponse moy.</div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : <div style={{ fontSize: 13, color: th.textMuted, textAlign: 'center', padding: 20 }}>Aucune donnée. Les analytics se rempliront automatiquement.</div>}
+        </div>
+      )}
+
+      {/* ── Contacts Tab ── */}
+      {tab === 'contacts' && (
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 12 }}>👥 Contacts WhatsApp ({contacts.length})</h3>
+          {contacts.map((c: ApiData) => (
+            <div key={c.phone} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: `1px solid ${th.divider}` }}>
+              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#818cf8', fontSize: 14, fontWeight: 700 }}>{(c.name || '?')[0]}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{c.name || 'Inconnu'}</div>
+                <div style={{ fontSize: 11, color: th.textSub }}>📱 {c.phone} • {c.conversations} conversation(s)</div>
+              </div>
+              <div style={{ fontSize: 11, color: th.textMuted }}>{c.last_contact ? new Date(c.last_contact).toLocaleDateString('fr-FR') : ''}</div>
+            </div>
+          ))}
+          {contacts.length === 0 && <div style={{ fontSize: 13, color: th.textMuted, textAlign: 'center', padding: 20 }}>Aucun contact. Les contacts apparaîtront après les premières conversations WhatsApp.</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Archive View ─────────────────────────────────────────────────────────────
 
 function ArchiveView() {
   const th = useTheme()
-  const cardStyle = mkCard(th), btnPrimary = mkBtnP(th), btnSecondary = mkBtnS(th)
+  const cardStyle = mkCard(th), btnPrimary = mkBtnP(), btnSecondary = mkBtnS(th)
   const [tab, setTab] = useState<'convs' | 'tickets'>('convs')
-  const [items, setItems] = useState<any[]>([])
+  const [items, setItems] = useState<ApiData[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
@@ -4334,13 +5506,13 @@ function ArchiveView() {
         const r = await apiFetch(`${API_BASE}/api/helpdesk/tickets/archived`, { headers: webHdrs() })
         const d = await r.json(); setItems(d.tickets || [])
       }
-    } catch {} finally { setLoading(false) }
+    } catch { /* ignore */ } finally { setLoading(false) }
   }, [tab])
   useEffect(() => { load() }, [load])
 
   const restore = async (id: string | number) => {
     const endpoint = tab === 'convs' ? `${API_BASE}/api/webapp/conversations/${id}/restore` : `${API_BASE}/api/helpdesk/tickets/${id}/restore`
-    try { await apiFetch(endpoint, { method: 'POST', headers: webHdrs() }) } catch {}
+    try { await apiFetch(endpoint, { method: 'POST', headers: webHdrs() }) } catch { /* ignore */ }
     load()
   }
 
@@ -4394,7 +5566,7 @@ function LoginView({ onLogin }: { onLogin: (token: string, user: WebUser) => voi
         const r = await fetch(`${API_BASE}/api/sso/providers`)
         const d = await r.json()
         setSsoProviders(d.providers || [])
-      } catch {}
+      } catch { /* ignore */ }
     })()
   }, [])
 
@@ -4411,7 +5583,7 @@ function LoginView({ onLogin }: { onLogin: (token: string, user: WebUser) => voi
     if (!trimmed) { setError('Entrez votre email'); return }
     setError(''); setLoading(true)
     try {
-      const r = await fetch(`${API_BASE}/api/webapp/send-otp`, { method: 'POST', headers: hdrs(), body: JSON.stringify({ email: trimmed, name: name.trim() || undefined }) })
+      const r = await fetch(`${API_BASE}/api/webapp/send-otp`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ email: trimmed, name: name.trim() || undefined }) })
       const d = await r.json()
       if (!d.success) { setError(d.error || 'Erreur'); setLoading(false); return }
       setStep('otp')
@@ -4430,7 +5602,7 @@ function LoginView({ onLogin }: { onLogin: (token: string, user: WebUser) => voi
     if (trimmed.length !== 6) { setError('Entrez le code à 6 chiffres'); return }
     setError(''); setLoading(true)
     try {
-      const r = await fetch(`${API_BASE}/api/webapp/verify-otp`, { method: 'POST', headers: hdrs(), body: JSON.stringify({ email: email.trim(), code: trimmed }) })
+      const r = await fetch(`${API_BASE}/api/webapp/verify-otp`, { method: 'POST', headers: webHdrs(), body: JSON.stringify({ email: email.trim(), code: trimmed }) })
       const d = await r.json()
       if (!d.success) { setError(d.error || 'Code invalide'); setLoading(false); return }
       localStorage.setItem(TOKEN_KEY, d.token)
@@ -4545,10 +5717,42 @@ function LoginView({ onLogin }: { onLogin: (token: string, user: WebUser) => voi
 
 export default function WebApp() {
   const [user,       setUser]       = useState<WebUser | null>(null)
-  const [authLoading, setAuthLoading] = useState(true)
-  const [view,       setView]       = useState<View>('home')
+  // Only show the auth spinner when there is a token (stored or arriving via SSO) to verify
+  const [authLoading, setAuthLoading] = useState(() => Boolean(getToken() || new URLSearchParams(window.location.search).get('sso_token')))
+  const [view,       setView_]       = useState<View>('home')
+  const [openTabs,   setOpenTabs]   = useState<View[]>(['home'])
+  const [chatOpen,   setChatOpen]   = useState(true)
+  const [chatWidth,  setChatWidth]  = useState(380)
+  const [tabMenuOpen, setTabMenuOpen] = useState(false)
+  const draggingRef = useRef<'chat' | null>(null)
+  const dragStartRef = useRef<{ x: number; width: number }>({ x: 0, width: 380 })
   const [convs,      setConvs]      = useState<Conversation[]>([])
   const [activeId,   setActiveId]   = useState<string | null>(null)
+
+  // Tab-aware view setter: opens new tabs like eesel.ai
+  const setView = useCallback((v: View) => {
+    if (v === 'chat') {
+      // Chat always opens in the side panel, not as a tab
+      setChatOpen(true)
+      return
+    }
+    setView_(v)
+    setOpenTabs(prev => prev.includes(v) ? prev : [...prev, v])
+  }, [])
+
+  const closeTab = useCallback((v: View) => {
+    setOpenTabs(prev => {
+      const next = prev.filter(t => t !== v)
+      if (next.length === 0) next.push('home')
+      // If we closed the active tab, switch to the last remaining tab
+      if (v === view) setView_(next[next.length - 1])
+      return next
+    })
+  }, [view])
+
+  const switchTab = useCallback((v: View) => {
+    setView_(v)
+  }, [])
   const [streaming,  setStreaming]  = useState(false)
   const [prompts,    setPrompts]    = useState<Prompt[]>([])
   const [models,     setModels]     = useState<Model[]>([])
@@ -4558,13 +5762,38 @@ export default function WebApp() {
   const [mobileSide, setMobileSide] = useState(false)
   const [showKbRoot, setShowKbRoot] = useState(false)
   const [kbContext, setKbContext] = useState<{ id: string; name: string; excerpt: string } | null>(null)
-  const [theme, setThemeState] = useState<Theme>(getTheme)
-  const [searchQuery, setSearchQuery] = useState('')
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const th = T[theme]
+  const th = T.light
 
-  const setTheme = (t: Theme) => { setThemeState(t); localStorage.setItem(THEME_KEY, t) }
+  // Resize drag handler for chat panel
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!draggingRef.current) return
+      e.preventDefault()
+      const dx = dragStartRef.current.x - e.clientX
+      const newW = Math.min(Math.max(dragStartRef.current.width + dx, 280), 700)
+      setChatWidth(newW)
+    }
+    const onMouseUp = () => {
+      if (draggingRef.current) {
+        draggingRef.current = null
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp) }
+  }, [])
+
+  const startDragChat = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    draggingRef.current = 'chat'
+    dragStartRef.current = { x: e.clientX, width: chatWidth }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [chatWidth])
 
   // ── Online/Offline detection ──
   useEffect(() => {
@@ -4575,16 +5804,18 @@ export default function WebApp() {
     return () => { window.removeEventListener('offline', goOffline); window.removeEventListener('online', goOnline) }
   }, [])
 
+  const newChat  = useCallback(() => { const c: Conversation = { id: uid(), title: 'Nouvelle conversation', messages: [], createdAt: Date.now() }; setConvs(p => [...p, c]); setActiveId(c.id); setChatOpen(true); setMobileSide(false) }, [])
+  const selConv  = useCallback((id: string) => { setActiveId(id); setChatOpen(true); setMobileSide(false) }, [])
+
   // ── Keyboard shortcuts ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'k') { e.preventDefault(); newChat() }
-      if (e.ctrlKey && e.key === '/') { e.preventDefault(); setSearchQuery(q => q ? '' : ' ') }
-      if (e.key === 'Escape') { setMobileSide(false); setShowKbRoot(false); setSearchQuery('') }
+      if (e.key === 'Escape') { setMobileSide(false); setShowKbRoot(false) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [newChat])
 
   const hasChatted = convs.some(c => c.messages.some(m => m.role === 'user'))
 
@@ -4597,7 +5828,7 @@ export default function WebApp() {
       window.history.replaceState({}, '', window.location.pathname)
     }
     const token = getToken()
-    if (!token) { setAuthLoading(false); return }
+    if (!token) return
     fetch(`${API_BASE}/api/webapp/verify`, { method: 'POST', headers: webHdrs() })
       .then(r => r.ok ? r.json() : null)
       .then(d => {
@@ -4650,8 +5881,8 @@ export default function WebApp() {
     fetch(`${API_BASE}/api/prompts`, { method: 'POST', headers: webHdrs() })
       .then(r => r.ok ? r.json() : null).then(d => d && setPrompts(d.prompts || [])).catch(() => {})
     fetch(`${API_BASE}/api/models`, { method: 'POST', headers: webHdrs() })
-      .then(r => r.ok ? r.json() : null).then(d => { if (!d) return; const av = (d.models || []).filter((m: Model) => m.isAvailable); setModels(av); const saved = localStorage.getItem('lamu_web_model'); if (saved && av.some(m => m.model === saved)) setModel(saved); else if (av.length) setModel(av[0].model) }).catch(() => {})
-  }, [user])
+      .then(r => r.ok ? r.json() : null).then(d => { if (!d) return; const av = (d.models || []).filter((m: Model) => m.isAvailable); setModels(av); const saved = localStorage.getItem('lamu_web_model'); if (saved && av.some((m: Model) => m.model === saved)) setModel(saved); else if (av.length) setModel(av[0].model) }).catch(() => {})
+  }, [user, setModel])
 
   const handleLogin = useCallback((_token: string, u: WebUser) => { setUser(u) }, [])
 
@@ -4667,7 +5898,7 @@ export default function WebApp() {
   const handleLogout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
     setUser(null); setConvs([]); setActiveId(null); setView('home')
-  }, [])
+  }, [setView])
 
   const delConv = useCallback((id: string) => {
     setConvs(p => p.filter(c => c.id !== id))
@@ -4676,8 +5907,6 @@ export default function WebApp() {
     fetch(`${API_BASE}/api/webapp/conversations/${id}`, { method: 'DELETE', headers: webHdrs() }).catch(() => {})
   }, [])
 
-  const newChat  = useCallback(() => { const c: Conversation = { id: uid(), title: 'Nouvelle conversation', messages: [], createdAt: Date.now() }; setConvs(p => [...p, c]); setActiveId(c.id); setView('chat'); setMobileSide(false) }, [])
-  const selConv  = useCallback((id: string) => { setActiveId(id); setView('chat'); setMobileSide(false) }, [])
 
   // ── Auth loading screen ──
   if (authLoading) {
@@ -4693,6 +5922,27 @@ export default function WebApp() {
   // ── Login screen ──
   if (!user) {
     return <ThemeCtx.Provider value={th}><LoginView onLogin={handleLogin} /></ThemeCtx.Provider>
+  }
+
+  const tabLabels: Record<View, string> = {
+    home: 'Home', chat: 'Chat', knowledge: 'Knowledge Base', dashboard: 'Dashboard',
+    settings: 'Settings', widget: 'Widget', pricing: 'Pricing', profile: 'Profile',
+    integrations: 'Integrations', helpdesk: 'Helpdesk', analytics: 'Analytics',
+    simulation: 'Simulation', escalation: 'Escalation', team: 'Team',
+    channels: 'Channels', 'kb-gaps': 'KB Gaps', csat: 'CSAT', workflows: 'Workflows',
+    'custom-dashboards': 'Dashboards', 'ab-tests': 'A/B Tests', archive: 'Archive',
+    onboarding: 'Onboarding', 'auto-sync': 'Auto-Sync', 'ai-actions': 'AI Actions',
+    whatsapp: 'WhatsApp', skills: 'Skills', reports: 'Reports',
+  }
+  const tabIcons: Partial<Record<View, React.ElementType>> = {
+    home: Home, knowledge: BookOpen, dashboard: BarChart2, settings: Settings,
+    widget: Zap, pricing: Crown, profile: UserCircle, integrations: GitBranch,
+    helpdesk: HeartHandshake, analytics: TrendingUp, simulation: Brain,
+    escalation: Shield, team: Users, channels: Globe, 'kb-gaps': Search,
+    csat: Star, workflows: RefreshCw, 'custom-dashboards': LayoutDashboard,
+    'ab-tests': Scale, archive: Archive, onboarding: GraduationCap,
+    'auto-sync': RefreshCw, 'ai-actions': Code, whatsapp: MessageCircle,
+    skills: Sparkles, reports: BarChart2,
   }
 
   const sidebar = (mobile = false, onClose?: () => void) => (
@@ -4719,7 +5969,12 @@ export default function WebApp() {
         )}
       </AnimatePresence>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      {/* ── Main content + Chat panel ── */}
+      <div style={{ flex: 1, display: 'flex', gap: 0, overflow: 'hidden', minWidth: 0, background: th.bg }}>
+
+      {/* ── Content area ── */}
+      <div style={{ flex: 1, minWidth: 0, background: th.bg }}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: th.bg }}>
         {/* Offline banner */}
         {isOffline && (
           <div style={{ padding: '8px 16px', background: '#b45309', color: '#fff', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 0 }}>
@@ -4727,10 +5982,102 @@ export default function WebApp() {
             Vous etes hors ligne — les conversations enregistrees restent accessibles, mais l'IA necessite une connexion internet.
           </div>
         )}
-        {/* Top user bar */}
-        <div style={{ padding: '6px 16px', borderBottom: `1px solid ${th.divider}`, display: 'flex', alignItems: 'center', gap: 8, background: th.headerBg, flexShrink: 0 }}>
-          <button className="mobile-menu-btn" onClick={() => setMobileSide(true)} style={{ display: 'none', background: 'none', border: 'none', cursor: 'pointer', color: th.textSub, padding: 4 }}><Menu size={16} /></button>
-          <div style={{ flex: 1 }} />
+
+        {/* ── Tab bar (eesel.ai-style) ── */}
+        <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: `1px solid ${th.divider}`, background: '#ffffff', flexShrink: 0, height: 42 }}>
+          <button className="mobile-menu-btn" onClick={() => setMobileSide(true)} style={{ display: 'none', background: 'none', border: 'none', cursor: 'pointer', color: th.textSub, padding: '0 12px', flexShrink: 0 }}><Menu size={18} /></button>
+          {/* Scrollable tabs area — horizontal scroll, hidden scrollbar */}
+          <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'stretch', flex: 1, minWidth: 0, overflowX: 'auto', overflowY: 'hidden' }}>
+            {openTabs.map(tab => {
+              const active = tab === view
+              const Icon = tabIcons[tab]
+              return (
+                <div key={tab} onClick={() => switchTab(tab)} style={{
+                  display: 'flex', alignItems: 'center', gap: 7, padding: '0 16px',
+                  fontSize: 14, fontWeight: active ? 600 : 400, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  color: active ? th.text : th.textMuted,
+                  borderBottom: active ? '2px solid #6366f1' : '2px solid transparent',
+                  background: 'transparent',
+                  transition: 'all 0.15s',
+                }}>
+                  {Icon && <Icon size={15} />}
+                  <span>{tabLabels[tab]}</span>
+                  {tab !== 'home' && (
+                    <button onClick={e => { e.stopPropagation(); closeTab(tab) }} style={{
+                      background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted,
+                      padding: '0 2px', display: 'flex', alignItems: 'center', borderRadius: 3, marginLeft: 2,
+                    }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.background = th.hover }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = th.textMuted; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                    ><X size={12} /></button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {/* Tab list dropdown button (≡) — lists ALL open tabs */}
+          <div style={{ position: 'relative', flexShrink: 0, display: 'flex', alignItems: 'center', borderLeft: `1px solid ${th.divider}` }}>
+            <button onClick={e => { e.stopPropagation(); setTabMenuOpen(p => !p) }} title="All tabs" style={{
+              background: tabMenuOpen ? th.hover : 'none', border: 'none', cursor: 'pointer', color: th.textMuted,
+              padding: '0 10px', height: '100%', display: 'flex', alignItems: 'center', borderRadius: 0,
+            }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = th.hover }}
+              onMouseLeave={e => { if (!tabMenuOpen) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+            >
+              <Menu size={15} />
+            </button>
+            <AnimatePresence>
+            {tabMenuOpen && (
+              <>
+                <div onClick={() => setTabMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  style={{
+                    position: 'absolute', right: 0, top: '100%', marginTop: 2, zIndex: 1000,
+                    background: th.modal, border: `1px solid ${th.modalBorder}`, borderRadius: 10,
+                    boxShadow: '0 12px 40px rgba(0,0,0,0.12)', minWidth: 220, maxHeight: 400, overflowY: 'auto',
+                    padding: '6px 0',
+                  }}
+                >
+                  {openTabs.map(tab => {
+                    const active = tab === view
+                    const Icon = tabIcons[tab]
+                    return (
+                      <button key={tab} onClick={() => { switchTab(tab); setTabMenuOpen(false) }} style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', width: '100%',
+                        background: active ? th.activeItem : 'transparent', border: 'none', cursor: 'pointer',
+                        color: active ? '#111827' : th.text, fontSize: 14, fontWeight: active ? 600 : 400,
+                        textAlign: 'left',
+                      }}
+                        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = th.hover }}
+                        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+                      >
+                        {Icon ? <Icon size={16} /> : <FileText size={16} />}
+                        <span style={{ flex: 1 }}>{tabLabels[tab]}</span>
+                        {tab !== 'home' && (
+                          <span onClick={e => { e.stopPropagation(); closeTab(tab); if (openTabs.length <= 2) setTabMenuOpen(false) }} style={{ color: th.textMuted, padding: '2px 4px', cursor: 'pointer', display: 'flex', borderRadius: 3 }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color = '#f87171'; (e.currentTarget as HTMLSpanElement).style.background = th.hover }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.color = th.textMuted; (e.currentTarget as HTMLSpanElement).style.background = 'transparent' }}
+                          ><X size={12} /></span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </motion.div>
+              </>
+            )}
+            </AnimatePresence>
+          </div>
+          {/* Right side: chat toggle + user info */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', flexShrink: 0 }}>
+            <button onClick={() => setChatOpen(p => !p)} title={chatOpen ? 'Fermer le chat' : 'Ouvrir le chat'} style={{
+              background: chatOpen ? 'rgba(99,102,241,0.15)' : 'none', border: `1px solid ${chatOpen ? 'rgba(99,102,241,0.3)' : th.border}`,
+              borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: chatOpen ? '#6366f1' : th.textMuted,
+              display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
+            }}>
+              <MessageSquare size={13} /> Chat
+            </button>
+            <div style={{ width: 1, height: 16, background: th.divider }} />
           {user.trial && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 4 }}>
               <div style={{ fontSize: 11, color: (user.messages_remaining ?? 0) <= 5 ? '#fbbf24' : th.textMuted }}>
@@ -4748,17 +6095,14 @@ export default function WebApp() {
               Mettre à niveau
             </a>
           )}
-          <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title="Toggle theme"
-            style={{ background: 'none', border: `1px solid ${th.border}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: th.textMuted, display: 'flex', alignItems: 'center', fontSize: 11 }}>
-            {theme === 'dark' ? <Sun size={12} /> : <Moon size={12} />}
-          </button>
           <button onClick={handleLogout} title="Se déconnecter"
             style={{ background: 'none', border: `1px solid ${th.border}`, borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: th.textMuted, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(248,113,113,0.3)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = th.textMuted; (e.currentTarget as HTMLButtonElement).style.borderColor = th.border }}>
             <LogOut size={12} />
           </button>
-        </div>
+          </div>{/* end right side */}
+        </div>{/* end tab bar */}
 
         {user.trial && (() => {
           const remaining = user.messages_remaining ?? 0
@@ -4785,9 +6129,10 @@ export default function WebApp() {
             </div>
           )
         })()}
+        {/* ── View container — flex:1 so views with overflowY:auto can scroll ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
         {view === 'home'     && <HomeView hasChatted={hasChatted} onNewChat={newChat} setView={setView} isTrial={user?.trial} userName={user?.name || user?.email?.split('@')[0] || null} hasConfigured={!!system} />}
-        {view === 'chat'     && <ChatView convs={convs} activeId={activeId} setActiveId={setActiveId} setConvs={setConvs} model={model} models={models} setModel={setModel} system={system} setSystem={setSystem} prompts={prompts} streaming={streaming} setStreaming={setStreaming} kbContext={kbContext} clearKbContext={() => setKbContext(null)} userName={user?.name || user?.email?.split('@')[0] || null} onMessageSent={refreshUser} />}
-        {view === 'knowledge' && <KnowledgeSearchView onAskDoc={doc => { setSystem(`Use the following source to answer the next question:\n\n${doc.name}\n\n${doc.excerpt || 'No preview available.'}`); setKbContext({ id: doc.id, name: doc.name, excerpt: doc.excerpt || '' }); setView('chat') }} />}
+        {view === 'knowledge' && <KnowledgeSearchView onAskDoc={doc => { setSystem(`Use the following source to answer the next question:\n\n${doc.name}\n\n${doc.excerpt || 'No preview available.'}`); setKbContext({ id: doc.id, name: doc.name, excerpt: doc.excerpt || '' }); setChatOpen(true) }} />}
         {view === 'dashboard' && <DashboardView />}
         {view === 'widget' && <WidgetView />}
         {view === 'pricing' && <PricingView currentPlan={user?.trial ? 'trial' : user?.plan} onUpgrade={() => refreshUser()} />}
@@ -4809,7 +6154,50 @@ export default function WebApp() {
         {view === 'onboarding' && <OnboardingView userEmail={user?.email} setView={setView} />}
         {view === 'auto-sync' && <AutoSyncView />}
         {view === 'ai-actions' && <AiActionsView />}
+        {view === 'whatsapp' && <WhatsAppCommerceView />}
+        {view === 'skills' && <SkillsView />}
+        {view === 'reports' && <ReportsView />}
+        </div>
       </div>
+      </div>
+
+      {/* ── Resize handle + Chat side panel ── */}
+      {chatOpen && (<>
+        {/* Drag handle */}
+        <div
+          onMouseDown={startDragChat}
+          style={{ width: 6, flexShrink: 0, cursor: 'col-resize', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', transition: 'background 0.15s' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(99,102,241,0.12)' }}
+          onMouseLeave={e => { if (!draggingRef.current) (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+        >
+          <div style={{ width: 3, height: 32, borderRadius: 2, background: 'rgba(0,0,0,0.1)', transition: 'background 0.15s' }} />
+        </div>
+        <div style={{ width: chatWidth, flexShrink: 0, background: '#ffffff', borderLeft: `1px solid ${th.divider}` }}>
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Chat panel header */}
+          <div style={{ height: 42, padding: '0 16px', borderBottom: `1px solid ${th.divider}`, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <MessageSquare size={16} style={{ color: th.textSub }} />
+            <span style={{ fontSize: 14, fontWeight: 600, flex: 1, color: th.text }}>Chat</span>
+            <button onClick={() => { newChat(); setChatOpen(true) }} title="New chat" style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, display: 'flex', alignItems: 'center', padding: 4 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = th.text }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = th.textMuted }}
+            >
+              <Plus size={15} />
+            </button>
+            <button onClick={() => setChatOpen(false)} title="Fermer" style={{ background: 'none', border: 'none', cursor: 'pointer', color: th.textMuted, display: 'flex', alignItems: 'center', padding: 4 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = th.textMuted }}
+            ><X size={15} /></button>
+          </div>
+          {/* Chat content */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+            <ChatView compact convs={convs} activeId={activeId} setActiveId={setActiveId} setConvs={setConvs} model={model} models={models} setModel={setModel} system={system} setSystem={setSystem} prompts={prompts} streaming={streaming} setStreaming={setStreaming} kbContext={kbContext} clearKbContext={() => setKbContext(null)} userName={user?.name || user?.email?.split('@')[0] || null} onMessageSent={refreshUser} />
+          </div>
+        </div>
+        </div>
+      </>)}
+
+      </div>{/* end main content + chat panel wrapper */}
 
       <AnimatePresence>
         {showKbRoot && <KbView onClose={() => setShowKbRoot(false)} isTrial={user.trial} />}
@@ -4821,6 +6209,7 @@ export default function WebApp() {
         @media (max-width: 768px) {
           .desktop-sidebar { display: none !important; }
           .mobile-menu-btn { display: flex !important; }
+          .lamu-chat-panel { position: fixed !important; right: 0; top: 0; bottom: 0; width: 100vw !important; z-index: 52; }
         }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>

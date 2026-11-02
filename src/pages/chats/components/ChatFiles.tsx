@@ -91,7 +91,7 @@ export const ChatFiles = ({
                 variant="ghost"
                 onClick={() => setIsFilesPopoverOpen(false)}
                 className="cursor-pointer"
-                title="Close"
+                title="Fermer"
               >
                 <XIcon className="h-4 w-4" />
               </Button>
@@ -131,7 +131,7 @@ export const ChatFiles = ({
                       variant="default"
                       className="absolute top-2 right-2 h-6 w-6 cursor-pointer"
                       onClick={() => removeFile(file.id)}
-                      title="Remove image"
+                      title="Supprimer l'image"
                     >
                       <XIcon className="h-3 w-3" />
                     </Button>
@@ -149,7 +149,7 @@ export const ChatFiles = ({
                 variant="outline"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
-                Add More {!canAddMore && `(${MAX_FILES} max)`}
+                Ajouter {!canAddMore && `(${MAX_FILES} max)`}
               </Button>
               <Button
                 className="w-2/4"
@@ -157,7 +157,7 @@ export const ChatFiles = ({
                 onClick={onRemoveAllFiles}
               >
                 <TrashIcon className="h-4 w-4 mr-2" />
-                Remove All
+                Tout supprimer
               </Button>
             </div>
           </PopoverContent>

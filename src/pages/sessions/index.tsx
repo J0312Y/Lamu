@@ -52,11 +52,12 @@ function relativeDate(iso: string): string {
   const ms = new Date(iso).getTime();
   const diff = Date.now() - ms;
   const m = Math.floor(diff / 60000);
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return `à l'instant`;
+  if (m < 60) return `il y a ${m}m`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return `il y a ${h}h`;
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
+  if (d < 7) return `il y a ${d}j`;
   return new Date(iso).toLocaleDateString();
 }
 
@@ -129,8 +130,8 @@ export default function SessionsPage() {
   }, []);
 
   return (
-    <PageLayout title="Sessions History" description="Your recorded sessions and meetings">
-      <PremiumGate featureName="Sessions History">
+    <PageLayout title="Historique des sessions" description="Vos sessions et réunions enregistrées">
+      <PremiumGate featureName="Historique des sessions">
       <div className="flex flex-col gap-4">
         {/* Tab bar */}
         <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
@@ -142,7 +143,7 @@ export default function SessionsPage() {
             )}
           >
             <MicIcon className="w-3.5 h-3.5" />
-            Meetings ({meetings.length})
+            Réunions ({meetings.length})
           </button>
           <button
             onClick={() => setTab("interviews")}
@@ -152,7 +153,7 @@ export default function SessionsPage() {
             )}
           >
             <BriefcaseIcon className="w-3.5 h-3.5" />
-            Interviews ({interviews.length})
+            Entretiens ({interviews.length})
           </button>
         </div>
 
@@ -160,10 +161,10 @@ export default function SessionsPage() {
         {tab === "meetings" && (
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Meeting summaries auto-saved to Knowledge Base</p>
+              <p className="text-sm text-muted-foreground">Résumés de réunions sauvegardés automatiquement dans la base de connaissances</p>
               <Button size="sm" variant="outline" onClick={loadMeetings} disabled={loadingMeetings} className="gap-1.5">
                 <RefreshCwIcon className={cn("w-3.5 h-3.5", loadingMeetings && "animate-spin")} />
-                Refresh
+                Actualiser
               </Button>
             </div>
 
@@ -189,19 +190,19 @@ export default function SessionsPage() {
               </div>
               <Button onClick={searchMeetings} disabled={searching || !searchQuery.trim()} className="gap-1.5">
                 {searching ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <SearchIcon className="w-3.5 h-3.5" />}
-                Search
+                Rechercher
               </Button>
             </div>
 
             {/* Search results */}
             {searchResults.length > 0 && (
               <div className="flex flex-col gap-2">
-                <p className="text-xs text-muted-foreground">{searchResults.length} résultat(s) trouvé(s)</p>
+                <p className="text-xs text-muted-foreground">{searchResults.length} source{searchResults.length > 1 ? "s" : ""} récupérée{searchResults.length > 1 ? "s" : ""}</p>
                 {searchResults.map((r, i) => (
                   <div key={i} className="rounded-lg border border-border p-3 bg-card">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-sm font-medium">{r.document_name.replace("Meeting_", "").replace(".md", "").replace(/[-T]/g, " ")}</span>
-                      <Badge variant="outline" className="text-[10px]">{Math.round(r.similarity * 100)}% match</Badge>
+                      <Badge variant="outline" className="text-[10px]">{Math.round(r.similarity * 100)}% pertinence</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-3">{r.content}</p>
                   </div>
@@ -212,8 +213,8 @@ export default function SessionsPage() {
             {meetings.length === 0 && !loadingMeetings && (
               <div className="text-center py-12 text-muted-foreground">
                 <MicIcon className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No meeting summaries yet.</p>
-                <p className="text-xs mt-1">Start a meeting session and stop it — a summary will appear here.</p>
+                <p className="text-sm">Aucun résumé de réunion pour l'instant.</p>
+                <p className="text-xs mt-1">Démarrez une session de réunion et arrêtez-la — un résumé apparaîtra ici.</p>
               </div>
             )}
 
@@ -229,7 +230,7 @@ export default function SessionsPage() {
                       <div className="flex items-center gap-2.5">
                         <BookOpenIcon className="w-4 h-4 text-primary shrink-0" />
                         <div>
-                          <p className="text-sm font-medium">Meeting Summary</p>
+                          <p className="text-sm font-medium">Résumé de réunion</p>
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
                             <CalendarIcon className="w-3 h-3" />
                             {dateStr}
@@ -247,7 +248,7 @@ export default function SessionsPage() {
                             {m.content}
                           </pre>
                         ) : (
-                          <p className="text-xs text-muted-foreground mt-3">Loading…</p>
+                          <p className="text-xs text-muted-foreground mt-3">Chargement…</p>
                         )}
                       </div>
                     )}
@@ -261,13 +262,13 @@ export default function SessionsPage() {
         {/* Interviews tab */}
         {tab === "interviews" && (
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-muted-foreground">Interview prep sessions with AI feedback</p>
+            <p className="text-sm text-muted-foreground">Sessions de préparation aux entretiens avec retour IA</p>
 
             {interviews.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
                 <BriefcaseIcon className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">No interview sessions yet.</p>
-                <p className="text-xs mt-1">Go to Interview Prep to start practicing.</p>
+                <p className="text-sm">Aucune session d'entretien pour l'instant.</p>
+                <p className="text-xs mt-1">Allez dans Préparation entretien pour commencer à vous entraîner.</p>
               </div>
             )}
 
@@ -292,7 +293,7 @@ export default function SessionsPage() {
                             <ClockIcon className="w-3 h-3" /> {formatDuration(s.totalDuration)}
                           </span>
                           <Badge variant="outline" className="text-[10px] h-4">
-                            {s.questionScores.length} questions
+                            {s.questionScores.length} question{s.questionScores.length > 1 ? "s" : ""}
                           </Badge>
                         </div>
                       </div>

@@ -56,12 +56,12 @@ export const CreateEditDialog = ({
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle>
-                {isEditing ? "Edit System Prompt" : "Create System Prompt"}
+                {isEditing ? "Modifier le prompt système" : "Créer un prompt système"}
               </DialogTitle>
               <DialogDescription className="mt-1">
                 {isEditing
-                  ? "Update your system prompt details below."
-                  : "Define a new AI behavior and personality."}
+                  ? "Mettez à jour les détails de votre prompt système ci-dessous."
+                  : "Définissez un nouveau comportement et une personnalité pour l'IA."}
               </DialogDescription>
             </div>
             <GenerateSystemPrompt onGenerate={onGenerate} />
@@ -70,10 +70,10 @@ export const CreateEditDialog = ({
         <div className="space-y-4 py-4 px-6 overflow-y-auto flex-1">
           <div className="space-y-2">
             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Name
+              Nom
             </label>
             <Input
-              placeholder="e.g., Code Review Expert, Creative Writer..."
+              placeholder="Ex : Expert en revue de code, Rédacteur créatif..."
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               disabled={isSaving}
@@ -82,18 +82,17 @@ export const CreateEditDialog = ({
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              System Prompt
+              Prompt système
             </label>
             <Textarea
-              placeholder="You are a helpful AI assistant. Be concise, accurate, and friendly in your responses..."
+              placeholder="Vous êtes un assistant IA utile. Soyez concis, précis et bienveillant dans vos réponses..."
               className="min-h-[200px] max-h-[400px] resize-none overflow-y-auto"
               value={form.prompt}
               onChange={(e) => setForm({ ...form, prompt: e.target.value })}
               disabled={isSaving}
             />
             <p className="text-xs text-muted-foreground/70">
-              💡 Tip: Be specific about tone, expertise level, and response
-              format
+              💡 Conseil : Soyez précis sur le ton, le niveau d'expertise et le format de réponse
             </p>
           </div>
         </div>
@@ -103,18 +102,18 @@ export const CreateEditDialog = ({
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
           >
-            Cancel
+            Annuler
           </Button>
           <Button onClick={handleSave} disabled={!isFormValid || isSaving}>
             {isSaving ? (
               <>
                 <SparklesIcon className="h-4 w-4 animate-pulse" />
-                {isEditing ? "Updating..." : "Creating..."}
+                {isEditing ? "Mise à jour..." : "Création..."}
               </>
             ) : isEditing ? (
-              "Update"
+              "Mettre à jour"
             ) : (
-              "Create"
+              "Créer"
             )}
           </Button>
         </DialogFooter>

@@ -5,7 +5,7 @@ use scraper::{Html, Selector};
 /// Handles HTML pages and plain-text documents.
 pub async fn fetch_url(url: &str) -> Result<(String, String), String> {
     let client = Client::builder()
-        .user_agent("Mozilla/5.0 (compatible; Lamu/1.0; +https://lamuka-tech.com)")
+        .user_agent("Mozilla/5.0 (compatible; Lamu/1.0; +https://lamu.lamuka-tech.com)")
         .redirect(reqwest::redirect::Policy::limited(5))
         .timeout(std::time::Duration::from_secs(30))
         .build()
@@ -32,10 +32,33 @@ pub async fn fetch_url(url: &str) -> Result<(String, String), String> {
         .unwrap_or("")
         .to_lowercase();
 
+    // Reject binary content types — images, fonts, stylesheets, audio, video, etc.
+    let binary_types = ["image/", "font/", "audio/", "video/", "application/octet-stream",
+                        "application/pdf", "application/zip", "application/gzip",
+                        "text/css", "application/javascript", "application/x-font"];
+    if binary_types.iter().any(|bt| content_type.contains(bt)) {
+        return Err(format!("Skipping binary/non-text content: {} ({})", url, content_type));
+    }
+
     let body = resp
         .text()
         .await
         .map_err(|e| format!("Failed to read response body: {}", e))?;
+
+    // Reject content that looks like binary data (PNG, JPEG, GIF, PDF, ZIP headers, etc.)
+    let body_start = body.as_bytes();
+    if body_start.len() >= 4 {
+        let is_binary = body_start.starts_with(b"\x89PNG")
+            || body_start.starts_with(b"\xFF\xD8\xFF")     // JPEG
+            || body_start.starts_with(b"GIF8")              // GIF
+            || body_start.starts_with(b"%PDF")              // PDF
+            || body_start.starts_with(b"PK\x03\x04")        // ZIP
+            || body_start.starts_with(b"\x00\x01\x00\x00")  // TrueType font
+            || body_start.starts_with(b"wOFF");              // WOFF font
+        if is_binary {
+            return Err(format!("Skipping binary file: {}", url));
+        }
+    }
 
     if content_type.contains("text/html") || looks_like_html(&body) {
         let (title, text) = extract_html_text(&body);

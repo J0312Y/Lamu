@@ -135,35 +135,35 @@ export const Updater = () => {
         return (
           <>
             <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            Downloading... {progress.percentage}%
+            Téléchargement… {progress.percentage}%
           </>
         );
       case "installing":
         return (
           <>
             <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-            Installing...
+            Installation…
           </>
         );
       case "ready":
         return (
           <>
             <CheckCircle className="mr-2 h-4 w-4" />
-            Ready - Restarting...
+            Prêt — Redémarrage…
           </>
         );
       case "error":
         return (
           <>
             <AlertCircle className="mr-2 h-4 w-4" />
-            Try Again
+            Réessayer
           </>
         );
       default:
         return (
           <>
             <Download className="mr-2 h-4 w-4" />
-            Download & Install Update
+            Télécharger et installer
           </>
         );
     }
@@ -212,8 +212,8 @@ export const Updater = () => {
           onClick={handleTriggerClick}
           className="cursor-pointer"
           disabled={updateState === "checking"}
-          title={`Update available: ${update?.version}`}
-          aria-label={`Update available: ${update?.version}`}
+          title={`Mise à jour disponible : ${update?.version}`}
+          aria-label={`Mise à jour disponible : ${update?.version}`}
         >
           {updateState === "checking" ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -234,11 +234,11 @@ export const Updater = () => {
             {/* Update Header */}
             <div className="border-b border-input/50 pb-2">
               <h1 className="text-lg font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                Update Available
+                Mise à jour disponible
               </h1>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                A new version ({update?.version}) is available. Here's what's
-                new:
+                Une nouvelle version ({update?.version}) est disponible.
+                Voici les nouveautés :
               </p>
             </div>
 
@@ -248,7 +248,7 @@ export const Updater = () => {
                 <Markdown>{update.body}</Markdown>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Release notes not available for this version.
+                  Notes de version non disponibles.
                 </p>
               )}
             </div>
@@ -268,14 +268,14 @@ export const Updater = () => {
 
           <div className="text-center">
             <p className="text-xs text-muted-foreground">
-              Having trouble downloading?{" "}
+              Un problème de téléchargement ?{" "}
               <a
-                href={"https://lamuka-tech.com/downloads"}
+                href={"https://lamu.lamuka-tech.com/downloads"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-700 underline inline-flex items-center gap-1"
               >
-                Download manually
+                Télécharger manuellement
                 <ExternalLink className="h-3 w-3" />
               </a>
             </p>

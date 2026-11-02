@@ -103,7 +103,7 @@ export const MeetingSummaryModal = ({
                     tab === "analytics" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                   )}
                 >
-                  Analytics
+                  Analytique
                 </button>
               )}
             </div>

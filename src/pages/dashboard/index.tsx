@@ -41,8 +41,8 @@ const Dashboard = () => {
 
   return (
     <PageLayout
-      title="Dashboard"
-      description="Lamu license to unlock faster responses, quicker support and premium features."
+      title="Tableau de bord"
+      description="Licence Lamu pour des réponses plus rapides, un support prioritaire et des fonctionnalités premium."
       rightSlot={!hasActiveLicense ? <GetLicense /> : null}
     >
       {/* First-launch onboarding wizard */}

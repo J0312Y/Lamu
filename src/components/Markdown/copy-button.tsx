@@ -19,7 +19,7 @@ export function CopyButton({ content, copyMessage }: CopyButtonProps) {
       variant="ghost"
       size="icon"
       className="relative h-6 w-6"
-      aria-label="Copy to clipboard"
+      aria-label="Copier dans le presse-papiers"
       onClick={handleCopy}
     >
       <div className="absolute inset-0 flex items-center justify-center">

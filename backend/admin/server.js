@@ -161,6 +161,27 @@ app.get('/admin/api/settings', requireAdminAuth, async (req, res) => {
     const rows = await db.query('SELECT `key`, value FROM settings');
     const settings = {};
     for (const r of rows) settings[r.key] = r.value;
+    // Merge .env defaults so the admin sees the effective config even if not saved in DB
+    const envDefaults = {
+      ai_primary_url:      process.env.AI_CHAT_URL     || '',
+      ai_primary_key:      process.env.AI_CHAT_API_KEY || '',
+      ai_primary_model:    process.env.AI_MODEL        || '',
+      ai_fallback_url:     process.env.AI_FALLBACK_URL   || '',
+      ai_fallback_key:     process.env.AI_FALLBACK_KEY   || '',
+      ai_fallback_model:   process.env.AI_FALLBACK_MODEL || '',
+      ai_model_realtime:   process.env.MODEL_REALTIME   || '',
+      ai_model_helpdesk:   process.env.MODEL_HELPDESK   || '',
+      ai_model_chat:       process.env.MODEL_CHAT       || '',
+      ai_model_reasoning:  process.env.MODEL_REASONING  || '',
+      ai_model_embeddings: process.env.MODEL_EMBEDDINGS || '',
+    };
+    // If fallback env vars are set but DB has no explicit setting, mark as enabled
+    if (!settings.ai_fallback_enabled && envDefaults.ai_fallback_url && envDefaults.ai_fallback_key) {
+      envDefaults.ai_fallback_enabled = '1';
+    }
+    for (const [k, v] of Object.entries(envDefaults)) {
+      if (!settings[k] && v) settings[k] = v;
+    }
     res.json({ settings });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -190,10 +211,10 @@ app.post('/admin/api/settings/test-smtp', requireAdminAuth, async (req, res) => 
     });
     await transporter.verify();
     await transporter.sendMail({
-      from: from || `Lamuka <${user}>`,
+      from: from || `Lamu <${user}>`,
       to,
-      subject: 'Test SMTP — Lamuka Admin',
-      html: '<div style="font-family:sans-serif;padding:24px"><h2>✅ SMTP fonctionne !</h2><p>La configuration SMTP de Lamuka est correcte.</p></div>',
+      subject: 'Test SMTP — Lamu Admin',
+      html: '<div style="font-family:sans-serif;padding:24px"><h2>✅ SMTP fonctionne !</h2><p>La configuration SMTP de Lamu est correcte.</p></div>',
     });
     res.json({ ok: true });
   } catch (err) {
@@ -301,8 +322,8 @@ app.put('/admin/api/plans/:id', requireAdminAuth, async (req, res) => {
 
 app.delete('/admin/api/plans/:id', requireAdminAuth, async (req, res) => {
   try {
-    const [{ c }] = await db.query('SELECT COUNT(*) as c FROM licenses WHERE plan = ?', [req.params.id]);
-    if (c > 0) return res.status(400).json({ error: `Cannot delete: ${c} license(s) use this plan` });
+    // Dissociate any licenses linked to this plan before deleting
+    await db.query("UPDATE licenses SET plan = NULL WHERE plan = ?", [req.params.id]);
     await db.query('DELETE FROM plans WHERE id = ?', [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -413,7 +434,7 @@ app.get('/admin/api/activity', requireAdminAuth, async (req, res) => {
 app.get('/admin/api/activity/logs', requireAdminAuth, async (req, res) => {
   try {
     const logs = await db.query(
-      'SELECT id, ai_model, app_version, machine_id, prompt_tokens, completion_tokens, total_tokens, created_at FROM activity_log ORDER BY created_at DESC LIMIT 200'
+      'SELECT id, ai_model, app_version, machine_id, prompt_tokens, completion_tokens, total_tokens, created_at, license_key, customer_email, customer_name, activity_type FROM activity_log ORDER BY created_at DESC LIMIT 200'
     );
     res.json({ logs });
   } catch (err) { res.status(500).json({ error: err.message }); }

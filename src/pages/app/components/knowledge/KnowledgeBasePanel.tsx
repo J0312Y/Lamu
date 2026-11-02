@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Label, Switch, Input } from "@/components";
 import { SemanticDebugPanel } from "./SemanticDebugPanel";
 import {
@@ -14,6 +15,7 @@ import {
   SettingsIcon,
   Trash2Icon,
   UploadIcon,
+  UploadCloudIcon,
   DatabaseIcon,
   LinkIcon,
   PlugIcon,
@@ -52,6 +54,31 @@ export const KnowledgeBasePanel = ({
 
   // URL ingestion state
   const [urlInput, setUrlInput] = useState("");
+
+  // Sync KB locale → cloud (continuité desktop ↔ mobile)
+  const [syncingCloud, setSyncingCloud] = useState(false);
+  const [cloudSyncMsg, setCloudSyncMsg] = useState<string>("");
+
+  const handleSyncToCloud = async () => {
+    setSyncingCloud(true);
+    setCloudSyncMsg("");
+    try {
+      const res = await invoke<{ synced: number; failed: number; total: number }>(
+        "kb_sync_to_cloud"
+      );
+      setCloudSyncMsg(
+        res.total === 0
+          ? "Aucun document local à synchroniser."
+          : `${res.synced}/${res.total} document(s) envoyé(s) au cloud${
+              res.failed ? ` — ${res.failed} échec(s)` : ""
+            }.`
+      );
+    } catch (e: any) {
+      setCloudSyncMsg(`Échec : ${typeof e === "string" ? e : e?.message || "erreur"}`);
+    } finally {
+      setSyncingCloud(false);
+    }
+  };
 
   // Integration connect form state
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
@@ -234,7 +261,7 @@ export const KnowledgeBasePanel = ({
       >
         <div className="flex items-center gap-2">
           <BookOpenIcon className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Knowledge Base</span>
+          <span className="text-xs font-medium">Base de connaissances</span>
           {stats.document_count > 0 && (
             <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
               {stats.document_count} doc{stats.document_count !== 1 ? "s" : ""}
@@ -293,9 +320,9 @@ export const KnowledgeBasePanel = ({
                     : "bg-muted/50 text-muted-foreground hover:bg-muted"
                 )}
               >
-                {tab === "files" && "Files & URLs"}
-                {tab === "folders" && "Folders"}
-                {tab === "integrations" && "Integrations"}
+                {tab === "files" && "Fichiers & URLs"}
+                {tab === "folders" && "Dossiers"}
+                {tab === "integrations" && "Intégrations"}
               </button>
             ))}
           </div>
@@ -303,13 +330,33 @@ export const KnowledgeBasePanel = ({
           {/* ── Tab: Files & URLs ── */}
           {activeTab === "files" && (
             <div className="space-y-2">
+              {/* Sync vers le cloud → dispo dans l'app mobile */}
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={handleSyncToCloud}
+                  disabled={syncingCloud}
+                  className="w-full h-6 px-2 rounded bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5 text-[10px] font-medium"
+                >
+                  {syncingCloud ? (
+                    <Loader2Icon className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <UploadCloudIcon className="w-3 h-3" />
+                  )}
+                  {syncingCloud ? "Synchronisation…" : "Synchroniser vers le cloud (mobile)"}
+                </button>
+                {cloudSyncMsg ? (
+                  <p className="text-[9px] text-muted-foreground text-center">{cloudSyncMsg}</p>
+                ) : null}
+              </div>
+
               {/* URL ingestion */}
               <div className="flex gap-1.5">
                 <Input
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleIngestUrl()}
-                  placeholder="https://… paste a URL"
+                  placeholder="https://… coller une URL"
                   className="h-6 text-[10px] flex-1"
                 />
                 <button
@@ -363,7 +410,7 @@ export const KnowledgeBasePanel = ({
                   <div className="flex flex-col items-center gap-1">
                     <UploadIcon className="w-4 h-4 text-muted-foreground" />
                     <span className="text-[10px] text-muted-foreground">
-                      Drop files or click to upload
+                      Déposez des fichiers ou cliquez pour importer
                     </span>
                     <span className="text-[9px] text-muted-foreground/60">
                       PDF, DOCX, TXT, MD, CSV
@@ -410,7 +457,7 @@ export const KnowledgeBasePanel = ({
           {activeTab === "folders" && (
             <div className="space-y-2">
               <p className="text-[10px] text-muted-foreground">
-                Files added or modified in watched folders are automatically ingested.
+                Les fichiers ajoutés ou modifiés dans les dossiers surveillés sont automatiquement intégrés.
               </p>
               <button
                 type="button"
@@ -418,7 +465,7 @@ export const KnowledgeBasePanel = ({
                 className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded border border-dashed border-border/60 text-[10px] text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
               >
                 <PlusIcon className="w-3 h-3" />
-                Add folder
+                Ajouter un dossier
               </button>
               {watchedFolders.length > 0 && (
                 <div className="space-y-1 max-h-40 overflow-y-auto">
@@ -461,8 +508,8 @@ export const KnowledgeBasePanel = ({
                         </p>
                         <p className="text-[9px] text-muted-foreground">
                           {integ.last_synced_at
-                            ? `Synced ${formatDate(integ.last_synced_at)}`
-                            : "Not yet synced"}
+                            ? `Synchronisé le ${formatDate(integ.last_synced_at)}`
+                            : "Pas encore synchronisé"}
                         </p>
                       </div>
                       <button
@@ -470,7 +517,7 @@ export const KnowledgeBasePanel = ({
                         disabled={syncingId === integ.id}
                         onClick={() => syncIntegration(integ.id)}
                         className="p-0.5 hover:text-primary disabled:opacity-50 transition-colors"
-                        title="Sync now"
+                        title="Synchroniser maintenant"
                       >
                         <RefreshCwIcon
                           className={cn("w-3 h-3", syncingId === integ.id && "animate-spin")}
@@ -480,7 +527,7 @@ export const KnowledgeBasePanel = ({
                         type="button"
                         onClick={() => disconnectIntegration(integ.id)}
                         className="p-0.5 hover:text-destructive transition-colors"
-                        title="Disconnect"
+                        title="Déconnecter"
                       >
                         <Trash2Icon className="w-3 h-3" />
                       </button>
@@ -511,7 +558,7 @@ export const KnowledgeBasePanel = ({
               ) : (
                 <div className="space-y-2 p-2 rounded bg-muted/50 border border-border/50">
                   <p className="text-[10px] font-medium">
-                    Connect {INTEGRATION_LABELS[connectingProvider]}
+                    Connecter {INTEGRATION_LABELS[connectingProvider]}
                   </p>
 
                   {connectingProvider === "confluence" ? (
@@ -541,7 +588,7 @@ export const KnowledgeBasePanel = ({
                       <Input
                         value={dbForm.alias}
                         onChange={(e) => setDbForm((f) => ({ ...f, alias: e.target.value }))}
-                        placeholder="Alias (ex: Production DB)"
+                        placeholder="Alias (ex : Production DB)"
                         className="h-6 text-[10px]"
                       />
                       <div className="flex gap-1.5">
@@ -561,13 +608,13 @@ export const KnowledgeBasePanel = ({
                       <Input
                         value={dbForm.dbname}
                         onChange={(e) => setDbForm((f) => ({ ...f, dbname: e.target.value }))}
-                        placeholder="Database name"
+                        placeholder="Nom de la base"
                         className="h-6 text-[10px]"
                       />
                       <Input
                         value={dbForm.username}
                         onChange={(e) => setDbForm((f) => ({ ...f, username: e.target.value }))}
-                        placeholder="Username"
+                        placeholder="Nom d'utilisateur"
                         className="h-6 text-[10px]"
                       />
                       <Input
@@ -627,9 +674,9 @@ export const KnowledgeBasePanel = ({
                     >
                       {isConnecting && <Loader2Icon className="w-3 h-3 animate-spin" />}
                       {isConnecting ? "Connexion…"
-                        : connectingProvider === "confluence" ? "Connect"
-                        : (connectingProvider === "postgres" || connectingProvider === "mysql") ? "Test & Connect"
-                        : "Authorize"}
+                        : connectingProvider === "confluence" ? "Connecter"
+                        : (connectingProvider === "postgres" || connectingProvider === "mysql") ? "Tester & Connecter"
+                        : "Autoriser"}
                     </button>
                     <button
                       type="button"
@@ -637,7 +684,7 @@ export const KnowledgeBasePanel = ({
                       disabled={isConnecting}
                       className="flex-1 py-1 rounded bg-muted text-muted-foreground text-[10px] hover:bg-accent disabled:opacity-60 transition-colors"
                     >
-                      Cancel
+                      Annuler
                     </button>
                   </div>
                 </div>

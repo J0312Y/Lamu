@@ -21,6 +21,7 @@ import {
   ShieldIcon,
   Trash2Icon,
   UploadIcon,
+  UploadCloudIcon,
   LinkIcon,
   WebhookIcon,
 } from "lucide-react";
@@ -278,7 +279,7 @@ const KnowledgeBasePage = () => {
 
   // Folder watcher
   const handleAddFolder = async () => {
-    const path = window.prompt("Enter the full path to the folder you want to watch:");
+    const path = window.prompt("Entrez le chemin complet du dossier à surveiller :");
     if (!path?.trim()) return;
     await addWatchedFolder(path.trim());
   };
@@ -406,13 +407,34 @@ const KnowledgeBasePage = () => {
     }
   };
 
+  // Sync KB locale → cloud (continuité desktop ↔ mobile)
+  const [syncingCloud, setSyncingCloud] = useState(false);
+  const [cloudSyncMsg, setCloudSyncMsg] = useState<string>("");
+
+  const handleSyncToCloud = async () => {
+    setSyncingCloud(true);
+    setCloudSyncMsg("");
+    try {
+      const res = await invoke<{ synced: number; failed: number; total: number }>("kb_sync_to_cloud");
+      setCloudSyncMsg(
+        res.total === 0
+          ? "Aucun document local à synchroniser."
+          : `${res.synced}/${res.total} envoyé(s) au cloud${res.failed ? ` — ${res.failed} échec(s)` : ""}.`
+      );
+    } catch (e: any) {
+      setCloudSyncMsg(`Échec : ${typeof e === "string" ? e : e?.message || "erreur"}`);
+    } finally {
+      setSyncingCloud(false);
+    }
+  };
+
   // Summarize document
   const [summarizingDocId, setSummarizingDocId] = useState<string | null>(null);
 
   const summarizeDoc = async (docId: string, docName: string) => {
     setSummarizingDocId(docId);
     setActiveTab("search");
-    setSearchQuery(`Summary of "${docName}"`);
+    setSearchQuery(`Résumé de « ${docName} »`);
     setSearchResults([]);
     setAiAnswer("");
 
@@ -424,19 +446,19 @@ const KnowledgeBasePage = () => {
     try {
       const chunks = await invoke<string[]>("kb_get_document_chunks", { documentId: docId });
       if (chunks.length === 0) {
-        setAiAnswer("No content found for this document.");
+        setAiAnswer("Aucun contenu trouvé pour ce document.");
         return;
       }
 
       const fullText = chunks.join("\n\n");
-      const systemPrompt = `You are a helpful assistant. Provide a clear, structured summary of the document below. Highlight the main topics, key points, and any important conclusions.\n\nDocument: "${docName}"\n\n${fullText}`;
+      const systemPrompt = `Tu es un assistant utile. Fournis un résumé clair et structuré du document ci-dessous. Mets en avant les sujets principaux, les points clés et les conclusions importantes.\n\nDocument : « ${docName} »\n\n${fullText}`;
 
       const provider = allAiProviders.find((p) => p.id === selectedAIProvider.provider);
       for await (const chunk of fetchAIResponse({
         provider,
         selectedProvider: selectedAIProvider,
         systemPrompt,
-        userMessage: `Please summarize the document "${docName}".`,
+        userMessage: `Résume le document « ${docName} ».`,
         signal: controller.signal,
       })) {
         if (controller.signal.aborted) break;
@@ -444,7 +466,7 @@ const KnowledgeBasePage = () => {
       }
     } catch (e) {
       console.error("Summarize error:", e);
-      setAiAnswer(`Error generating summary: ${e instanceof Error ? e.message : String(e)}`);
+      setAiAnswer(`Erreur lors de la génération du résumé : ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setIsAiAnswering(false);
       setSummarizingDocId(null);
@@ -456,13 +478,13 @@ const KnowledgeBasePage = () => {
 
   const progressLabel = () => {
     if (!ingestProgress) return "";
-    if (ingestProgress.step === "crawling") return `Crawling ${ingestProgress.name}…`;
-    if (ingestProgress.step === "parsing") return `Parsing ${ingestProgress.name}…`;
+    if (ingestProgress.step === "crawling") return `Exploration de ${ingestProgress.name}…`;
+    if (ingestProgress.step === "parsing") return `Analyse de ${ingestProgress.name}…`;
     if (ingestProgress.step === "embedding") {
       const { current = 0, total = 1 } = ingestProgress;
-      return `Embedding ${current}/${total} chunks…`;
+      return `Vectorisation ${current}/${total} extraits…`;
     }
-    return "Done";
+    return "Terminé";
   };
 
   // ── Direct SQL panel state ────────────────────────────────────────────────
@@ -508,16 +530,16 @@ const KnowledgeBasePage = () => {
   };
 
   const tabs = [
-    { id: "search", label: "Search", icon: SearchIcon },
+    { id: "search", label: "Recherche", icon: SearchIcon },
     { id: "documents", label: "Documents", icon: FileTextIcon },
     { id: "sources", label: "Sources", icon: DatabaseIcon },
     { id: "sql", label: "SQL", icon: DatabaseIcon },
     { id: "files", label: "Fichiers PC", icon: HardDriveIcon },
-    { id: "settings", label: "Settings", icon: SettingsIcon },
+    { id: "settings", label: "Paramètres", icon: SettingsIcon },
   ] as const;
 
   return (
-    <PageLayout title="Knowledge Base" description="Manage documents, sources, and semantic search for AI context.">
+    <PageLayout title="Base de connaissances" description="Gérez vos documents, sources et la recherche sémantique pour le contexte IA.">
       <PremiumGate featureName="Knowledge Base">
       {/* Stats bar */}
       <div className="flex gap-6 text-sm text-muted-foreground">
@@ -527,11 +549,11 @@ const KnowledgeBasePage = () => {
         </span>
         <span className="flex items-center gap-1.5">
           <DatabaseIcon className="w-4 h-4" />
-          <strong className="text-foreground">{stats.chunk_count}</strong> chunks
+          <strong className="text-foreground">{stats.chunk_count}</strong> extraits
         </span>
         <span className="flex items-center gap-1.5">
           <BookOpenIcon className="w-4 h-4" />
-          <strong className="text-foreground">{stats.embedded_count}</strong> embedded
+          <strong className="text-foreground">{stats.embedded_count}</strong> vectorisés
         </span>
       </div>
 
@@ -560,8 +582,8 @@ const KnowledgeBasePage = () => {
             <div className="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2.5 text-sm text-yellow-700 dark:text-yellow-400">
               <span className="mt-0.5 shrink-0">⚠️</span>
               <span>
-                {stats.chunk_count - stats.embedded_count} chunk(s) are missing embeddings.
-                Go to <button type="button" className="underline font-medium" onClick={() => handleTabChange("settings")}>Settings</button> and click "Embed missing" to fix this.
+                {stats.chunk_count - stats.embedded_count} extrait(s) n'ont pas de vecteurs.
+                Allez dans <button type="button" className="underline font-medium" onClick={() => handleTabChange("settings")}>Paramètres</button> et cliquez sur « Vectoriser manquants » pour corriger cela.
               </span>
             </div>
           )}
@@ -569,13 +591,13 @@ const KnowledgeBasePage = () => {
           <div className="flex gap-2">
             <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="Ask a question or search your knowledge base…" className="flex-1" />
+              placeholder="Posez une question ou recherchez dans votre base de connaissances…" className="flex-1" />
             <button type="button" onClick={handleSearch}
               disabled={isSearching || !searchQuery.trim()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {isSearching ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <SearchIcon className="w-4 h-4" />}
-              Search
+              Rechercher
             </button>
           </div>
 
@@ -588,7 +610,7 @@ const KnowledgeBasePage = () => {
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <BotIcon className="w-4 h-4 text-primary" />
-                <span>AI Answer</span>
+                <span>Réponse IA</span>
                 {isAiAnswering && <Loader2Icon className="w-3.5 h-3.5 animate-spin text-muted-foreground ml-auto" />}
               </div>
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{aiAnswer}</p>
@@ -630,7 +652,7 @@ const KnowledgeBasePage = () => {
 
           {searchResults.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">{searchResults.length} results for "{searchQuery}"</p>
+              <p className="text-xs text-muted-foreground">{searchResults.length} résultat(s) pour « {searchQuery} »</p>
               {searchResults.map((r) => (
                 <div key={r.chunk_id} className="rounded-lg border border-border bg-muted/20 p-4 space-y-2">
                   <div className="flex items-center justify-between">
@@ -638,7 +660,7 @@ const KnowledgeBasePage = () => {
                       {sourceIcon(r.document_name.startsWith("http") ? "url" : "file")}
                       <span className="text-sm font-medium">{r.document_name}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground">{(r.similarity * 100).toFixed(0)}% match</span>
+                    <span className="text-xs text-muted-foreground">{(r.similarity * 100).toFixed(0)}% de correspondance</span>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed line-clamp-4">{r.content}</p>
                 </div>
@@ -648,15 +670,15 @@ const KnowledgeBasePage = () => {
 
           {searchResults.length === 0 && searchQuery && !isSearching && !aiAnswer && (
             <p className="text-sm text-muted-foreground text-center py-8">
-              No matching content found. Try different keywords or add more documents.
+              Aucun contenu trouvé. Essayez d'autres mots-clés ou ajoutez davantage de documents.
             </p>
           )}
 
           {stats.document_count === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <BookOpenIcon className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Your knowledge base is empty.</p>
-              <p className="text-xs mt-1">Add documents in the Documents tab to get started.</p>
+              <p className="text-sm">Votre base de connaissances est vide.</p>
+              <p className="text-xs mt-1">Ajoutez des documents dans l'onglet Documents pour commencer.</p>
             </div>
           )}
         </div>
@@ -669,12 +691,12 @@ const KnowledgeBasePage = () => {
           <div className="flex gap-2">
             <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleIngestUrl()}
-              placeholder="https://… paste a URL to crawl and ingest" className="flex-1" />
+              placeholder="https://… collez une URL à explorer et indexer" className="flex-1" />
             <button type="button" onClick={handleIngestUrl}
               disabled={isIngesting || !urlInput.trim()}
               className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-border text-sm hover:bg-accent disabled:opacity-50 transition-colors"
             >
-              <LinkIcon className="w-4 h-4" /> Add URL
+              <LinkIcon className="w-4 h-4" /> Ajouter l'URL
             </button>
           </div>
 
@@ -698,7 +720,7 @@ const KnowledgeBasePage = () => {
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <UploadIcon className="w-6 h-6 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Drop files here or click to upload</span>
+                <span className="text-sm text-muted-foreground">Déposez des fichiers ici ou cliquez pour importer</span>
                 <span className="text-xs text-muted-foreground/60">PDF, DOCX, TXT, Markdown, CSV</span>
               </div>
             )}
@@ -711,11 +733,20 @@ const KnowledgeBasePage = () => {
             <>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground">{documents.length} document{documents.length !== 1 ? "s" : ""}</p>
-                <button type="button" onClick={exportCsv}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs hover:bg-accent transition-colors"
-                >
-                  <DownloadIcon className="w-3.5 h-3.5" /> Export CSV
-                </button>
+                <div className="flex items-center gap-2">
+                  {cloudSyncMsg && <span className="text-[11px] text-muted-foreground">{cloudSyncMsg}</span>}
+                  <button type="button" onClick={handleSyncToCloud} disabled={syncingCloud}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-primary/40 text-primary text-xs hover:bg-primary/10 disabled:opacity-50 transition-colors"
+                  >
+                    {syncingCloud ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <UploadCloudIcon className="w-3.5 h-3.5" />}
+                    {syncingCloud ? "Sync…" : "Synchroniser vers le cloud"}
+                  </button>
+                  <button type="button" onClick={exportCsv}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs hover:bg-accent transition-colors"
+                  >
+                    <DownloadIcon className="w-3.5 h-3.5" /> Exporter CSV
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -726,7 +757,7 @@ const KnowledgeBasePage = () => {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{doc.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {doc.source_type} · {doc.chunk_count} chunks · {formatDate(doc.created_at)}
+                          {doc.source_type} · {doc.chunk_count} extraits · {formatDate(doc.created_at)}
                         </p>
                       </div>
 
@@ -749,7 +780,7 @@ const KnowledgeBasePage = () => {
                       ) : (
                         <button type="button"
                           onClick={() => setEditingAccessId(doc.id)}
-                          title="Click to change access level"
+                          title="Cliquez pour modifier le niveau d'accès"
                           className={cn(
                             "flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full",
                             ACCESS_COLORS[doc.access_level] ?? "bg-muted text-muted-foreground"
@@ -764,7 +795,7 @@ const KnowledgeBasePage = () => {
                         type="button"
                         onClick={() => summarizeDoc(doc.id, doc.name)}
                         disabled={summarizingDocId === doc.id}
-                        title="Summarize document"
+                        title="Résumer le document"
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-primary/10 hover:text-primary disabled:opacity-50"
                       >
                         {summarizingDocId === doc.id
@@ -787,7 +818,7 @@ const KnowledgeBasePage = () => {
           {documents.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <FileTextIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No documents yet. Upload a file or add a URL above.</p>
+              <p className="text-sm">Aucun document pour l'instant. Importez un fichier ou ajoutez une URL ci-dessus.</p>
             </div>
           )}
         </div>
@@ -800,18 +831,18 @@ const KnowledgeBasePage = () => {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold">Watched Folders</h3>
-                <p className="text-xs text-muted-foreground">Files added or modified are automatically ingested.</p>
+                <h3 className="text-sm font-semibold">Dossiers surveillés</h3>
+                <p className="text-xs text-muted-foreground">Les fichiers ajoutés ou modifiés sont automatiquement indexés.</p>
               </div>
               <button type="button" onClick={handleAddFolder}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs hover:bg-accent transition-colors"
               >
-                <PlusIcon className="w-3.5 h-3.5" /> Add Folder
+                <PlusIcon className="w-3.5 h-3.5" /> Ajouter un dossier
               </button>
             </div>
 
             {watchedFolders.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border/60 rounded-lg">No folders watched yet.</p>
+              <p className="text-xs text-muted-foreground text-center py-4 border border-dashed border-border/60 rounded-lg">Aucun dossier surveillé pour l'instant.</p>
             ) : (
               <div className="space-y-1">
                 {watchedFolders.map((f) => (
@@ -830,8 +861,8 @@ const KnowledgeBasePage = () => {
           {/* Integrations */}
           <section className="space-y-3">
             <div>
-              <h3 className="text-sm font-semibold">Integrations</h3>
-              <p className="text-xs text-muted-foreground">Connect Notion, Google Drive, SharePoint, Confluence, Jira, Shopify, Salesforce, or GitHub.</p>
+              <h3 className="text-sm font-semibold">Intégrations</h3>
+              <p className="text-xs text-muted-foreground">Connectez Notion, Google Drive, SharePoint, Confluence, Jira, Shopify, Salesforce ou GitHub.</p>
             </div>
 
             {integrations.length > 0 && (
@@ -846,7 +877,7 @@ const KnowledgeBasePage = () => {
                           <span className="text-muted-foreground font-normal"> · {integ.name}</span>
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {integ.last_synced_at ? `Last synced ${formatDate(integ.last_synced_at)}` : "Not yet synced"}
+                          {integ.last_synced_at ? `Dernière synchro le ${formatDate(integ.last_synced_at)}` : "Pas encore synchronisé"}
                         </p>
                       </div>
                       <button type="button" disabled={syncingId === integ.id}
@@ -854,7 +885,7 @@ const KnowledgeBasePage = () => {
                         className="flex items-center gap-1 px-2 py-1 rounded text-xs border border-border hover:bg-accent disabled:opacity-50 transition-colors"
                       >
                         <RefreshCwIcon className={cn("w-3 h-3", syncingId === integ.id && "animate-spin")} />
-                        Sync
+                        Synchroniser
                       </button>
                       <button type="button" onClick={() => disconnectIntegration(integ.id)}
                         className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
@@ -863,18 +894,18 @@ const KnowledgeBasePage = () => {
 
                     {/* Auto-sync interval */}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground pl-7">
-                      <span>Auto-sync every</span>
+                      <span>Synchro auto toutes les</span>
                       <select
                         value={integ.sync_interval_hours ?? 0}
                         onChange={(e) => setSyncInterval(integ.id, Number(e.target.value))}
                         className="rounded border border-border bg-background px-1 py-0.5 text-xs"
                       >
-                        <option value="0">Manual only</option>
-                        <option value="1">1 hour</option>
-                        <option value="6">6 hours</option>
-                        <option value="12">12 hours</option>
-                        <option value="24">24 hours</option>
-                        <option value="168">Weekly</option>
+                        <option value="0">Manuel uniquement</option>
+                        <option value="1">1 heure</option>
+                        <option value="6">6 heures</option>
+                        <option value="12">12 heures</option>
+                        <option value="24">24 heures</option>
+                        <option value="168">Hebdomadaire</option>
                       </select>
                     </div>
                   </div>
@@ -894,7 +925,7 @@ const KnowledgeBasePage = () => {
               </div>
             ) : (
               <div className="space-y-3 p-4 rounded-lg border border-border bg-muted/20">
-                <p className="text-sm font-semibold">Connect {INTEGRATION_LABELS[connectingProvider]}</p>
+                <p className="text-sm font-semibold">Connecter {INTEGRATION_LABELS[connectingProvider]}</p>
 
                 {(connectingProvider === "confluence" || connectingProvider === "jira") ? (
                   <div className="space-y-2">
@@ -903,12 +934,12 @@ const KnowledgeBasePage = () => {
                       placeholder="https://yourcompany.atlassian.net" />
                     <Input value={integForm.email}
                       onChange={(e) => setIntegForm((f) => ({ ...f, email: e.target.value }))}
-                      placeholder="your@email.com" />
+                      placeholder="votre@email.com" />
                     <Input type="password" value={integForm.apiToken}
                       onChange={(e) => setIntegForm((f) => ({ ...f, apiToken: e.target.value }))}
-                      placeholder="API token" />
+                      placeholder="Jeton API" />
                     <p className="text-xs text-muted-foreground">
-                      Generate an API token at id.atlassian.com/manage-profile/security/api-tokens
+                      Générez un jeton API sur id.atlassian.com/manage-profile/security/api-tokens
                     </p>
                   </div>
                 ) : connectingProvider === "shopify" ? (
@@ -918,9 +949,9 @@ const KnowledgeBasePage = () => {
                       placeholder="yourstore.myshopify.com" />
                     <Input type="password" value={integForm.accessToken}
                       onChange={(e) => setIntegForm((f) => ({ ...f, accessToken: e.target.value }))}
-                      placeholder="Admin API access token" />
+                      placeholder="Jeton d'accès API Admin" />
                     <p className="text-xs text-muted-foreground">
-                      Generate a token in Shopify Admin → Apps → Develop apps → API credentials
+                      Générez un jeton dans Shopify Admin → Applications → Développer des apps → Identifiants API
                     </p>
                   </div>
                 ) : connectingProvider === "salesforce" ? (
@@ -930,41 +961,41 @@ const KnowledgeBasePage = () => {
                       placeholder="https://login.salesforce.com" />
                     <Input value={integForm.clientId}
                       onChange={(e) => setIntegForm((f) => ({ ...f, clientId: e.target.value }))}
-                      placeholder="Connected App Consumer Key" />
+                      placeholder="Clé consommateur de l'app connectée" />
                     <Input type="password" value={integForm.clientSecret}
                       onChange={(e) => setIntegForm((f) => ({ ...f, clientSecret: e.target.value }))}
-                      placeholder="Connected App Consumer Secret" />
+                      placeholder="Secret consommateur de l'app connectée" />
                     <p className="text-xs text-muted-foreground">
-                      Create a Connected App in Salesforce Setup → Apps → App Manager
+                      Créez une app connectée dans Salesforce Setup → Apps → App Manager
                     </p>
                   </div>
                 ) : connectingProvider === "github" ? (
                   <div className="space-y-2">
                     <Input value={integForm.owner}
                       onChange={(e) => setIntegForm((f) => ({ ...f, owner: e.target.value }))}
-                      placeholder="GitHub username or org (e.g. octocat)" />
+                      placeholder="Nom d'utilisateur ou organisation GitHub (ex. octocat)" />
                     <Input value={integForm.repo}
                       onChange={(e) => setIntegForm((f) => ({ ...f, repo: e.target.value }))}
-                      placeholder="Repo name (optional — leave blank for all repos)" />
+                      placeholder="Nom du dépôt (optionnel — laisser vide pour tous les dépôts)" />
                     {builtinProviders.includes("github") ? (
                       <>
                         {/* Device Flow: no PAT needed */}
                         {githubDeviceCode ? (
                           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 space-y-2">
                             <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                              Enter this code at github.com/activate:
+                              Entrez ce code sur github.com/activate :
                             </p>
                             <p className="font-mono text-lg font-bold tracking-widest text-center select-all">
                               {githubDeviceCode.user_code}
                             </p>
                             <p className="text-xs text-muted-foreground text-center">
-                              Browser opened automatically. Waiting for authorization…
+                              Navigateur ouvert automatiquement. En attente d'autorisation…
                             </p>
                             <Loader2Icon className="w-4 h-4 animate-spin mx-auto text-muted-foreground" />
                           </div>
                         ) : (
                           <p className="text-xs text-muted-foreground">
-                            No PAT needed — a browser window will open for authorization.
+                            Aucun PAT requis — une fenêtre de navigateur s'ouvrira pour l'autorisation.
                           </p>
                         )}
                       </>
@@ -972,9 +1003,9 @@ const KnowledgeBasePage = () => {
                       <>
                         <Input type="password" value={integForm.ghToken}
                           onChange={(e) => setIntegForm((f) => ({ ...f, ghToken: e.target.value }))}
-                          placeholder="Personal Access Token" />
+                          placeholder="Jeton d'accès personnel (PAT)" />
                         <p className="text-xs text-muted-foreground">
-                          Create a PAT at github.com/settings/tokens (needs repo scope)
+                          Créez un PAT sur github.com/settings/tokens (portée repo requise)
                         </p>
                       </>
                     )}
@@ -983,15 +1014,15 @@ const KnowledgeBasePage = () => {
                   <div className="space-y-2">
                     <Input value={integForm.glUrl}
                       onChange={(e) => setIntegForm((f) => ({ ...f, glUrl: e.target.value }))}
-                      placeholder="GitLab URL (e.g. https://gitlab.com or https://gitlab.mycompany.com)" />
+                      placeholder="URL GitLab (ex. https://gitlab.com ou https://gitlab.masociete.com)" />
                     <Input value={integForm.glProjectId}
                       onChange={(e) => setIntegForm((f) => ({ ...f, glProjectId: e.target.value }))}
-                      placeholder="Project ID or path (e.g. mygroup/myproject)" />
+                      placeholder="ID ou chemin du projet (ex. mongroupe/monprojet)" />
                     <Input type="password" value={integForm.glToken}
                       onChange={(e) => setIntegForm((f) => ({ ...f, glToken: e.target.value }))}
-                      placeholder="Personal Access Token" />
+                      placeholder="Jeton d'accès personnel (PAT)" />
                     <p className="text-xs text-muted-foreground">
-                      Create a PAT at GitLab → User Settings → Access Tokens (needs api scope)
+                      Créez un PAT dans GitLab → Paramètres utilisateur → Jetons d'accès (portée api requise)
                     </p>
                   </div>
                 ) : (connectingProvider === "postgres" || connectingProvider === "mysql") ? (
@@ -1002,29 +1033,32 @@ const KnowledgeBasePage = () => {
                     <div className="flex gap-2">
                       <Input className="flex-1" value={integForm.dbHost}
                         onChange={(e) => setIntegForm((f) => ({ ...f, dbHost: e.target.value }))}
-                        placeholder="Host (ex: db.myserver.com)" />
+                        placeholder="Hôte (ex : db.myserver.com)" />
                       <Input className="w-24" value={integForm.dbPort}
                         onChange={(e) => setIntegForm((f) => ({ ...f, dbPort: e.target.value }))}
                         placeholder={connectingProvider === "mysql" ? "3306" : "5432"} />
                     </div>
                     <Input value={integForm.dbName}
                       onChange={(e) => setIntegForm((f) => ({ ...f, dbName: e.target.value }))}
-                      placeholder="Database name" />
+                      placeholder="Nom de la base (vide = tout le serveur)" />
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      Laissez vide pour connecter <strong>tout le serveur</strong> et gérer toutes les bases de données. Ou entrez un nom pour cibler une seule DB.
+                    </p>
                     <Input value={integForm.dbUser}
                       onChange={(e) => setIntegForm((f) => ({ ...f, dbUser: e.target.value }))}
-                      placeholder="Username" />
+                      placeholder="Nom d'utilisateur" />
                     <Input type="password" value={integForm.dbPass}
                       onChange={(e) => setIntegForm((f) => ({ ...f, dbPass: e.target.value }))}
-                      placeholder="Password" />
+                      placeholder="Mot de passe" />
                     <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                       <input type="checkbox" checked={integForm.dbSsl}
                         onChange={(e) => setIntegForm((f) => ({ ...f, dbSsl: e.target.checked }))} />
-                      Require SSL/TLS
+                      Exiger SSL/TLS
                     </label>
                     <p className="text-xs text-muted-foreground">
                       {connectingProvider === "postgres"
-                        ? "PostgreSQL 12+ recommended. The user needs SELECT permission on the target schema."
-                        : "MySQL 5.7+ / MariaDB 10.3+. The user needs SELECT permission."}
+                        ? "PostgreSQL 12+ recommandé. En mode serveur, Lamu se connecte à 'postgres' puis vous laisse naviguer entre toutes les bases."
+                        : "MySQL 5.7+ / MariaDB 10.3+. En mode serveur, Lamu se connecte à 'information_schema' puis liste toutes les bases."}
                     </p>
                   </div>
                 ) : (
@@ -1033,44 +1067,44 @@ const KnowledgeBasePage = () => {
                       <>
                         {/* Built-in OAuth: one-click connect */}
                         <p className="text-xs text-muted-foreground">
-                          A browser window will open to authorize Lamu. No credentials needed.
+                          Une fenêtre de navigateur s'ouvrira pour autoriser Lamu. Aucun identifiant requis.
                         </p>
                         {connectingProvider === "sharepoint" && (
                           <Input value={integForm.tenant}
                             onChange={(e) => setIntegForm((f) => ({ ...f, tenant: e.target.value }))}
-                            placeholder="Tenant ID (optional, defaults to 'common')" />
+                            placeholder="ID du tenant (optionnel, par défaut 'common')" />
                         )}
                         <button type="button"
                           onClick={() => setUseCustomCredentials(true)}
                           className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
                         >
-                          Use custom credentials instead
+                          Utiliser mes propres identifiants
                         </button>
                       </>
                     ) : (
                       <>
                         <Input value={integForm.clientId}
                           onChange={(e) => setIntegForm((f) => ({ ...f, clientId: e.target.value }))}
-                          placeholder="Client ID (from your OAuth app)" />
+                          placeholder="Client ID (depuis votre app OAuth)" />
                         <Input type="password" value={integForm.clientSecret}
                           onChange={(e) => setIntegForm((f) => ({ ...f, clientSecret: e.target.value }))}
-                          placeholder="Client Secret" />
+                          placeholder="Secret client" />
                         {connectingProvider === "sharepoint" && (
                           <Input value={integForm.tenant}
                             onChange={(e) => setIntegForm((f) => ({ ...f, tenant: e.target.value }))}
-                            placeholder="Tenant ID (or 'common')" />
+                            placeholder="ID du tenant (ou 'common')" />
                         )}
                         <p className="text-xs text-muted-foreground">
-                          {connectingProvider === "notion" && "Create an integration at notion.so/profile/integrations"}
-                          {connectingProvider === "gdrive" && "Enable Drive API in Google Cloud Console"}
-                          {connectingProvider === "sharepoint" && "Register an app in Azure Active Directory"}
+                          {connectingProvider === "notion" && "Créez une intégration sur notion.so/profile/integrations"}
+                          {connectingProvider === "gdrive" && "Activez l'API Drive dans Google Cloud Console"}
+                          {connectingProvider === "sharepoint" && "Enregistrez une app dans Azure Active Directory"}
                         </p>
                         {connectingProvider && builtinProviders.includes(connectingProvider) && (
                           <button type="button"
                             onClick={() => setUseCustomCredentials(false)}
                             className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
                           >
-                            ← Use built-in credentials
+                            ← Utiliser les identifiants intégrés
                           </button>
                         )}
                       </>
@@ -1091,16 +1125,16 @@ const KnowledgeBasePage = () => {
                     className="flex-1 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
                   >
                     {connectingProvider === "github" && builtinProviders.includes("github") && githubDeviceCode
-                      ? "Waiting for authorization…"
+                      ? "En attente d'autorisation…"
                       : connectingProvider !== null && builtinProviders.includes(connectingProvider) && !useCustomCredentials
-                        ? `Connect with ${INTEGRATION_LABELS[connectingProvider] ?? connectingProvider}`
+                        ? `Connecter avec ${INTEGRATION_LABELS[connectingProvider] ?? connectingProvider}`
                         : connectingProvider !== null && ["notion", "gdrive", "sharepoint", "salesforce"].includes(connectingProvider)
-                          ? "Authorize in Browser"
-                          : "Connect"}
+                          ? "Autoriser dans le navigateur"
+                          : "Connecter"}
                   </button>
                   <button type="button" onClick={() => { setConnectingProvider(null); setUseCustomCredentials(false); setConnectError(null); }}
                     className="flex-1 py-2 rounded-md border border-border text-sm hover:bg-accent transition-colors"
-                  >Cancel</button>
+                  >Annuler</button>
                 </div>
               </div>
             )}
@@ -1198,8 +1232,8 @@ const KnowledgeBasePage = () => {
           {/* Embedding provider */}
           <section className="space-y-3">
             <div>
-              <h3 className="text-sm font-semibold">Embedding Provider</h3>
-              <p className="text-xs text-muted-foreground">Controls how chunks are converted to vectors for semantic search.</p>
+              <h3 className="text-sm font-semibold">Fournisseur de vectorisation</h3>
+              <p className="text-xs text-muted-foreground">Détermine comment les extraits sont convertis en vecteurs pour la recherche sémantique.</p>
             </div>
             <div className="flex gap-2">
               {(["ollama", "openai", "none"] as const).map((p) => (
@@ -1212,20 +1246,20 @@ const KnowledgeBasePage = () => {
                       : "bg-background border-border hover:bg-accent"
                   )}
                 >
-                  {p === "ollama" ? "Ollama (local)" : p === "openai" ? "OpenAI" : "None"}
+                  {p === "ollama" ? "Ollama (local)" : p === "openai" ? "OpenAI" : "Aucun"}
                 </button>
               ))}
             </div>
             {embedConfig.provider === "ollama" && (
               <div className="space-y-2">
                 <div>
-                  <label className="text-xs font-medium">Ollama URL</label>
+                  <label className="text-xs font-medium">URL Ollama</label>
                   <Input value={embedConfig.ollama_url}
                     onChange={(e) => updateEmbedConfig({ ...embedConfig, ollama_url: e.target.value })}
                     placeholder="http://localhost:11434" className="mt-1" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium">Model</label>
+                  <label className="text-xs font-medium">Modèle</label>
                   <Input value={embedConfig.ollama_model}
                     onChange={(e) => updateEmbedConfig({ ...embedConfig, ollama_model: e.target.value })}
                     placeholder="nomic-embed-text" className="mt-1" />
@@ -1235,13 +1269,13 @@ const KnowledgeBasePage = () => {
             {embedConfig.provider === "openai" && (
               <div className="space-y-2">
                 <div>
-                  <label className="text-xs font-medium">OpenAI API Key</label>
+                  <label className="text-xs font-medium">Clé API OpenAI</label>
                   <Input type="password" value={embedConfig.openai_key}
                     onChange={(e) => updateEmbedConfig({ ...embedConfig, openai_key: e.target.value })}
                     placeholder="sk-…" className="mt-1" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium">Model</label>
+                  <label className="text-xs font-medium">Modèle</label>
                   <Input value={embedConfig.openai_model}
                     onChange={(e) => updateEmbedConfig({ ...embedConfig, openai_model: e.target.value })}
                     placeholder="text-embedding-3-small" className="mt-1" />
@@ -1249,15 +1283,15 @@ const KnowledgeBasePage = () => {
               </div>
             )}
             {embedConfig.provider === "none" && (
-              <p className="text-sm text-muted-foreground">Documents stored without embeddings — search unavailable.</p>
+              <p className="text-sm text-muted-foreground">Documents stockés sans vectorisation — recherche sémantique indisponible.</p>
             )}
           </section>
 
           {/* Re-embed */}
           <section className="space-y-3">
             <div>
-              <h3 className="text-sm font-semibold">Re-embed Documents</h3>
-              <p className="text-xs text-muted-foreground">Useful after switching embedding providers.</p>
+              <h3 className="text-sm font-semibold">Re-vectoriser les documents</h3>
+              <p className="text-xs text-muted-foreground">Utile après avoir changé de fournisseur de vectorisation.</p>
             </div>
             {isReembedding && reembedProgress && (
               <div className="space-y-1">
@@ -1274,14 +1308,14 @@ const KnowledgeBasePage = () => {
                 className="flex-1 flex items-center justify-center gap-2 py-2 rounded-md border border-border text-sm hover:bg-accent disabled:opacity-50 transition-colors"
               >
                 {isReembedding ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <RefreshCwIcon className="w-4 h-4" />}
-                Embed missing
+                Vectoriser manquants
               </button>
               <button type="button" onClick={() => handleReembedAll(true)}
                 disabled={isReembedding || embedConfig.provider === "none"}
                 className="flex-1 flex items-center justify-center gap-2 py-2 rounded-md border border-border text-sm hover:bg-accent disabled:opacity-50 transition-colors"
               >
                 {isReembedding ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <RefreshCwIcon className="w-4 h-4" />}
-                Re-embed all
+                Tout re-vectoriser
               </button>
             </div>
           </section>
@@ -1290,13 +1324,13 @@ const KnowledgeBasePage = () => {
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold">Outgoing Webhooks</h3>
-                <p className="text-xs text-muted-foreground">Post AI responses or KB results to Slack or Teams channels.</p>
+                <h3 className="text-sm font-semibold">Webhooks sortants</h3>
+                <p className="text-xs text-muted-foreground">Publiez les réponses IA ou les résultats KB vers des canaux Slack ou Teams.</p>
               </div>
               <button type="button" onClick={() => setShowWebhookForm(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs hover:bg-accent transition-colors"
               >
-                <PlusIcon className="w-3.5 h-3.5" /> Add Webhook
+                <PlusIcon className="w-3.5 h-3.5" /> Ajouter un webhook
               </button>
             </div>
 
@@ -1330,7 +1364,7 @@ const KnowledgeBasePage = () => {
                   </select>
                   <Input value={webhookForm.name}
                     onChange={(e) => setWebhookForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="Name (optional)" className="flex-1" />
+                    placeholder="Nom (optionnel)" className="flex-1" />
                 </div>
                 <Input value={webhookForm.url}
                   onChange={(e) => setWebhookForm((f) => ({ ...f, url: e.target.value }))}
@@ -1338,10 +1372,10 @@ const KnowledgeBasePage = () => {
                 <div className="flex gap-2">
                   <button type="button" onClick={handleAddWebhook}
                     className="flex-1 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
-                  >Save</button>
+                  >Enregistrer</button>
                   <button type="button" onClick={() => setShowWebhookForm(false)}
                     className="flex-1 py-1.5 rounded-md border border-border text-sm hover:bg-accent"
-                  >Cancel</button>
+                  >Annuler</button>
                 </div>
               </div>
             )}

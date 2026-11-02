@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react'
-
-type ToastType = 'success' | 'error' | 'info' | 'warning'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ToastContext, setToastHandler, type ToastType } from './toast-api'
 
 interface ToastItem {
   id: number
@@ -8,16 +7,6 @@ interface ToastItem {
   type: ToastType
 }
 
-interface ToastContextType {
-  toast: (message: string, type?: ToastType) => void
-}
-
-const ToastContext = createContext<ToastContextType>({ toast: () => {} })
-
-let _globalToast: ((message: string, type?: ToastType) => void) | null = null
-export function toast(message: string, type: ToastType = 'info') {
-  if (_globalToast) _globalToast(message, type)
-}
 
 const ICONS: Record<ToastType, string> = {
   success: 'M9 12.75 11.25 15 15 9.75',
@@ -35,15 +24,15 @@ const COLORS: Record<ToastType, { bg: string; border: string; icon: string }> = 
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
-  let idCounter = 0
+  const idCounter = useRef(0)
 
   const addToast = useCallback((message: string, type: ToastType = 'info') => {
-    const id = Date.now() + (idCounter++)
+    const id = Date.now() + (idCounter.current++)
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }, [])
 
-  useEffect(() => { _globalToast = addToast; return () => { _globalToast = null } }, [addToast])
+  useEffect(() => { setToastHandler(addToast); return () => setToastHandler(null) }, [addToast])
 
   return (
     <ToastContext.Provider value={{ toast: addToast }}>
@@ -86,5 +75,3 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     </ToastContext.Provider>
   )
 }
-
-export function useToast() { return useContext(ToastContext) }

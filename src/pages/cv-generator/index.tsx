@@ -192,7 +192,7 @@ ${background}`;
       title="CV & Lettre de motivation"
       description="Générez un CV professionnel complet et une lettre de motivation personnalisés pour une offre d'emploi."
     >
-      <PremiumGate featureName="CV & Cover Letter Generator">
+      <PremiumGate featureName="Générateur de CV & Lettre de motivation">
       <div className="space-y-6 max-w-3xl">
         {/* Language toggle */}
         <div className="flex items-center gap-2">

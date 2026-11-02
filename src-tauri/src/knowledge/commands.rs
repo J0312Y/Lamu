@@ -1,5 +1,6 @@
 use super::{crawler, db, embed, ingest, integrations, search, watcher};
 use crate::KbState;
+use base64::Engine as _;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -1111,6 +1112,91 @@ pub fn kb_export_csv(app: AppHandle) -> Result<String, String> {
     String::from_utf8(out).map_err(|e| format!("UTF-8 error: {}", e))
 }
 
+// ── Continuité KB desktop ↔ mobile : sync vers le cloud ─────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct KbCloudSyncResult {
+    pub synced: usize,
+    pub failed: usize,
+    pub total: usize,
+}
+
+/// Pousse tous les documents de la KB locale vers le backend cloud (`/api/kb/text`)
+/// afin qu'ils soient disponibles dans l'app mobile (qui lit la même KB backend).
+/// Le texte de chaque document est réassemblé depuis ses chunks. Sens unique
+/// (desktop → cloud). Le backend tronque à ~12000 caractères par document.
+#[tauri::command]
+pub async fn kb_sync_to_cloud(app: AppHandle) -> Result<KbCloudSyncResult, String> {
+    // 1) Lecture SQLite + réassemblage du texte — entièrement terminé avant tout `await`
+    //    (aucun type rusqlite conservé à travers un point d'attente).
+    let db_path = get_db_path(&app)?;
+    let docs: Vec<(String, String)> = {
+        let conn = db::open(&db_path).map_err(|e| format!("DB error: {}", e))?;
+        let ids: Vec<(String, String)> = {
+            let mut stmt = conn
+                .prepare("SELECT id, name FROM kb_documents ORDER BY created_at DESC")
+                .map_err(|e| format!("Query error: {}", e))?;
+            let rows: Vec<(String, String)> = stmt
+                .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                .map_err(|e| format!("Query error: {}", e))?
+                .filter_map(|r| r.ok())
+                .collect();
+            rows
+        };
+        let mut out = Vec::new();
+        for (id, name) in ids {
+            let mut cstmt = conn
+                .prepare("SELECT content FROM kb_chunks WHERE document_id = ?1 ORDER BY chunk_index ASC")
+                .map_err(|e| format!("Query error: {}", e))?;
+            let text = cstmt
+                .query_map(params![id], |r| r.get::<_, String>(0))
+                .map_err(|e| format!("Query error: {}", e))?
+                .filter_map(|r| r.ok())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            if !text.trim().is_empty() {
+                out.push((name, text));
+            }
+        }
+        out
+    };
+
+    let total = docs.len();
+    if total == 0 {
+        return Ok(KbCloudSyncResult { synced: 0, failed: 0, total: 0 });
+    }
+
+    // 2) Envoi de chaque document au backend.
+    let url = format!("{}/api/kb/text", crate::app_config::lamu_api_url());
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("HTTP client error: {}", e))?;
+    // En prod, le backend exige une clé (API_ACCESS_KEY). Fournie au build via
+    // LAMU_API_ACCESS_KEY ; en dev (clé backend non définie) l'accès est ouvert.
+    let access_key = option_env!("LAMU_API_ACCESS_KEY");
+
+    let mut synced = 0usize;
+    let mut failed = 0usize;
+    for (name, text) in docs {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
+        let mut req = client.post(&url).json(&serde_json::json!({
+            "name": name,
+            "content": b64,
+            "type": "text",
+        }));
+        if let Some(key) = access_key {
+            req = req.header("Authorization", format!("Bearer {}", key));
+        }
+        match req.send().await {
+            Ok(resp) if resp.status().is_success() => synced += 1,
+            _ => failed += 1,
+        }
+    }
+
+    Ok(KbCloudSyncResult { synced, failed, total })
+}
+
 // ── Phase 4: Per-document access control ─────────────────────────────────────
 
 /// Set the access level for a document.
@@ -1714,6 +1800,8 @@ pub async fn kb_shopify_update_product(app: AppHandle, integration_id: String, p
 // ── Database commands ─────────────────────────────────────────────────────────
 
 /// Add a SQL database integration (PostgreSQL or MySQL).
+/// If `dbname` is empty or "*", connects in SERVER MODE — manages all databases on the server.
+/// If `dbname` is a specific name, connects to that single database only.
 #[tauri::command]
 pub async fn kb_add_database(
     app: AppHandle,
@@ -1721,19 +1809,21 @@ pub async fn kb_add_database(
     alias: String,
     host: String,
     port: u64,
-    dbname: String,
+    dbname: String,     // empty or "*" = server mode (all databases)
     username: String,
     password: String,
     ssl: bool,
 ) -> Result<bool, String> {
+    let is_server = dbname.is_empty() || dbname == "*";
     let config = serde_json::json!({
         "db_type": db_type,
         "alias": alias,
         "host": host,
         "port": port,
-        "dbname": dbname,
+        "dbname": if is_server { "" } else { dbname.as_str() },
         "username": username,
         "ssl": ssl,
+        "server_mode": is_server,
     });
 
     // Test connectivity
@@ -1742,15 +1832,19 @@ pub async fn kb_add_database(
     let db_path = get_db_path(&app)?;
     let conn = db::open(&db_path).map_err(|e| e.to_string())?;
     let id = Uuid::new_v4().to_string();
-    // TODO: migrate to tauri-plugin-keychain for proper credential storage
     let obfuscated_pw = obfuscate_token(&password);
+    let display_name = if is_server {
+        format!("{} (Serveur {}:{})", alias, host, port)
+    } else {
+        format!("{} ({})", alias, dbname)
+    };
     conn.execute(
         "INSERT INTO kb_integrations (id, provider, name, access_token, config, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             id,
             db_type,
-            format!("{} ({})", alias, dbname),
+            display_name,
             obfuscated_pw,
             config.to_string(),
             now_ms(),
@@ -1780,6 +1874,76 @@ pub async fn kb_database_query(
 ) -> Result<String, String> {
     let (password, config) = get_db_config(&app, &integration_id)?;
     integrations::database::execute_query(&password, &config, &sql, allow_write).await
+}
+
+/// List all databases on the server.
+#[tauri::command]
+pub async fn kb_database_list_databases(
+    app: AppHandle,
+    integration_id: String,
+) -> Result<Vec<String>, String> {
+    let (password, config) = get_db_config(&app, &integration_id)?;
+    integrations::database::list_databases(&password, &config).await
+}
+
+/// Switch to a different database on the same server.
+#[tauri::command]
+pub async fn kb_database_switch(
+    app: AppHandle,
+    integration_id: String,
+    new_dbname: String,
+) -> Result<bool, String> {
+    let (password, config) = get_db_config(&app, &integration_id)?;
+    let new_config = integrations::database::switch_database(&config, &new_dbname);
+
+    // Test connectivity to the new database
+    integrations::database::verify(&password, &new_config).await?;
+
+    // Update the integration record
+    let db_path = get_db_path(&app)?;
+    let conn = db::open(&db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE kb_integrations SET config = ?1, name = ?2 WHERE id = ?3",
+        params![
+            new_config.to_string(),
+            format!("{} ({})", config["alias"].as_str().unwrap_or("DB").split('(').next().unwrap_or("DB").trim(), new_dbname),
+            integration_id,
+        ],
+    ).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+/// List tables with row counts.
+#[tauri::command]
+pub async fn kb_database_list_tables(
+    app: AppHandle,
+    integration_id: String,
+) -> Result<String, String> {
+    let (password, config) = get_db_config(&app, &integration_id)?;
+    integrations::database::list_tables(&password, &config).await
+}
+
+/// Describe a specific table (columns, indexes, row count).
+#[tauri::command]
+pub async fn kb_database_describe_table(
+    app: AppHandle,
+    integration_id: String,
+    table_name: String,
+) -> Result<String, String> {
+    let (password, config) = get_db_config(&app, &integration_id)?;
+    integrations::database::describe_table(&password, &config, &table_name).await
+}
+
+/// Execute a write query (INSERT/UPDATE/DELETE/CREATE/ALTER/DROP).
+/// This is a privileged operation — the frontend must confirm before calling.
+#[tauri::command]
+pub async fn kb_database_execute_write(
+    app: AppHandle,
+    integration_id: String,
+    sql: String,
+) -> Result<String, String> {
+    let (password, config) = get_db_config(&app, &integration_id)?;
+    integrations::database::execute_write(&password, &config, &sql).await
 }
 
 // ── Google Calendar ───────────────────────────────────────────────────────────

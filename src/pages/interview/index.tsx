@@ -71,50 +71,50 @@ interface SessionResult {
 
 const QUESTION_BANKS: Record<InterviewType, Question[]> = {
   behavioral: [
-    { id: "b1", text: "Tell me about a time you had to deal with a difficult team member. How did you handle it?", type: "behavioral", hint: "Use STAR method" },
-    { id: "b2", text: "Describe a situation where you had to meet a tight deadline. What did you do?", type: "behavioral", hint: "Focus on your actions" },
-    { id: "b3", text: "Give me an example of a time you failed. What did you learn from it?", type: "behavioral", hint: "Be honest, show growth" },
-    { id: "b4", text: "Tell me about a time you had to adapt quickly to a major change at work.", type: "behavioral" },
-    { id: "b5", text: "Describe a project you're most proud of and your specific contribution.", type: "behavioral" },
-    { id: "b6", text: "Tell me about a time you had to influence someone without direct authority.", type: "behavioral" },
+    { id: "b1", text: "Parlez-moi d'une situation où vous avez dû gérer un coéquipier difficile. Comment avez-vous géré cela ?", type: "behavioral", hint: "Utilisez la méthode STAR" },
+    { id: "b2", text: "Décrivez une situation où vous avez dû respecter un délai très serré. Qu'avez-vous fait ?", type: "behavioral", hint: "Concentrez-vous sur vos actions" },
+    { id: "b3", text: "Donnez-moi un exemple d'une fois où vous avez échoué. Qu'en avez-vous appris ?", type: "behavioral", hint: "Soyez honnête, montrez votre progression" },
+    { id: "b4", text: "Parlez-moi d'une fois où vous avez dû vous adapter rapidement à un changement majeur au travail.", type: "behavioral" },
+    { id: "b5", text: "Décrivez le projet dont vous êtes le plus fier et votre contribution spécifique.", type: "behavioral" },
+    { id: "b6", text: "Parlez-moi d'une fois où vous avez dû influencer quelqu'un sans autorité directe.", type: "behavioral" },
   ],
   technical: [
-    { id: "t1", text: "Explain the difference between a stack and a queue. When would you use each?", type: "technical" },
-    { id: "t2", text: "What is the difference between SQL and NoSQL databases? When would you choose one over the other?", type: "technical" },
-    { id: "t3", text: "Explain REST vs GraphQL. What are the trade-offs?", type: "technical" },
-    { id: "t4", text: "What is a race condition? How do you prevent it?", type: "technical" },
-    { id: "t5", text: "Explain the CAP theorem in distributed systems.", type: "technical" },
-    { id: "t6", text: "What is memoization and when should you use it?", type: "technical" },
+    { id: "t1", text: "Expliquez la différence entre une pile et une file d'attente. Dans quel cas utiliseriez-vous chacune ?", type: "technical" },
+    { id: "t2", text: "Quelle est la différence entre les bases de données SQL et NoSQL ? Dans quel cas choisiriez-vous l'une plutôt que l'autre ?", type: "technical" },
+    { id: "t3", text: "Expliquez REST vs GraphQL. Quels sont les compromis ?", type: "technical" },
+    { id: "t4", text: "Qu'est-ce qu'une condition de course ? Comment la prévenir ?", type: "technical" },
+    { id: "t5", text: "Expliquez le théorème CAP dans les systèmes distribués.", type: "technical" },
+    { id: "t6", text: "Qu'est-ce que la mémoïsation et quand doit-on l'utiliser ?", type: "technical" },
   ],
   "system-design": [
-    { id: "sd1", text: "Design a URL shortener like bit.ly. Walk me through your architecture.", type: "system-design", hint: "Cover: API, storage, scaling, cache" },
-    { id: "sd2", text: "How would you design a real-time chat system like WhatsApp?", type: "system-design" },
-    { id: "sd3", text: "Design a rate limiter for an API. What algorithms would you consider?", type: "system-design" },
-    { id: "sd4", text: "How would you design a notification system that handles millions of users?", type: "system-design" },
-    { id: "sd5", text: "Design a search autocomplete system.", type: "system-design" },
+    { id: "sd1", text: "Concevez un raccourcisseur d'URL comme bit.ly. Expliquez-moi votre architecture.", type: "system-design", hint: "Couvrir : API, stockage, mise à l'échelle, cache" },
+    { id: "sd2", text: "Comment concevriez-vous un système de messagerie en temps réel comme WhatsApp ?", type: "system-design" },
+    { id: "sd3", text: "Concevez un limiteur de débit pour une API. Quels algorithmes envisageriez-vous ?", type: "system-design" },
+    { id: "sd4", text: "Comment concevriez-vous un système de notifications gérant des millions d'utilisateurs ?", type: "system-design" },
+    { id: "sd5", text: "Concevez un système d'autocomplétion pour la recherche.", type: "system-design" },
   ],
   coding: [
-    { id: "c1", text: "Given an array of integers, find the two numbers that add up to a target sum. Return their indices.", type: "coding", hint: "Think about time/space trade-off" },
-    { id: "c2", text: "Reverse a linked list in-place. What is the time and space complexity?", type: "coding" },
-    { id: "c3", text: "Write a function to check if a string is a valid palindrome, ignoring non-alphanumeric characters.", type: "coding" },
-    { id: "c4", text: "Find the maximum subarray sum (Kadane's algorithm).", type: "coding" },
-    { id: "c5", text: "Implement a function to check if two strings are anagrams of each other.", type: "coding" },
+    { id: "c1", text: "Étant donné un tableau d'entiers, trouvez les deux nombres dont la somme est égale à une cible donnée. Retournez leurs indices.", type: "coding", hint: "Réfléchissez au compromis temps/espace" },
+    { id: "c2", text: "Inversez une liste chaînée en place. Quelle est la complexité temporelle et spatiale ?", type: "coding" },
+    { id: "c3", text: "Écrivez une fonction pour vérifier si une chaîne est un palindrome valide, en ignorant les caractères non alphanumériques.", type: "coding" },
+    { id: "c4", text: "Trouvez la somme maximale d'un sous-tableau (algorithme de Kadane).", type: "coding" },
+    { id: "c5", text: "Implémentez une fonction pour vérifier si deux chaînes sont des anagrammes l'une de l'autre.", type: "coding" },
   ],
 };
 
 const TYPE_LABELS: Record<InterviewType, string> = {
-  behavioral: "Behavioral",
-  technical: "Technical",
-  "system-design": "System Design",
-  coding: "Coding",
+  behavioral: "Comportemental",
+  technical: "Technique",
+  "system-design": "Conception système",
+  coding: "Programmation",
 };
 
 const ROLE_LABELS: Record<InterviewRole, string> = {
-  "software-engineer": "Software Engineer",
-  "product-manager": "Product Manager",
-  "data-scientist": "Data Scientist",
+  "software-engineer": "Ingénieur logiciel",
+  "product-manager": "Chef de produit",
+  "data-scientist": "Scientifique des données",
   designer: "Designer",
-  other: "Other",
+  other: "Autre",
 };
 
 const SCORING_PROMPT = (role: string, type: string, question: string, answer: string) => `
@@ -257,7 +257,7 @@ export default function InterviewPrepPage() {
         improvements: Array.isArray(json.improvements) ? json.improvements : [],
       };
     } catch {
-      return { questionId: question.id, score: 0, clarity: 0, relevance: 0, structure: 0, feedback: "Scoring failed.", strengths: [], improvements: [] };
+      return { questionId: question.id, score: 0, clarity: 0, relevance: 0, structure: 0, feedback: "Évaluation échouée.", strengths: [], improvements: [] };
     }
   }, [interviewRole, interviewType, allAiProviders, selectedAIProvider]);
 
@@ -311,15 +311,15 @@ export default function InterviewPrepPage() {
     return (
       <div className="flex flex-col gap-6 max-w-2xl mx-auto">
         <div>
-          <h1 className="text-xl font-semibold">Interview Prep</h1>
+          <h1 className="text-xl font-semibold">Préparation à l'entretien</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Practice with AI-generated questions and get instant feedback on your answers.
+            Entraînez-vous avec des questions générées par l'IA et obtenez un retour instantané sur vos réponses.
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Interview Type</label>
+            <label className="text-sm font-medium">Type d'entretien</label>
             <Select value={interviewType} onValueChange={(v) => setInterviewType(v as InterviewType)}>
               <SelectTrigger>
                 <SelectValue />
@@ -332,7 +332,7 @@ export default function InterviewPrepPage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Target Role</label>
+            <label className="text-sm font-medium">Poste visé</label>
             <Select value={interviewRole} onValueChange={(v) => setInterviewRole(v as InterviewRole)}>
               <SelectTrigger>
                 <SelectValue />
@@ -345,14 +345,14 @@ export default function InterviewPrepPage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Number of questions</label>
+            <label className="text-sm font-medium">Nombre de questions</label>
             <Select value={String(questionCount)} onValueChange={(v) => setQuestionCount(Number(v))}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {[3, 5, 7, 10].map((n) => (
-                  <SelectItem key={n} value={String(n)}>{n} questions</SelectItem>
+                  <SelectItem key={n} value={String(n)}>{n} question{n > 1 ? "s" : ""}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -361,7 +361,7 @@ export default function InterviewPrepPage() {
 
         <Button onClick={startSession} className="w-full gap-2">
           <PlayIcon className="w-4 h-4" />
-          Start Session
+          Démarrer la session
         </Button>
 
         {/* Past sessions */}
@@ -372,7 +372,7 @@ export default function InterviewPrepPage() {
               className="text-sm font-medium text-muted-foreground hover:text-foreground flex items-center gap-1"
             >
               <ChevronRightIcon className={cn("w-4 h-4 transition-transform", showHistory && "rotate-90")} />
-              Past sessions ({pastSessions.length})
+              Sessions passées ({pastSessions.length})
             </button>
             {showHistory && (
               <div className="space-y-2">
@@ -407,11 +407,11 @@ export default function InterviewPrepPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xs text-muted-foreground">Question {currentIdx + 1} of {questions.length}</span>
+            <span className="text-xs text-muted-foreground">Question {currentIdx + 1} sur {questions.length}</span>
             <Badge variant="outline" className="ml-2 text-xs">{TYPE_LABELS[interviewType]}</Badge>
           </div>
           <Button size="sm" variant="ghost" onClick={() => setPhase("setup")}>
-            <RotateCcwIcon className="w-3 h-3 mr-1" /> Restart
+            <RotateCcwIcon className="w-3 h-3 mr-1" /> Recommencer
           </Button>
         </div>
 
@@ -421,7 +421,7 @@ export default function InterviewPrepPage() {
         <div className="p-5 rounded-xl border bg-card space-y-3">
           <p className="text-base font-medium leading-relaxed">{q.text}</p>
           {q.hint && (
-            <p className="text-xs text-muted-foreground italic">💡 Hint: {q.hint}</p>
+            <p className="text-xs text-muted-foreground italic">💡 Conseil : {q.hint}</p>
           )}
         </div>
 
@@ -429,7 +429,7 @@ export default function InterviewPrepPage() {
         <div className="space-y-3">
           <textarea
             className="w-full min-h-32 p-3 rounded-lg border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-            placeholder="Type your answer here, or use the mic button below to speak..."
+            placeholder="Tapez votre réponse ici, ou utilisez le bouton micro ci-dessous pour parler..."
             value={currentAnswer}
             onChange={(e) => setCurrentAnswer(e.target.value)}
             disabled={isRecording || isScoring}
@@ -444,7 +444,7 @@ export default function InterviewPrepPage() {
               className="gap-2"
             >
               {isRecording ? <MicOffIcon className="w-4 h-4 animate-pulse" /> : <MicIcon className="w-4 h-4" />}
-              {isRecording ? "Stop recording" : "Record answer"}
+              {isRecording ? "Arrêter l'enregistrement" : "Enregistrer la réponse"}
             </Button>
 
             <Button
@@ -454,15 +454,15 @@ export default function InterviewPrepPage() {
             >
               {isScoring ? (
                 <>
-                  <ClockIcon className="w-4 h-4 animate-spin" /> Scoring...
+                  <ClockIcon className="w-4 h-4 animate-spin" /> Évaluation...
                 </>
               ) : currentIdx + 1 >= questions.length ? (
                 <>
-                  <CheckCircleIcon className="w-4 h-4" /> Finish
+                  <CheckCircleIcon className="w-4 h-4" /> Terminer
                 </>
               ) : (
                 <>
-                  Next <ChevronRightIcon className="w-4 h-4" />
+                  Suivant <ChevronRightIcon className="w-4 h-4" />
                 </>
               )}
             </Button>
@@ -472,7 +472,7 @@ export default function InterviewPrepPage() {
         {/* Previous scores (folded) */}
         {scores.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground uppercase">Previous answers</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase">Réponses précédentes</p>
             {scores.map((s, i) => (
               <div key={s.questionId} className={cn("p-3 rounded-lg border text-xs flex items-start gap-3", scoreBg(s.score))}>
                 <span className={cn("font-bold text-sm shrink-0", scoreColor(s.score))}>{s.score}/10</span>
@@ -495,7 +495,7 @@ export default function InterviewPrepPage() {
     : 0;
 
   return (
-    <PremiumGate featureName="Interview Prep">
+    <PremiumGate featureName="Préparation à l'entretien">
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
       {/* Score header */}
       <div className={cn("p-6 rounded-xl border text-center space-y-2", scoreBg(overallScore))}>
@@ -505,10 +505,10 @@ export default function InterviewPrepPage() {
           <span className="text-muted-foreground text-lg">/10</span>
         </h2>
         <p className="text-sm text-muted-foreground">
-          {overallScore >= 8 ? "Excellent performance! 🎉" : overallScore >= 6 ? "Good job, keep practicing!" : "Keep practicing — you've got this!"}
+          {overallScore >= 8 ? "Excellente performance ! 🎉" : overallScore >= 6 ? "Bon travail, continuez à vous entraîner !" : "Continuez à vous entraîner — vous y arriverez !"}
         </p>
         <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground pt-1">
-          <span>{questions.length} questions</span>
+          <span>{questions.length} question{questions.length > 1 ? "s" : ""}</span>
           <span>{TYPE_LABELS[interviewType]}</span>
           <span>{ROLE_LABELS[interviewRole]}</span>
         </div>
@@ -527,8 +527,8 @@ export default function InterviewPrepPage() {
               {/* Sub-scores */}
               <div className="grid grid-cols-3 gap-2 text-xs">
                 {[
-                  { label: "Clarity", val: s.clarity },
-                  { label: "Relevance", val: s.relevance },
+                  { label: "Clarté", val: s.clarity },
+                  { label: "Pertinence", val: s.relevance },
                   { label: "Structure", val: s.structure },
                 ].map(({ label, val }) => (
                   <div key={label} className="space-y-1">
@@ -545,7 +545,7 @@ export default function InterviewPrepPage() {
 
               {s.strengths.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-green-700">✓ Strengths</p>
+                  <p className="text-xs font-medium text-green-700">✓ Points forts</p>
                   {s.strengths.map((st, j) => (
                     <p key={j} className="text-xs text-muted-foreground ml-3">• {st}</p>
                   ))}
@@ -553,7 +553,7 @@ export default function InterviewPrepPage() {
               )}
               {s.improvements.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-amber-700">↑ Improve</p>
+                  <p className="text-xs font-medium text-amber-700">↑ À améliorer</p>
                   {s.improvements.map((im, j) => (
                     <p key={j} className="text-xs text-muted-foreground ml-3">• {im}</p>
                   ))}
@@ -566,7 +566,7 @@ export default function InterviewPrepPage() {
 
       <div className="flex gap-3">
         <Button variant="outline" onClick={() => setPhase("setup")} className="flex-1 gap-2">
-          <RotateCcwIcon className="w-4 h-4" /> New Session
+          <RotateCcwIcon className="w-4 h-4" /> Nouvelle session
         </Button>
         <Button
           onClick={() => {
@@ -580,7 +580,7 @@ export default function InterviewPrepPage() {
           }}
           className="flex-1 gap-2"
         >
-          <StarIcon className="w-4 h-4" /> Retry Same Questions
+          <StarIcon className="w-4 h-4" /> Recommencer les mêmes questions
         </Button>
       </div>
     </div>

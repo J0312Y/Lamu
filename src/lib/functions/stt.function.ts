@@ -29,11 +29,11 @@ async function fetchLamuSTT(audio: File | Blob, language?: string): Promise<stri
     if (response.success && response.transcription) {
       return response.transcription;
     } else {
-      return response.error || "Transcription failed";
+      throw new Error(response.error || "Transcription failed");
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return `Lamu STT Error: ${errorMessage}`;
+    if (error instanceof Error) throw error;
+    throw new Error(String(error));
   }
 }
 

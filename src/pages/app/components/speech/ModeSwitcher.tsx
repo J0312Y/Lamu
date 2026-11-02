@@ -32,9 +32,9 @@ export const ModeSwitcher = ({
       >
         <AudioWaveformIcon className="w-4 h-4 flex-shrink-0" />
         <div className="flex flex-col items-start">
-          <span className="text-xs font-medium leading-tight">Auto-detect</span>
+          <span className="text-xs font-medium leading-tight">Auto-détection</span>
           <span className="text-[9px] font-normal opacity-60 leading-tight">
-            (voice activity)
+            (activité vocale)
           </span>
         </div>
       </button>
@@ -51,9 +51,9 @@ export const ModeSwitcher = ({
       >
         <MicIcon className="w-4 h-4 flex-shrink-0" />
         <div className="flex flex-col items-start">
-          <span className="text-xs font-medium leading-tight">Manual</span>
+          <span className="text-xs font-medium leading-tight">Manuel</span>
           <span className="text-[9px] font-normal opacity-60 leading-tight">
-            (press to record)
+            (appuyer pour enregistrer)
           </span>
         </div>
       </button>

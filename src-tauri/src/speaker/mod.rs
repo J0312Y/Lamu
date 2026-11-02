@@ -20,6 +20,8 @@ use linux::{SpeakerInput as PlatformSpeakerInput, SpeakerStream as PlatformSpeak
 
 mod commands;
 pub(crate) mod mic;
+pub(crate) mod noise_gate;
+pub(crate) mod audio_processor;
 
 // Re-export commands for tauri handler
 pub use commands::*;

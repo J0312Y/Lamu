@@ -1,5 +1,7 @@
 // Lamu AI Speech Detection, and capture system audio (speaker output) as a stream of f32 samples.
 use crate::speaker::{AudioDevice, SpeakerInput};
+use crate::speaker::noise_gate::SpectralNoiseGate;
+use crate::speaker::audio_processor;
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use futures_util::StreamExt;
@@ -152,6 +154,8 @@ async fn run_vad_capture(
     // Streaming transcription: emit a WAV snapshot every 2s while in_speech
     let mut last_chunk_emit = Instant::now();
 
+    // Spectral noise gate for noise cancellation
+    let mut noise_gate = SpectralNoiseGate::new(sr);
     while let Some(sample) = stream.next().await {
         buffer.push_back(sample);
 
@@ -164,8 +168,11 @@ async fn run_vad_capture(
                 }
             }
 
-            // Apply noise gate BEFORE VAD (critical for accuracy)
+            // Apply simple noise gate BEFORE VAD (critical for accuracy)
             let mono = apply_noise_gate(&mono, config.noise_gate_threshold);
+
+            // Apply spectral noise cancellation for cleaner audio
+            let mono = noise_gate.process(&mono);
 
             let (rms, peak) = calculate_audio_metrics(&mono);
             let is_speech = rms > config.sensitivity_rms || peak > config.peak_threshold;
@@ -201,6 +208,9 @@ async fn run_vad_capture(
 
                 // Safety cap: force emit if exceeds 30s
                 if speech_buffer.len() > max_samples {
+                    // Apply audio processing: pitch smoothing + gain normalization
+                    audio_processor::smooth_pitch(&mut speech_buffer, 64);
+                    audio_processor::adaptive_gain_normalize(&mut speech_buffer, sr, 0.1);
                     let normalized_buffer = normalize_audio_level(&speech_buffer, 0.1);
                     if let Ok(b64) = samples_to_wav_b64(sr, &normalized_buffer) {
                         // let duration = speech_buffer.len() as f32 / sr as f32;
@@ -234,7 +244,9 @@ async fn run_vad_capture(
                                 speech_buffer.truncate(speech_buffer.len() - trim_amount);
                             }
 
-                            // Emit complete speech segment
+                            // Emit complete speech segment — apply audio processing
+                            audio_processor::smooth_pitch(&mut speech_buffer, 64);
+                            audio_processor::adaptive_gain_normalize(&mut speech_buffer, sr, 0.1);
                             let normalized_buffer = normalize_audio_level(&speech_buffer, 0.1);
                             if let Ok(b64) = samples_to_wav_b64(sr, &normalized_buffer) {
                                 // let duration = speech_buffer.len() as f32 / sr as f32;

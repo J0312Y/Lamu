@@ -28,11 +28,13 @@ pub async fn send_email(
     .map_err(|e| format!("Adresse expéditeur invalide: {}", e))?;
 
     let to_mailbox: Mailbox = if to_name.is_empty() {
-        to_email.parse().map_err(|e| format!("Adresse destinataire invalide: {}", e))?
+        to_email.trim().parse().map_err(|e| format!("Adresse destinataire invalide: {}", e))?
     } else {
-        format!("{} <{}>", to_name.trim(), to_email.trim())
-            .parse()
-            .map_err(|e| format!("Adresse destinataire invalide: {}", e))?
+        // Try with display name first, fall back to email-only if name causes parse error
+        match format!("{} <{}>", to_name.trim(), to_email.trim()).parse() {
+            Ok(m) => m,
+            Err(_) => to_email.trim().parse().map_err(|e| format!("Adresse destinataire invalide: {}", e))?,
+        }
     };
 
     let email = Message::builder()

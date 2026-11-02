@@ -22,8 +22,8 @@ export const ConversationSync = () => {
   return (
     <div className="space-y-2">
       <Header
-        title="Sync Conversations"
-        description="Optionally send your conversation history to the admin dashboard for visibility and support"
+        title="Synchronisation des conversations"
+        description="Envoyez optionnellement votre historique de conversations au tableau de bord administrateur pour suivi et support"
         isMainTitle
       />
 
@@ -31,28 +31,28 @@ export const ConversationSync = () => {
         <div className="flex items-center space-x-3">
           <div>
             <Label className="text-sm font-medium">
-              {syncEnabled ? "Sync enabled" : "Sync disabled"}
+              {syncEnabled ? "Synchronisation activée" : "Synchronisation désactivée"}
             </Label>
             <p className="text-xs text-muted-foreground mt-1">
               {syncEnabled
-                ? "Your conversations are being synced to the dashboard"
-                : "Conversations are stored locally only"}
+                ? "Vos conversations sont synchronisées avec le tableau de bord"
+                : "Les conversations sont stockées localement uniquement"}
             </p>
           </div>
         </div>
         <Switch
           checked={syncEnabled}
           onCheckedChange={handleToggle}
-          aria-label="Toggle conversation sync"
+          aria-label="Basculer la synchronisation des conversations"
         />
       </div>
 
       {/* Privacy notice */}
       <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
-        <strong className="text-foreground">Privacy notice</strong> — when
-        enabled, your conversation messages (text only, no attached files) are
-        sent to the Lamu backend. They are visible only to the admin. You can
-        disable sync at any time and your local data is never deleted.
+        <strong className="text-foreground">Avis de confidentialité</strong> — lorsqu'elle
+        est activée, vos messages de conversation (texte uniquement, sans fichiers joints) sont
+        envoyés au serveur Lamu. Ils sont visibles uniquement par l'administrateur. Vous pouvez
+        désactiver la synchronisation à tout moment et vos données locales ne sont jamais supprimées.
       </div>
 
       {/* Consent modal */}
@@ -81,7 +81,7 @@ export const ConversationSync = () => {
             }}
           >
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
-              Enable Conversation Sync?
+              Activer la synchronisation ?
             </div>
             <p
               style={{
@@ -91,14 +91,14 @@ export const ConversationSync = () => {
                 marginBottom: 20,
               }}
             >
-              By enabling sync, your conversation messages (text only) will be
-              sent to the Lamu backend server and stored in the admin database.
-              This data is accessible only to the admin and is used to provide
-              support and visibility.
+              En activant la synchronisation, vos messages de conversation (texte uniquement) seront
+              envoyés au serveur Lamu et stockés dans la base de données administrateur.
+              Ces données sont accessibles uniquement par l'administrateur et servent à fournir
+              du support et de la visibilité.
               <br />
               <br />
-              You can disable sync at any time from Settings. No attached files
-              (images, documents) are ever synced.
+              Vous pouvez désactiver la synchronisation à tout moment depuis les Paramètres. Aucun
+              fichier joint (images, documents) n'est jamais synchronisé.
             </p>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <button
@@ -113,7 +113,7 @@ export const ConversationSync = () => {
                   color: "hsl(var(--foreground))",
                 }}
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={handleAccept}
@@ -128,7 +128,7 @@ export const ConversationSync = () => {
                   fontWeight: 600,
                 }}
               >
-                I agree — Enable Sync
+                J'accepte — Activer la sync
               </button>
             </div>
           </div>
